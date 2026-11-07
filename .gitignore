@@ -1,0 +1,11 @@
+# Never commit camera captures or other photos/videos of people.
+*.jpg
+*.jpeg
+*.png
+*.heic
+*.mp4
+*.mov
+evidence/
+__pycache__/
+.pytest_cache/
+.venv/

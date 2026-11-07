@@ -1,2 +1,7 @@
 pytest
 networkx
+fastapi
+uvicorn
+httpx
+numpy
+opencv-python-headless
