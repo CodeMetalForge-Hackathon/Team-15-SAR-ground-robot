@@ -19,12 +19,16 @@ echo "== 1/5 Environment"
 cat "$E/environment.txt"
 
 echo "== 2/5 Native macOS tests (pytest 8.3.4 in a venv outside the repo)"
-V="$HOME/.olf-c3-venv"; PY="$V/bin/python"
-[ -x "$V/bin/python" ] || step python3 -m venv "$V"
-step "$V/bin/python" -m pip install -q pytest==8.3.4 > "$E/pip.log" 2>&1 || echo "WARNING: pip failed (see pip.log)"
-step "$V/bin/python" -B -m pytest -v -p no:cacheprovider tests > "$E/pytest_native_macos.log" 2>&1
+BASE=""; for c in python3.13 python3.12 python3.11 python3.10; do command -v "$c" >/dev/null && { BASE=$(command -v "$c"); break; }; done
+[ -n "$BASE" ] || BASE=$(command -v python3)            # stable release preferred over pre-releases
+V="$HOME/.olf-c3-venv-$(basename "$BASE")"; PY="$V/bin/python"
+echo "base python: $BASE ($("$BASE" --version 2>&1))" | tee -a "$E/environment.txt"
+[ -x "$PY" ] || step "$BASE" -m venv "$V"
+"$PY" -m pip --version >/dev/null 2>&1 || step "$PY" -m ensurepip --upgrade > "$E/ensurepip.log" 2>&1
+step "$PY" -m pip install -q pytest==8.3.4 > "$E/pip.log" 2>&1 || { echo "ERROR: could not install pytest (see pip.log)"; exit 6; }
+step "$PY" -B -m pytest -v -p no:cacheprovider tests > "$E/pytest_native_macos.log" 2>&1
 echo "pytest exit=$?: $(tail -1 "$E/pytest_native_macos.log")"
-step "$V/bin/python" -B -m unittest discover -s tests -p test_discovery.py -v > "$E/discovery_unittest_macos.log" 2>&1
+step "$PY" -B -m unittest discover -s tests -p test_discovery.py -v > "$E/discovery_unittest_macos.log" 2>&1
 echo "discovery unittest exit=$?: $(tail -1 "$E/discovery_unittest_macos.log")"
 command -v node >/dev/null && { step node --check discovery/static/app.js && step node --check discovery/static/beacons.js && echo "JS syntax OK"; }
 
@@ -36,6 +40,7 @@ if [ -z "$PORT" ]; then
 fi
 echo "port: $PORT" | tee "$E/receiver.txt"
 if lsof "$PORT" >/dev/null 2>&1; then echo "BUSY: $PORT is open by:"; lsof "$PORT" | tee -a "$E/receiver.txt"
+  ps -o pid,ppid,etime,command -p "$(lsof -t "$PORT" | paste -sd, -)" | tee -a "$E/receiver.txt"
   echo "Stop that reader (for example the plain discovery server, Ctrl+C in its Terminal), then rerun."; exit 4; fi
 if lsof -iTCP:8765 -sTCP:LISTEN >/dev/null 2>&1; then echo "BUSY: port 8765 is in use:"; lsof -iTCP:8765 -sTCP:LISTEN
   echo "Stop that server, then rerun."; exit 4; fi
