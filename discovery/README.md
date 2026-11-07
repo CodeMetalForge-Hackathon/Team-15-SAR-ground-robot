@@ -79,3 +79,32 @@ The tests exercise AD parsing, malformed input, session privacy, bounded
 history, expiry, missing heartbeats, HTTP serving and a real pseudo-terminal
 reader including fragmentation and disconnect. Test advertisements are
 synthetic fixtures only and never used by the dashboard runtime.
+
+## Authenticated beacon verification (optional, C3)
+
+The same single serial reader can also verify BLE-ID tokens. Verification is off
+unless you choose keys explicitly. Close any other server using the port first.
+
+```sh
+# Labelled experiment with the PUBLIC SYNTHETIC TEST KEYS (C1 iPhone app):
+python3 -m ble_id init-state --state ~/olf-testkey-state.json --scope TESTKEY-bench   # once
+python3 -m discovery.server --serial /dev/cu.usbmodem2101 \
+  --test-keys --state ~/olf-testkey-state.json --scope TESTKEY-bench
+
+# Production: keys.json (chmod 600, {"format": "olf-ble-id-keys/1", "scope": ..., "keys": {...}}).
+# Published synthetic keys are refused. Each mission gets its own state:
+python3 -m ble_id init-state --state ~/olf-MISSION-state.json --scope MISSION-NAME   # once
+python3 -m discovery.server --serial /dev/cu.usbmodem2101 \
+  --keys ~/olf-keys.json --state ~/olf-MISSION-state.json --scope MISSION-NAME
+
+# Software-only demo (SIMULATED, private pseudo-terminal, never opens hardware):
+python3 -m ble_sim serve --port 8766
+```
+
+The page's **Verified beacons** panel lists only tokens that passed the
+signature, window and replay checks and whose state was saved first. Replay,
+forged, unknown and malformed rows stay in the diagnostics drawer. A verified
+beacon isn't a location, a distance, or proof that a person is present.
+Missing, corrupt or wrong-scope state, a second process on the same state file,
+bad keys, an unset host clock, or a failed save stop verification visibly.
+Tests: `python3 -m pytest tests`. Evidence: `docs/ble-id/runs/c3-20261107T205707Z/`.

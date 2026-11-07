@@ -1,0 +1,12 @@
+CAUGHT  M1 skip HMAC tag check: 4 errors in 0.09s
+CAUGHT  M2 skip high-water (replay) check: 4 errors in 0.19s
+CAUGHT  M3 accept tokens two windows old: 4 errors in 0.08s
+CAUGHT  M4 accept tokens two windows ahead: 4 errors in 0.08s
+CAUGHT  M5 allow an exact duplicate: 4 errors in 0.08s
+CAUGHT  M6 mutate caller's state in place: 4 errors in 0.08s
+CAUGHT  M7 accept reserved alias 0: 4 errors in 0.08s
+CAUGHT  M8 state: ignore checksum: 4 errors in 0.08s
+CAUGHT  M9 state: treat missing file as empty: 4 errors in 0.08s
+CAUGHT  M10 state: init may overwrite existing: 4 errors in 0.08s
+
+10/10 mutants caught

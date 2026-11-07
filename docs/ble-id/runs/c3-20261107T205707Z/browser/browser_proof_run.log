@@ -1,0 +1,11 @@
+{
+ "SIMULATED banner visible": true,
+ "header never says LIVE for simulated data": true,
+ "card says AUTHENTICATED": true,
+ "API source SIMULATED": true,
+ "all outcome kinds seen": true,
+ "nearby signals stay UNVERIFIED": true,
+ "Apple hint shown as possible only": true,
+ "diagnostics list forged/replay/unknown/malformed": true,
+ "sighting kept through loss": true
+}
