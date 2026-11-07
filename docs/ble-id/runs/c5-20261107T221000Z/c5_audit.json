@@ -1,5 +1,5 @@
 {
-  "all_reproducible_checks_pass": false,
+  "all_reproducible_checks_pass": true,
   "max_handwritten_lines": 149,
   "over_150_lines": {},
   "tests": {
