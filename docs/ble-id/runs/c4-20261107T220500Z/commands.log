@@ -1,0 +1,8 @@
+$ /opt/homebrew/bin/python3.13 -B tools/c4/run_c4.py baseline docs/ble-id/runs/c4-20261107T220500Z
+exit=0
+$ PYTHONPATH=$GEMINI_WORKSPACE_DIR /opt/homebrew/bin/python3.13 -B -m pytest tests/test_ble_id_monitor.py tests/test_ble_keys.py tests/test_ble_state.py tests/test_ble_state_ownership.py tests/test_ble_verify_properties.py tests/test_ble_verify_vectors.py tests/test_repo_ignores.py tests/test_c4_analyze.py
+exit=0
+$ /opt/homebrew/bin/python3.13 -B -m unittest discover -s tools/c1 -p 'test_*.py' -v
+exit=0
+$ /opt/homebrew/bin/python3.13 -B tools/c4/c4_analyze.py docs/ble-id/runs/c4-20261107T220500Z
+exit=1 (expected: c4_hardware_complete=false because physical E2/E3/E4 captures are UNTESTED)
