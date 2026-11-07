@@ -1,7 +1,10 @@
-pytest
-networkx
-fastapi
-uvicorn
-httpx
-numpy
-opencv-python-headless
+# Pinned to the versions the bench Mac runs (CI failed on an unpinned opencv
+# build without cv2.HOGDescriptor).
+pytest==8.3.4
+networkx==3.4.2
+fastapi==0.115.6
+starlette==0.41.3
+uvicorn==0.34.0
+httpx==0.28.1
+numpy==2.1.3
+opencv-python-headless==4.13.0.92
