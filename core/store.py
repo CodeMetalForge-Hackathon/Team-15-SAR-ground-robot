@@ -24,7 +24,7 @@ import threading
 import time
 from pathlib import Path
 
-from contracts.pi_frame_stream import CAMERA_SOURCES
+from contracts.camera_provenance import camera_kind, camera_label, clock_label
 from core.ingest import normalise
 from planner.graph import TrailGraph, load_graph
 from planner.route import compute_route
@@ -68,18 +68,23 @@ CLOCK_SKEW_S = 2.0
 
 
 def _camera_view(cam: dict | None) -> dict:
-    """Which physical camera produced the sighting (evidence.camera)."""
-    if not cam:
-        return {"source": None, "label": "camera not reported", "transport": None,
-                "capture_clock": None, "rotation_deg": None, "host": None,
-                "frame_seq": None, "capture_to_rx_s": None}
-    return {"source": cam["source"],
-            "label": CAMERA_SOURCES.get(cam["source"], cam["source"]),
+    """Which physical camera produced the sighting (evidence.camera, see
+    contracts/camera_provenance.py). Fields are passed through, not invented."""
+    cam = cam or {}
+    return {"source": cam.get("source"),
+            "kind": camera_kind(cam) if cam else None,
+            "label": camera_label(cam or None),
+            "device": cam.get("device"),
+            "pi_model": cam.get("pi_model"),
+            "sensor_model": cam.get("sensor_model"),
             "transport": cam.get("transport"),
             "capture_clock": cam.get("capture_clock"),
+            "capture_clock_label": clock_label(cam.get("capture_clock")),
             "rotation_deg": cam.get("rotation_deg"),
-            "host": cam.get("host"),
-            "frame_seq": cam.get("frame_seq"),
+            "rotation_applied_by": cam.get("rotation_applied_by"),
+            "frame_seq": cam.get("pi_frame_seq"),
+            "stream_size": cam.get("stream_size"),
+            "camera_rx_time": cam.get("rx_time"),
             "capture_to_rx_s": cam.get("capture_to_rx_s")}
 
 

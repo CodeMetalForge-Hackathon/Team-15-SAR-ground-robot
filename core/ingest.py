@@ -12,8 +12,9 @@ import datetime as _dt
 import re
 import time
 
-from contracts.pi_frame_stream import (CAMERA_SOURCES, CAPTURE_CLOCKS, PI5_IMX708,
-                                       TRANSPORTS)
+from contracts.camera_provenance import (CAPTURE_TIME_TOLERANCE_S, LOCAL, LOCAL_CLOCKS,
+                                        LOCAL_TRANSPORTS, PI, PI_CLOCKS, PI_TRANSPORTS,
+                                        camera_kind)
 
 REQUIRED = ("obs_id", "drone_id", "source_mode", "sensor", "kind", "how", "cell", "obs_time")
 SOURCE_MODES = {"SIMULATED", "RECORDED-IMAGERY", "LIVE-HW"}
@@ -30,33 +31,41 @@ class InvalidObservation(ValueError):
     pass
 
 
-def _check_camera(obs: dict) -> None:
+def _check_camera(obs: dict, obs_time: float) -> None:
     """evidence.camera is optional; when present it must follow
-    contracts/PI_CAMERA_CONTRACT.md. Pi sightings are always bench, sector-only,
-    operator-assigned, with the Pi's sensor capture clock."""
+    contracts/camera_provenance.py. Pi sightings are always bench, sector-only,
+    operator-assigned, timed by the Pi, and obs_time IS the Pi capture time."""
     cam = (obs.get("evidence") or {}).get("camera")
     if cam is None:
         return
     if not isinstance(cam, dict):
         raise InvalidObservation("evidence.camera must be an object")
-    if cam.get("source") not in CAMERA_SOURCES:
+    kind = camera_kind(cam)
+    if kind == LOCAL:
+        if cam.get("transport") not in LOCAL_TRANSPORTS:
+            raise InvalidObservation(f"local camera transport {cam.get('transport')!r}")
+        if cam.get("capture_clock") not in LOCAL_CLOCKS:
+            raise InvalidObservation(f"local camera capture_clock {cam.get('capture_clock')!r}")
+        return
+    if kind != PI:
         raise InvalidObservation(f"unknown evidence.camera.source {cam.get('source')!r}")
-    if cam.get("transport") not in TRANSPORTS:
-        raise InvalidObservation(f"unknown evidence.camera.transport {cam.get('transport')!r}")
-    if cam.get("capture_clock") not in CAPTURE_CLOCKS:
-        raise InvalidObservation(f"unknown evidence.camera.capture_clock {cam.get('capture_clock')!r}")
-    if cam["source"] == PI5_IMX708:
-        need = {"source_mode": "LIVE-HW", "platform": "BENCH", "how": "SECTOR_ONLY",
-                "cell_source": "OPERATOR_ASSIGNED"}
-        bad = [f"{k}={obs.get(k)!r}" for k, v in need.items() if obs.get(k) != v]
-        if cam["capture_clock"] != "PI_SENSOR_TIMESTAMP_NTP":
-            bad.append(f"capture_clock={cam['capture_clock']!r}")
-        if cam.get("transport") != "JPEG_OVER_SSH_TAILSCALE":
-            bad.append(f"transport={cam.get('transport')!r}")
-        if bad:
-            raise InvalidObservation("Pi camera sighting must be LIVE-HW/BENCH/SECTOR_ONLY/"
-                                     "OPERATOR_ASSIGNED with the Pi capture clock; got "
-                                     + ", ".join(bad))
+    need = {"source_mode": "LIVE-HW", "platform": "BENCH", "how": "SECTOR_ONLY",
+            "cell_source": "OPERATOR_ASSIGNED"}
+    bad = [f"{k}={obs.get(k)!r}" for k, v in need.items() if obs.get(k) != v]
+    if cam.get("transport") not in PI_TRANSPORTS:
+        bad.append(f"transport={cam.get('transport')!r}")
+    if cam.get("capture_clock") not in PI_CLOCKS:
+        bad.append(f"capture_clock={cam.get('capture_clock')!r} (must be the Pi's clock)")
+    ct = cam.get("capture_time")
+    try:
+        ct = None if ct is None else float(ct)
+    except (TypeError, ValueError):
+        raise InvalidObservation("evidence.camera.capture_time must be a number") from None
+    if ct is not None and abs(ct - obs_time) > CAPTURE_TIME_TOLERANCE_S:
+        bad.append("obs_time is not the Pi capture time (evidence.camera.capture_time)")
+    if bad:
+        raise InvalidObservation("Pi camera sighting must be LIVE-HW/BENCH/SECTOR_ONLY/"
+                                 "OPERATOR_ASSIGNED, timed by the Pi; got " + ", ".join(bad))
 
 
 def normalise(obs: dict, *, known_cells, rx_time: float | None = None) -> dict:
@@ -103,7 +112,7 @@ def normalise(obs: dict, *, known_cells, rx_time: float | None = None) -> dict:
             raise InvalidObservation(f"obs_time_iso {iso!r} is not ISO-8601") from None
         if abs(iso_t - obs_time) > 1.0:
             raise InvalidObservation("obs_time_iso disagrees with obs_time")
-    _check_camera(obs)
+    _check_camera(obs, obs_time)
 
     out = dict(obs)
     out["obs_time"] = obs_time
