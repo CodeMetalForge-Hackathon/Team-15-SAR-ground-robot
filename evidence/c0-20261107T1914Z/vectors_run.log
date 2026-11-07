@@ -1,0 +1,13 @@
+captured_utc: 2026-11-07T19:23:48Z
+$ python3 -I gen_vectors.py protocol_vectors_v1.json
+wrote protocol_vectors_v1.json: 33 payloads, python hmac == openssl for all 16-byte tokens; N=59802572
+exit=0
+python: Python 3.10.12
+openssl: OpenSSL 3.0.2 15 Mar 2022 (Library: OpenSSL 3.0.2 15 Mar 2022)
+sha256: e4ee626e13c8bc7bdbad51bf928d2de0a75d7e9df61ac42f0a01aa68862a075b  protocol_vectors_v1.json 2c194930b874ce5f0140ea6dd983d8eff67072d451e1551f56fd74e22f8ad834  gen_vectors.py 
+
+# Shell-only cross-check of A1 (no Python): header 01 01 039083cc, key 00..1f
+$ printf 'OLF/BLE-ID/v1\x01\x01\x03\x90\x83\xcc' | openssl dgst -sha256 -mac HMAC -macopt hexkey:000102...1f | cut to 20 hex
+tag=c438cfa7043609b9d1c4
+A1 uuid tail from JSON: c438cfa7043609b9d1c4
+MATCH exit=0

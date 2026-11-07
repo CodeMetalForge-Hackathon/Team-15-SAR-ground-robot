@@ -25,19 +25,42 @@ following. Only **verified** decisions become observations:
 | --- | --- | --- |
 | `obs_id` | `{receiver_id}-{boot_id}-{seq:06d}` | (new) |
 | `drone_id` | `receiver_id`: alphanumeric only, e.g. `BLE1`. The field name is the team's; it identifies our receiver, not a drone. | `sensor="ble_id"` |
-| `boot_id` | Alphanumeric, unique per verifier process start, persisted with replay state so `obs_id` never repeats across restarts | (new) |
-| `seq` | Monotonic per boot, starting at 1. At 999999 the verifier stops posting and reports an error; it never wraps | (new) |
+| `boot_id` | A fresh random value generated at every process start: 8 lowercase hex characters from a CSPRNG (`secrets.token_hex(4)`). It is never persisted or reused, and it is logged at startup | (new) |
+| `seq` | Monotonic within one boot, starting at 1, and starting over with each new `boot_id`. At 999999 the verifier stops posting and reports an error; it never wraps | (new) |
 | `source_mode` / `platform` | `LIVE-HW` / `BENCH` in live mode; `SIMULATED` / `SIM` in sim mode | SIMULATED/LIVE banner |
 | `sensor` | `ble` | (new) |
 | `kind` | `BLE_ENROLLED_BEACON` (build plan §8.2) | `kind=verified` |
 | `how` | `SECTOR_ONLY` | (new) |
-| `cell` | Scanner's declared trail-map cell, A to Z. Required in live mode with no default. Sim fixtures declare it explicitly | `zone`, default "A" |
+| `cell` | The **receiver's declared location**: the trail-map cell, A to Z, where the operator says the scanner is placed. Required in live mode with no default. Sim fixtures declare it explicitly | `zone`, default "A" |
 | `obs_time` | Host reception time, float Unix epoch seconds. Not the token counter | `t` |
 | `confidence` | `null`. RSSI is not a confidence | (new) |
 | `evidence` | `{"rssi_dbm": <finite float>, "receiver": "<receiver_id>", "auth": "HMAC-v1 verified"}` | `value` |
 
-Alias, counter, tag, and key material are never placed in an observation.
-They stay in the module's decision log, as the base spec already requires.
+**The cell is not a survivor location.** An observation means "an enrolled
+phone was heard by the receiver declared at cell X at `obs_time`." It is never
+a measured or estimated position of a person. RSSI does not refine it.
+
+**Boot ID versus replay state.** These are separate on purpose. `boot_id` exists
+only to keep `obs_id` unique, and it is new on every start. Replay state (the
+per-alias high-water counters) is stored durably on its own, under the base
+spec's "Persist replay state" rules. It survives restarts and fails closed if
+lost or corrupt. A restart therefore keeps replay protection but always gets a
+new `boot_id`. Two random 32-bit boot IDs colliding is negligible over a
+mission; a collision would make the store treat a post as a duplicate, which
+loses that one observation but never forges one.
+
+**Secret keys are never written outside their key stores.** That covers the
+iOS Keychain and the ignored, permission-restricted `keys.json`. Key bytes, and
+anything derived from them other than the 80-bit tag, must never appear in:
+- observations
+- decision logs, console or serial output, or error messages
+- evidence, reports, test fixtures, or video
+
+The decision log may record alias, counter, truncated tag, decision, and reason
+for diagnostics. Those never go into an observation. Evidence and tests use
+only the PUBLIC SYNTHETIC TEST KEYS in
+`evidence/c0-20261107T1914Z/protocol_vectors_v1.json`. Those keys must never be
+enrolled, and the verifier refuses to load any key equal to one of them.
 
 ## A2. Non-verified decisions are not posted
 
@@ -66,6 +89,17 @@ other three.
   either POSTs or writes JSONL loadable with
   `python3 -m dashboard.serve --observation <file>`.
 - Replaces "Wire only the existing get_sensors registry". There is no registry.
+
+**What "offline" means here.** At runtime, offline means no internet, cellular,
+GPS, cloud service, or remote DNS. It does not forbid a local connection to the
+team dashboard. The verifier host may POST to the dashboard on the same machine
+over loopback (`127.0.0.1`, the default), or on the team's local wired network
+(for example, Mac and Pi on the Ethernet switch). Neither needs internet access.
+Proposed safeguard: the adapter refuses a `--post` URL whose host is not
+loopback, a private or link-local address, or a `.local` name.
+
+The ESP32 stays passive, as before. The serial-to-HTTP hop happens on the host,
+never on the scanner, and the scanner still makes no Wi-Fi transmissions.
 
 ## A4. Requests to other owners (we do not edit their files)
 
@@ -117,8 +151,22 @@ honest-claims language are all unchanged. Duplicates within a window remain
 dashboard never deletes tracks (probe P8), so a duplicate can't erase a prior
 verified sighting.
 
+## A8. Protocol vectors are the fixed reference
+
+C2 tests load `evidence/c0-20261107T1914Z/protocol_vectors_v1.json` unchanged
+(SHA-256 recorded in that run's `vectors_run.log`). If the file is copied into
+the test tree, the copy must keep that checksum. One interpretation is flagged
+there for acceptance: alias 0 is treated as malformed, so it is dropped (vector
+A9). The base spec reserves alias 0 but doesn't classify it. Reason labels
+`stale`, `future`, `duplicate`, and `not_newer` are proposed diagnostics.
+
 ## Decision needed from the user
 
-Accept, edit, or reject A1 to A6. Get answers from teammates on R1 and R7.
-After that: finish C0 (protocol vectors with synthetic keys, experiment plan),
-then authorize C1 separately.
+Accept, edit, or reject A1 to A8. Get answers from teammates on R1 and R7.
+Questions for the dashboard and BLE owners are drafted in
+`evidence/c0-20261107T1914Z/OWNER_QUESTIONS.md`, and have not been sent. C1
+needs separate authorization.
+
+Revision history: r1 (31600f1) initial proposal. r2: secret keys never logged;
+cell is the receiver's declared location; fresh boot ID per start with separate
+durable replay state; offline permits a local dashboard link; vectors (A8).
