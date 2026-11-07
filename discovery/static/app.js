@@ -39,8 +39,9 @@ function draw() {
   if (!current) return;
   const data = current;
   const live = data.status === "scanning";
-  $("connection").className = `connection${live ? " live" : ""}`;
-  $("connection").textContent = live ? "LIVE USB · Passive scanning" : `Receiver ${data.status}`;
+  const hw = data.source === "LIVE-HW";
+  $("connection").className = `connection${live && hw ? " live" : ""}`;
+  $("connection").textContent = live ? `${hw ? "LIVE USB" : `${data.source} · NOT HARDWARE`} · Passive scanning` : `Receiver ${data.status}`;
   $("active").textContent = live ? data.active : "—";
   $("packets").textContent = data.packets.toLocaleString();
   $("latest").textContent = data.last_packet_age_s === null ? "—" : `${Math.floor(data.last_packet_age_s)} s`;

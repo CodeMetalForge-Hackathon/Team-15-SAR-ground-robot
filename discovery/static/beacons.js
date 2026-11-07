@@ -23,6 +23,8 @@
     "drop:length": "Malformed · wrong token length",
     "drop:reserved_alias": "Malformed · reserved alias 0",
     "error:halted": "Verification stopped",
+    "ignored:receiver_not_ready": "Ignored · receiver had no fresh heartbeat",
+    "not_processed:halted": "Not processed · verification stopped",
   };
 
   function banner(data) {
@@ -40,7 +42,8 @@
 
   function draw(data) {
     banner(data);
-    $("beacon-mode").textContent = data.source ? `${data.source} · ${data.mode_label}` : data.mode_label;
+    $("beacon-mode").textContent = !data.source || data.source === data.mode_label ? data.mode_label
+      : `${data.source} · ${data.mode_label}`;
     const r = data.receiver || {};
     const problem = data.status === "halted" || data.status === "receiver_unavailable";
     $("beacon-detail").className = `note${problem ? " warn" : ""}`;
