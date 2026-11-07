@@ -1,0 +1,75 @@
+[
+ {
+  "id": 2,
+  "x": 297.91,
+  "y": 66.47,
+  "status": "ok",
+  "confirmed": true,
+  "assessed": true,
+  "conf": 1.0,
+  "hr": 87,
+  "br": 17,
+  "tag_id": "0xde787047",
+  "ally": null,
+  "sensors": [
+   "ble",
+   "cv",
+   "mmwave",
+   "thermal"
+  ],
+  "seen_by": [
+   1,
+   3
+  ],
+  "hits": 8,
+  "first_seen": 35.0,
+  "last_seen": 73.9
+ },
+ {
+  "id": 1,
+  "x": 219.1,
+  "y": 94.5,
+  "status": "ok",
+  "confirmed": true,
+  "assessed": true,
+  "conf": 1.0,
+  "hr": 77,
+  "br": 18,
+  "tag_id": null,
+  "ally": null,
+  "sensors": [
+   "mmwave",
+   "thermal"
+  ],
+  "seen_by": [
+   1,
+   2
+  ],
+  "hits": 7,
+  "first_seen": 31.5,
+  "last_seen": 83.2
+ },
+ {
+  "id": 3,
+  "x": 214.29,
+  "y": 242.47,
+  "status": "ok",
+  "confirmed": true,
+  "assessed": true,
+  "conf": 1.0,
+  "hr": 87,
+  "br": 11,
+  "tag_id": null,
+  "ally": null,
+  "sensors": [
+   "mmwave",
+   "thermal"
+  ],
+  "seen_by": [
+   2
+  ],
+  "hits": 4,
+  "first_seen": 65.0,
+  "last_seen": 90.4
+ }
+]
