@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Field signals · Team 15</title>
+  <link rel="stylesheet" href="/style.css">
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <header><a href="/" class="brand">T15 <span>/ FIELD SIGNALS</span></a><span class="tag">PASSIVE BLE</span></header>
+  <main>
+    <div class="heading"><div><p class="eyebrow">LOCAL RECEIVER / DISCOVERY</p><h1>Listen to the surroundings.</h1><p class="intro">Nearby radio activity, as it’s heard. Every signal is unverified.</p></div><div id="connection" role="status" class="connection">Connecting to receiver…</div></div>
+    <div class="stats"><div><strong id="active">—</strong><span>signals heard within 5 s</span></div><div><strong id="packets">—</strong><span>advertisements processed</span></div><div><strong id="latest">—</strong><span>since last advertisement</span></div><div><strong>30 s</strong><span>signal history window</span></div></div>
+    <div class="workspace">
+      <section class="camera panel" aria-labelledby="camera-title">
+        <div class="section-heading"><h2 id="camera-title">Visual context</h2><span class="tag">OPTIONAL CAMERA</span></div>
+        <div class="viewport"><video id="video" autoplay muted playsinline hidden></video><div id="camera-placeholder"><span class="camera-mark" aria-hidden="true">＋</span><h3>A view of the search area.</h3><p>Enable this computer’s camera for visual context alongside the receiver.</p></div><span class="video-label" id="video-label" hidden>LOCAL CAMERA · NO OBJECT DETECTION</span></div>
+        <div class="camera-controls"><button id="camera-toggle">Enable camera</button><p id="camera-status" role="status">Camera is off.</p></div>
+        <p class="note">This preview does not detect phones or associate visible objects with radio signals. Video stays in this browser.</p>
+        <div class="explanation"><span class="eyebrow">HOW TO READ THIS</span><h3>Signal strength is a clue.</h3><p>A less negative dBm value means a stronger received signal. Walls, orientation, and interference affect it. It does not give distance or direction.</p><p>Labels are temporary and reset on server restart. Address rotation can make one device appear as several signals. Entries fade after 5 seconds and disappear after 60 seconds.</p></div>
+      </section>
+      <section class="signals panel" aria-labelledby="signals-title">
+        <div class="section-heading"><h2 id="signals-title">Nearby signals <span id="count">0</span></h2><span class="tag">UNVERIFIED</span></div>
+        <div class="toolbar"><label for="filter">Show</label><select id="filter"><option value="all">All BLE signals</option><option value="apple">Possible Apple devices</option><option value="active">Heard within 5 seconds</option></select></div>
+        <p id="receiver-detail" class="note" role="status">Waiting for the USB receiver.</p>
+        <div id="signals"><div class="empty">Waiting for actual advertisements. No sample devices are shown.</div></div>
+        <p class="note">Apple hints come from an advertised company identifier. They can include watches, computers, or accessories and do not establish an iPhone’s identity.</p>
+      </section>
+    </div>
+    <footer>RECEIVE ONLY <span>USB ESP32 → local memory → this view · No device identities or captures saved</span></footer>
+  </main>
+</body>
+</html>

@@ -6,6 +6,7 @@
 //   rssi,name,uuid          one CSV row per advertised 128-bit service UUID
 //   #RAW,<adv hex>,<uuid>   diagnostic: raw advertisement bytes for that row
 //   #...                    other diagnostics
+//   #BLE,rssi,address,address_type,payload_hex  all BLE advertisements (discovery)
 #include <NimBLEDevice.h>
 
 static const uint16_t SCAN_INTERVAL_MS = 100;
@@ -20,6 +21,19 @@ static void printClean(const std::string& s) {
 
 class ScanCB : public NimBLEScanCallbacks {
   void onResult(const NimBLEAdvertisedDevice* d) override {
+    // Separate comment-prefixed channel: existing C1/verifier CSV stays unchanged.
+    Serial.print("#BLE,");
+    Serial.print(d->getRSSI());
+    Serial.print(',');
+    Serial.print(d->getAddress().toString().c_str());
+    Serial.print(',');
+    Serial.print(d->getAddress().getType());
+    Serial.print(',');
+    for (uint8_t b : d->getPayload()) {
+      if (b < 0x10) Serial.print('0');
+      Serial.print(b, HEX);
+    }
+    Serial.println();
     int n = d->getServiceUUIDCount();
     for (int i = 0; i < n; i++) {
       NimBLEUUID u = d->getServiceUUID(i);
@@ -68,6 +82,7 @@ void loop() {
   Serial.print("#HEARTBEAT,scanning=");
   Serial.print(NimBLEDevice::getScan()->isScanning() ? 1 : 0);
   Serial.print(",millis=");
-  Serial.println(millis());
+    Serial.print(millis());
+    Serial.println(",passive=1,discovery=1");
   delay(1000);
 }
