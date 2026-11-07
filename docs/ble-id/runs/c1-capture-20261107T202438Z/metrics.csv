@@ -1,0 +1,4 @@
+stage,duration_s,test_beacon_reception_rows,heartbeats,malformed_lines,scan_errors,invalid_hmac_rows,rssi_min_dbm,rssi_median_dbm,rssi_max_dbm
+A_stopped,30.004555999999866,0,29,0,0,0,,,
+B_static,60.00078200001735,1665,60,0,0,0,-99,-80,-76
+C_rotating,120.00070900004357,3273,119,0,0,0,-99,-86,-74

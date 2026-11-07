@@ -1,0 +1,39 @@
+{
+  "A_stopped": {
+    "capture_valid": true,
+    "duration_s": 30.004555999999866,
+    "rows_ours": 0,
+    "malformed_lines": 0,
+    "scan_errors": [],
+    "pass": true
+  },
+  "B_static": {
+    "capture_valid": true,
+    "duration_s": 60.00078200001735,
+    "rows_ours": 1665,
+    "malformed_lines": 0,
+    "scan_errors": [],
+    "exact_A1_rows": 1665,
+    "pass": true
+  },
+  "C_rotating": {
+    "capture_valid": true,
+    "duration_s": 120.00070900004357,
+    "rows_ours": 3273,
+    "malformed_lines": 0,
+    "scan_errors": [],
+    "current_window_counters": [
+      59802784,
+      59802785,
+      59802786,
+      59802787,
+      59802788
+    ],
+    "longest_consecutive_run": 5,
+    "rejected_rows": 0,
+    "current_rows_with_raw": 3266,
+    "pass": true
+  },
+  "C1_E1_capture_pass": true,
+  "limitation": "Capture checks only; provenance, phone state, builds, and video need separate review."
+}

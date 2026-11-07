@@ -1,0 +1,12 @@
+{
+  "duration_s": 60.00078200001735,
+  "valid_capture": true,
+  "exact_A1_rows": 1665,
+  "matching_raw_AD_rows": 1665,
+  "rssi_min_median_max_dbm": [
+    -99,
+    -80,
+    -76
+  ],
+  "malformed_lines": 0
+}
