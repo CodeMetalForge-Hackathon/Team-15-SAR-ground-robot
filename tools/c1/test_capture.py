@@ -43,6 +43,8 @@ class CaptureTests(unittest.TestCase):
                 self.assertIn('# capture_end_monotonic=', text)
                 self.assertIn('\t#HEARTBEAT,scanning=1,', text)
                 self.assertIn('Saved ', p.stdout)
+                self.assertIn('STARTUP DRAIN', p.stdout)
+                self.assertIn(b'#HEARTBEAT', Path(str(output) + '.warmup.txt').read_bytes())
         finally:
             done.set()
             thread.join()
