@@ -4,6 +4,14 @@ Status: planning only. No implementation, experiments, or stronger claims are
 authorized or completed by this document. Read with SENSOR_ID_SPEC.md, which
 continues to govern module scope, interfaces, secrets, and evidence integrity.
 
+## Branch and handoff
+
+This follow-up spec lives on `culubo/sensor-id-specs`. Follow the branch and
+handoff rules in SENSOR_ID_SPEC.md: check the active branch before changes,
+keep checkpoint commits off `main`, and record any subsequently authorized
+implementation branch. Branch setup does not authorize implementation,
+experiments, pushing, or merging.
+
 ## Purpose
 
 Turn today's limits into explicit research questions and measurable gates.

@@ -6,6 +6,17 @@ module code, install dependencies, flash hardware, or claim tests passed until
 the user explicitly authorizes implementation. No testing or video evidence has
 been produced by this specification review.
 
+## Branch and handoff
+
+Work on `culubo/sensor-id-specs`, the branch containing these specifications and
+the user-provided `CMF .pdf`. Before editing or committing, check
+`git branch --show-current` and `git status --short`. Keep checkpoint commits on
+this branch; do not implement or commit directly on `main`. Creating the branch
+does not authorize implementation. If a separate implementation branch is later
+requested, branch from this work and record its name in the handoff.
+Pushing, merging, and changing shared branch history require separate user
+authorization; the current handoff is local only.
+
 ## Scope and prerequisite check
 
 Code Metal Forge 2026 hackathon: offline search and rescue without GPS, cell
