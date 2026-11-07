@@ -21,6 +21,9 @@ import threading
 import time
 import tty
 
+from discovery.beacons import add_arguments as add_beacon_arguments, monitor_from_args
+from discovery.beacons import snapshot as beacon_snapshot
+
 STATIC = Path(__file__).parent / "static"
 TTL = 60
 HISTORY = 30
@@ -57,8 +60,9 @@ def parse_advertisement(line):
 
 
 class Discovery:
-    def __init__(self, clock=time.monotonic):
+    def __init__(self, clock=time.monotonic, source="LIVE-HW"):
         self.clock = clock
+        self.source = source
         self.lock = threading.Lock()
         self.key = secrets.token_bytes(32)
         self.signals = {}
@@ -68,6 +72,11 @@ class Discovery:
         self.detail = "Opening USB receiver"
         self.heartbeat = None
         self.last_packet = None
+
+    def ready(self):
+        """True while a fresh discovery heartbeat says the receiver is scanning."""
+        with self.lock:
+            return self.status == "scanning" and self.heartbeat is not None and self.clock() - self.heartbeat <= 4
 
     def connection(self, status, detail):
         with self.lock:
@@ -142,14 +151,17 @@ class Discovery:
                     rssi=s["rssi"], age_s=round(age, 2), stale=age > 5,
                     count=s["count"], history=[[round(now - t, 2), r] for t, r in s["history"] if now - t <= HISTORY]))
             signals.sort(key=lambda s: (s["stale"], -s["rssi"], s["label"]))
-            return dict(source="LIVE-HW", mode="passive", status=status, detail=detail,
+            return dict(source=self.source, mode="passive", status=status, detail=detail,
                 packets=self.packets, malformed=self.malformed, ttl_s=TTL, history_s=HISTORY,
                 last_packet_age_s=None if self.last_packet is None else round(now - self.last_packet, 2),
                 active=sum(not s["stale"] for s in signals), signals=signals)
 
 
-def serial_worker(state, port, stop):
-    """Exclusive serial reader, bounded buffering and reconnect after USB loss."""
+def serial_worker(state, port, stop, consumers=()):
+    """Exclusive serial reader, bounded buffering and reconnect after USB loss.
+
+    The single reader for the receiver: each line goes to discovery, then to
+    every consumer (the authenticated beacon verifier)."""
     while not stop.is_set():
         fd, previous = None, None
         try:
@@ -184,7 +196,10 @@ def serial_worker(state, port, stop):
                     raise OSError("Receiver line exceeds 64 KiB")
                 while b"\n" in pending:
                     line, pending = pending.split(b"\n", 1)
-                    state.ingest(line.decode("utf-8", "replace").rstrip("\r"))
+                    text = line.decode("utf-8", "replace").rstrip("\r")
+                    state.ingest(text)
+                    for consume in consumers:
+                        consume(text)
         except OSError as exc:
             state.connection("disconnected", f"USB receiver unavailable: {exc.strerror or str(exc)}")
         finally:
@@ -198,16 +213,19 @@ def serial_worker(state, port, stop):
         stop.wait(2)
 
 
-def make_server(state, host="127.0.0.1", port=8765):
+def make_server(state, host="127.0.0.1", port=8765, beacons=None):
     class Handler(BaseHTTPRequestHandler):
         def do_GET(self):
             path = self.path.split("?", 1)[0]
             if path == "/api/discovery":
                 body, kind = json.dumps(state.snapshot()).encode(), "application/json"
-            elif path in ("/", "/app.js", "/style.css"):
+            elif path == "/api/beacons":
+                body, kind = json.dumps(beacon_snapshot(beacons, state)).encode(), "application/json"
+            elif path in ("/", "/app.js", "/beacons.js", "/style.css"):
                 file = "index.html" if path == "/" else path[1:]
                 body = (STATIC / file).read_bytes()
-                kind = {"index.html": "text/html", "app.js": "text/javascript", "style.css": "text/css"}[file]
+                kind = {"index.html": "text/html", "app.js": "text/javascript",
+                        "beacons.js": "text/javascript", "style.css": "text/css"}[file]
             else:
                 self.send_error(404)
                 return
@@ -230,12 +248,17 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--serial", required=True, help="ESP32 USB serial device")
     parser.add_argument("--port", type=int, default=8765)
+    add_beacon_arguments(parser)
     args = parser.parse_args()
     state, stop = Discovery(), threading.Event()
-    server = make_server(state, port=args.port)
-    worker = threading.Thread(target=serial_worker, args=(state, args.serial, stop), daemon=True)
+    beacons = monitor_from_args(args, state)
+    server = make_server(state, port=args.port, beacons=beacons)
+    consumers = (beacons.ingest,) if beacons else ()
+    worker = threading.Thread(target=serial_worker, args=(state, args.serial, stop, consumers), daemon=True)
     worker.start()
     print(f"Passive BLE discovery: http://127.0.0.1:{server.server_port} · {args.serial}", flush=True)
+    print(f"Beacon verification: {beacons.mode_label if beacons else 'OFF'}"
+          f"{f' · scope {beacons.scope}' if beacons else ''}", flush=True)
     try:
         server.serve_forever()
     except KeyboardInterrupt:
