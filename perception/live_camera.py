@@ -244,6 +244,20 @@ def open_source(a: argparse.Namespace):
     return cap, cap.camera_info
 
 
+def warm_up(detectors, cap) -> Optional[float]:
+    """Run each detector once on a real frame before capture starts, and discard
+    the result. The first Faster R-CNN call on MPS takes about 3.7 s (kernel
+    compilation); without this it lands inside the first seconds of the run.
+    Nothing from this frame is logged, gated or saved as evidence."""
+    ok, frame = cap.read()
+    if not ok or frame is None:
+        return None
+    t = time.perf_counter()
+    for d in detectors:
+        d.detect_all(frame)
+    return time.perf_counter() - t
+
+
 def run(a: argparse.Namespace) -> int:
     try:
         sector = validate_sector(a.sector)
@@ -264,6 +278,9 @@ def run(a: argparse.Namespace) -> int:
         _log(f"ERROR: {e}")
         return EXIT_CAMERA_UNAVAILABLE
 
+    dt = warm_up(detectors, cap)
+    if dt is not None:
+        _log(f"detectors warmed up in {dt:.2f}s (warm-up frame discarded)")
     if a.start_delay_s > 0:
         _log(f"camera open; ignoring frames for {a.start_delay_s:.0f}s so the "
              "operator can step out of view")
