@@ -11,3 +11,11 @@ $ printf 'OLF/BLE-ID/v1\x01\x01\x03\x90\x83\xcc' | openssl dgst -sha256 -mac HMA
 tag=c438cfa7043609b9d1c4
 A1 uuid tail from JSON: c438cfa7043609b9d1c4
 MATCH exit=0
+
+# Regeneration r3 (alias 0 label accepted; only A9 expected string changes)
+captured_utc: 2026-11-07T19:48:34Z
+previous_sha256: e4ee626e13c8bc7bdbad51bf928d2de0a75d7e9df61ac42f0a01aa68862a075b
+$ python3 -I gen_vectors.py protocol_vectors_v1.json
+wrote protocol_vectors_v1.json: 33 payloads, python hmac == openssl for all 16-byte tokens; N=59802572
+exit=0
+sha256: 558467fdd4c0ee16e1f99d0a21b5c2bcecac2c9b63da075b68379b4dd6703899  protocol_vectors_v1.json 613be8e780d9cab6608d6aca07959e417a3a0f0d03a6b24f5d93e8b068aaa663  gen_vectors.py 

@@ -1,6 +1,6 @@
 # C0 report: baseline, interfaces, protocol vectors, experiment plan
 
-Run ID: `c0-20261107T1914Z` · 2026-11-07, UTC 19:05 to 19:30 · revision 2
+Run ID: `c0-20261107T1914Z` · 2026-11-07, UTC 19:05 to 19:50 · revision 3
 
 | Gate item (spec C0) | Status |
 | --- | --- |
@@ -68,9 +68,9 @@ generation run. No timing was measured.
 - `environment.txt`: host and package versions
 - `ingest_probe.py` and `ingest_probe.log`: probe source and output
 - `gen_vectors.py`, `protocol_vectors_v1.json`, `vectors_run.log`: generator,
-  vectors (SHA-256 `e4ee626e…075b`), run log with checksums and the shell
-  cross-check
-- `EXPERIMENT_PLAN.md`, `OWNER_QUESTIONS.md`
+  vectors (SHA-256 `558467fd…3899` since r3; r2 was `e4ee626e…075b`, and only
+  A9's label text differs), run log with checksums and the shell cross-check
+- `EXPERIMENT_PLAN.md`, `OWNER_QUESTIONS.md`, `C1_READINESS.md`
 - Tested revisions: teammates' `a36a658`; ours `31600f1`. This revision's own
   commit hash can't be cited inside it.
 
@@ -86,9 +86,12 @@ generation run. No timing was measured.
     unconfirmed.
   - Any radio, timing, or lifecycle result.
   - Branches pushed after 19:05 UTC.
-  - The alias-0 classification (vector A9), proposed as "drop".
+- **Decided (r3):** alias 0 is malformed and dropped; the replay reason
+  labels are `stale`, `future`, `duplicate`, and `not_newer`. Both are now in
+  the base spec.
 - **Next (needs you):**
-  - Accept, edit, or reject Amendment 1 (A1 to A8).
+  - Fill in the missing items in `C1_READINESS.md`.
+  - Accept, edit, or reject the rest of Amendment 1 (A1 to A7).
   - Send or adapt the owner questions yourself.
   - Decide whether to authorize C1.
 

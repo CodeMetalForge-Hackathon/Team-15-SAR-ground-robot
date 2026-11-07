@@ -117,13 +117,19 @@ emitting verified. State is scoped to enrollment/mission and shared across zones
 within one verifier process; independent offline verifiers have independent state.
 
 Classification order:
-1. Malformed framing/length, unsupported version, invalid RSSI, or unrelated BLE:
-   drop, increment a reason counter, emit no Reading, and do not mutate state.
+1. Malformed framing/length, unsupported version, reserved alias 0, invalid
+   RSSI, or unrelated BLE: drop, increment a reason counter, emit no Reading,
+   and do not mutate state. Alias 0 is malformed even with a valid-looking tag.
 2. Well-formed version-1 payload with an unenrolled alias: unknown.
 3. Enrolled alias but invalid HMAC over header: forged, regardless of time/counter.
-4. Valid HMAC but counter outside current window +/- 1: replay (stale or future).
+4. Valid HMAC but counter outside current window +/- 1: replay, reason `stale`
+   (below the window) or `future` (above it).
 5. Valid HMAC and acceptable window but counter <= that alias's highest accepted
-   counter: replay. Otherwise persist the new high-water mark and emit verified.
+   counter: replay, reason `duplicate` (equal) or `not_newer` (lower). Otherwise
+   persist the new high-water mark and emit verified.
+
+Reason labels are diagnostics for decision logs and counters, not new kinds.
+Alias 0 handling and these labels were accepted by the user on 2026-11-07.
 
 Only authenticated, fresh tokens advance state. Invalid input must not poison
 replay state. Authenticated future-window acceptance can make the current window

@@ -98,7 +98,7 @@
    "len": 16,
    "uuid_text": "01000390-83cc-0364-bedf-4bbd104ef645",
    "on_air_le_hex": "45f64e10bd4bdfbe6403cc8390030001",
-   "expected": "drop:reserved_alias (PROPOSED reading)"
+   "expected": "drop:reserved_alias"
   },
   {
    "id": "A10",

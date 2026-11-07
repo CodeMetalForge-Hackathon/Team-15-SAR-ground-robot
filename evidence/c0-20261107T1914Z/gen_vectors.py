@@ -60,7 +60,7 @@ auth = [  # (id, description, payload, expected decision)
     ("A6", "A1 with last tag bit flipped", flip(v1, 15), "forged"),
     ("A7", "alias 7 (not enrolled), wrong-key tag", token(7, N, K_WRONG), "unknown"),
     ("A8", "A1 with version byte 0x02", flip(v1, 0, 0x03), "drop:unsupported_version"),
-    ("A9", "alias 0 (reserved), valid-looking tag", token(0, N, K_WRONG), "drop:reserved_alias (PROPOSED reading)"),
+    ("A9", "alias 0 (reserved), valid-looking tag", token(0, N, K_WRONG), "drop:reserved_alias"),
     ("A10", "A1 truncated to 15 bytes", v1[:15], "drop:length"),
     ("A11", "A1 plus one byte (17 bytes)", v1 + b"\x00", "drop:length"),
 ]

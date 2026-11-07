@@ -154,11 +154,13 @@ verified sighting.
 ## A8. Protocol vectors are the fixed reference
 
 C2 tests load `evidence/c0-20261107T1914Z/protocol_vectors_v1.json` unchanged
-(SHA-256 recorded in that run's `vectors_run.log`). If the file is copied into
-the test tree, the copy must keep that checksum. One interpretation is flagged
-there for acceptance: alias 0 is treated as malformed, so it is dropped (vector
-A9). The base spec reserves alias 0 but doesn't classify it. Reason labels
-`stale`, `future`, `duplicate`, and `not_newer` are proposed diagnostics.
+(the latest SHA-256 is recorded in that run's `vectors_run.log`). If the file is
+copied into the test tree, the copy must keep that checksum.
+
+ACCEPTED by the user on 2026-11-07, and moved into the base spec's
+classification order, so these no longer depend on this amendment:
+- Alias 0 is malformed and dropped (vector A9).
+- Replay reason labels are `stale`, `future`, `duplicate`, and `not_newer`.
 
 ## Decision needed from the user
 
@@ -170,3 +172,5 @@ needs separate authorization.
 Revision history: r1 (31600f1) initial proposal. r2: secret keys never logged;
 cell is the receiver's declared location; fresh boot ID per start with separate
 durable replay state; offline permits a local dashboard link; vectors (A8).
+r3: alias 0 = malformed and the four replay reason labels accepted by the user;
+moved into the base spec. The rest of this amendment is still PROPOSED.
