@@ -64,15 +64,16 @@ arduino-cli compile --fqbn esp32:esp32:esp32c5:CDCOnBoot=cdc --output-dir /tmp/t
 arduino-cli upload --fqbn esp32:esp32:esp32c5:CDCOnBoot=cdc --port /dev/cu.usbmodem2101 --input-dir /tmp/team15-discovery-build firmware/esp32_scanner
 ```
 
-Stop the discovery server before flashing or running C1 captures. To switch
-back to authenticated-beacon experiments, stop this server and use the C1
-capture tools; they ignore comment-prefixed discovery records.
+Stop the discovery server before flashing or running C1/C4 captures. To switch
+back to standalone serial capture scripts, stop this server first; only one
+process may hold the serial port (`TIOCEXCL`).
 
 ## Verification
 
 ```sh
 python3 -m unittest discover -s tests -p test_discovery.py -v
 node --check discovery/static/app.js
+node --check discovery/static/beacons.js
 ```
 
 The tests exercise AD parsing, malformed input, session privacy, bounded
@@ -80,7 +81,7 @@ history, expiry, missing heartbeats, HTTP serving and a real pseudo-terminal
 reader including fragmentation and disconnect. Test advertisements are
 synthetic fixtures only and never used by the dashboard runtime.
 
-## Authenticated beacon verification (optional, C3)
+## Authenticated beacon verification (optional, C3–C5)
 
 The same single serial reader can also verify BLE-ID tokens. Verification is off
 unless you choose keys explicitly. Close any other server using the port first.
@@ -105,6 +106,8 @@ The page's **Verified beacons** panel lists only tokens that passed the
 signature, window and replay checks and whose state was saved first. Replay,
 forged, unknown and malformed rows stay in the diagnostics drawer. A verified
 beacon isn't a location, a distance, or proof that a person is present.
-Missing, corrupt or wrong-scope state, a second process on the same state file,
-bad keys, an unset host clock, or a failed save stop verification visibly.
-Tests: `python3 -m pytest tests`. Evidence: `docs/ble-id/runs/c3-20261107T205707Z/`.
+Missing, corrupt or wrong-scope state, a second process on the same state file
+(even via a symlink or relative path alias), bad keys, an unset host clock, or
+a failed save stop verification visibly.
+See the root [`README.md`](../README.md) and `docs/ble-id/runs/` for full C1–C5
+checkpoint reports and reproduction steps.
