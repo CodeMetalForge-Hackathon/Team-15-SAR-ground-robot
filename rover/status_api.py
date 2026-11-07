@@ -17,7 +17,7 @@ from rover.navigator import Navigator
 
 REQUIRED_STATUS_KEYS = (
     "schema", "t", "mode", "distances_label", "state", "state_detail", "destination", "route",
-    "remaining_planned_m", "blocked_edges", "blockers", "reroutes", "last_reroute_reason",
+    "remaining_planned_m", "distances", "blocked_edges", "blockers", "reroutes", "last_reroute_reason",
     "latest_range", "sensor", "heading", "pose", "traveled", "motion", "safe_stop_reason",
     "operator_requests", "last_scan", "camera_requests", "suggested_viewpoints", "observations", "claims",
 )

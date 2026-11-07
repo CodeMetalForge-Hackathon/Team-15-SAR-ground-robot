@@ -133,6 +133,8 @@ class NavConfig:
     camera_max_age_s: float = 1.0
     no_echo_policy: NoEchoPolicy = NoEchoPolicy.UNKNOWN
     auto_approve: bool = False        # simulation only; refused when the driver is physical
+    scan_settle_readings: int = 1     # fresh readings to wait for after each scan rotation; hardware: >= 3
+                                      # (PR #7's decision range uses a rolling median that lags a rotation)
 
     def __post_init__(self):
         if not self.robot_width_m > 0:
@@ -147,6 +149,10 @@ class Navigator:
                  config: NavConfig, mode: str = "SIMULATION"):
         if config.auto_approve and (io.physical or supervisor.driver.physical):
             raise PermissionError("auto_approve is simulation-only")
+        if config.no_echo_policy != NoEchoPolicy.UNKNOWN and (io.physical or supervisor.driver.physical):
+            raise PermissionError("no-echo must be UNKNOWN with real hardware")
+        if config.scan_settle_readings < 1:
+            raise ValueError("scan_settle_readings must be >= 1")
         self.g = graph
         self.io = io
         self.sup = supervisor
@@ -172,6 +178,8 @@ class Navigator:
         self._proc = None
         self._req_ids = itertools.count(1)
         self.scanning = False
+        self._retreat: Optional[tuple[str, RouteResult]] = None  # (node being retreated to, route after it)
+        self.legs_completed_m = 0.0  # graph lengths of legs finished on the current route
 
     # --- public API ------------------------------------------------------------------
     def start(self, dest: str) -> None:
@@ -360,7 +368,12 @@ class Navigator:
             ok = yield from self._face(center + off, f"scan {label}")
             if not ok:
                 return None
-            r = yield from self._fresh_reading_after(self.io.clock())
+            r, t_ref = None, self.io.clock()
+            for _ in range(self.cfg.scan_settle_readings):
+                r = yield from self._fresh_reading_after(t_ref)
+                if r is None:
+                    break
+                t_ref = r.t
             a, why = assess(r, self.io.clock(), required_m, self.cfg.sensor_max_age_s, self.cfg.no_echo_policy)
             samples.append({"offset_deg": round(off, 2), "heading_deg": self._heading(),
                             "reading": r.to_dict() if r else None, "assessment": a.value, "reason": why})
@@ -455,11 +468,13 @@ class Navigator:
                 return
 
     def _follow(self, res: RouteResult):
+        self.legs_completed_m = 0.0
         for i, (u, v) in enumerate(zip(res.path, res.path[1:])):
             self.route_leg = i
             out = yield from self._advance(u, v)
             if out != "NODE":
                 return out
+            self.legs_completed_m += self.g.neighbors(u)[v]
             self._request_camera(self._heading(), f"arrived at {v}")
         return "ARRIVED"
 
@@ -619,13 +634,21 @@ class Navigator:
         if not ok:
             return self._hold_for_operator("REROUTE_DENIED", "operator denied the detour")
         if s > self.cfg.node_tol_m:
-            out = yield from self._advance(v, u, retreat=True)
+            self._retreat = (u, res)
+            try:
+                out = yield from self._advance(v, u, retreat=True)
+            finally:
+                self._retreat = None
             if out != "NODE":
                 return out
         return "REPLAN"
 
     # --- status ---------------------------------------------------------------------------
     def _remaining(self) -> Optional[float]:
+        if self._retreat is not None:
+            u, res = self._retreat
+            d = self._pose().distance_from(u, self.g)
+            return None if d is None else round(d + res.length_m, 3)
         r = self.route
         if r is None or r.status != OK:
             return None
@@ -642,6 +665,25 @@ class Navigator:
                     d = pose.distance_from(b, self.g)
                     return round(d + rest, 3)
         return None
+
+    def _distances(self) -> dict:
+        """Kept apart on purpose: a planned length, what remains of the plan, and what was actually driven."""
+        r = self.route
+        total = r.length_m if (r is not None and r.status == OK) else None
+        rem = self._remaining()
+        completed = None
+        if total is not None and rem is not None and self._retreat is None:
+            completed = round(total - rem, 3)
+        return {
+            "label": "SYNTHETIC graph metres (planned); traveled is simulator ground truth or UNKNOWN",
+            "route_total_m": total,
+            "route_remaining_m": rem,
+            "route_completed_m": completed,           # along the CURRENT route only; None while retreating
+            "retreating_to": self._retreat[0] if self._retreat else None,
+            "original_route_m": self.reroutes[0]["old_length_m"] if self.reroutes else total,
+            "reroute_count": len(self.reroutes),
+            "traveled": self.io.traveled(),            # never derived from the plan
+        }
 
     def status(self) -> dict:
         now = self.io.clock()
@@ -660,6 +702,7 @@ class Navigator:
             "route": None if r is None else {"status": r.status, "path": r.path, "edges": r.edges,
                                              "length_m": r.length_m, "reason": r.reason},
             "remaining_planned_m": self._remaining(),
+            "distances": self._distances(),
             "blocked_edges": self.log.blocked_edges(),
             "blockers": self.log.blockers(),
             "reroutes": self.reroutes,
