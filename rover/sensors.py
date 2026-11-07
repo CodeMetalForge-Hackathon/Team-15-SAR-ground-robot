@@ -64,6 +64,35 @@ class CameraDetection:
     source: str
 
 
+GROVE_READING_SCHEMA = "team15.range_reading/1"  # PR #7, ranging/INTEGRATION.md
+
+
+def from_grove_reading(d: dict, max_range_m: float) -> RangeReading:
+    """Adapt a PR #7 ``team15.range_reading/1`` dict (the snapshot's ``latest``) into a RangeReading.
+
+    ``obs_time`` is Pi wall-clock epoch seconds, so the navigator's clock must be that same clock.
+    ``VALID`` becomes OK. ``NO_ECHO``/``OUT_OF_RANGE`` become NO_ECHO, which is UNKNOWN under the default
+    policy. Every other status becomes ERROR. Anything malformed raises ValueError: never guess.
+    """
+    if d.get("schema") != GROVE_READING_SCHEMA:
+        raise ValueError(f"unexpected range schema {d.get('schema')!r}")
+    t = d.get("obs_time")
+    if not isinstance(t, (int, float)):
+        raise ValueError("range reading without numeric obs_time")
+    st = d.get("measurement_status")
+    dist = d.get("distance_m")
+    if st == "VALID":
+        if not isinstance(dist, (int, float)) or dist < 0 or d.get("valid") is not True:
+            raise ValueError("VALID range reading without a usable distance_m")
+        status, rng = OK, float(dist)
+    elif st in ("NO_ECHO", "OUT_OF_RANGE"):
+        status, rng = NO_ECHO, None
+    else:
+        status, rng = ERROR, None
+    return RangeReading(float(t), status, rng, max_range_m, "grove-ultrasonic:" + str(d.get("sensor_id", "?")),
+                        int(d.get("seq", 0)))
+
+
 def age(reading_t: Optional[float], now: float) -> float:
     return math.inf if reading_t is None else now - reading_t
 

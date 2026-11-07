@@ -18,6 +18,14 @@ Nothing in `dashboard/`, `perception/` or `core/` is modified by this branch.
 - `claims.autonomous_navigation_operational` stays `false` until Gates 5–7 pass on hardware.
 
 ## 2. Range input (Grove ultrasonic worker → navigator)
+The Grove worker's PR #7 publishes `team15.range_snapshot/1`. Its `latest` field is a `team15.range_reading/1`. `rover.sensors.from_grove_reading(snapshot["latest"], max_range_m)` converts that into the type below:
+- `VALID` → `OK`
+- `NO_ECHO` and `OUT_OF_RANGE` → `NO_ECHO`, which is UNKNOWN
+- every other status → `ERROR`
+- a malformed reading raises an error.
+
+Both sides agree that UNKNOWN never permits forward motion. The navigator also keeps its own stricter freshness limit: 0.20 s, against PR #7's 0.5 s. The navigator's clock must be the Pi wall clock that PR #7's `obs_time` uses.
+
 `rover.sensors.RangeReading`:
 
 | field | type | meaning |
