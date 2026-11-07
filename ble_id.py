@@ -9,7 +9,6 @@ Verifier, clock or persistence errors halt verification visibly. First use:
 from __future__ import annotations
 
 import argparse
-import fcntl
 import math
 import os
 import re
@@ -20,6 +19,7 @@ from collections import Counter, deque
 from datetime import datetime, timezone
 
 from ble_keys import MODE_LABEL, check_scope
+from ble_owner import OwnerError, acquire_owner, canonical_state_path  # noqa: F401 (re-exported)
 from ble_state import StateError, init_state, load_state, save_state
 from ble_verify import verify
 
@@ -29,25 +29,11 @@ MIN_WALL = 1_700_000_000        # host clock must be set (2023-11-14 or later) b
 STALE_S = 70                    # > two 30 s windows without a new authenticated token
 
 
-class OwnerError(Exception):
-    """Another process already owns this replay-state file."""
-
-
-def acquire_owner(state_path):
-    """Exclusive, non-blocking lock held for the process lifetime: one owner per state file."""
-    fd = os.open(f"{state_path}.lock", os.O_RDWR | os.O_CREAT, 0o600)
-    try:
-        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-    except OSError:
-        os.close(fd)
-        raise OwnerError(f"replay state {state_path} is owned by another verifier process") from None
-    return fd
-
-
 class BeaconMonitor:
     def __init__(self, keys, state_path, *, scope, mode, source, receiver_ready,
                  wall=time.time, mono=time.monotonic):
         check_scope(mode, scope)
+        state_path = canonical_state_path(state_path)    # one spelling for lock, load and save
         self.keys, self.path, self.scope, self.mode, self.source = keys, state_path, scope, mode, source
         self.mode_label = MODE_LABEL[mode]
         self.ready, self.wall, self.mono = receiver_ready, wall, mono
@@ -137,8 +123,8 @@ def main(argv=None):
     i.add_argument("--scope", required=True)
     a = p.parse_args(argv)
     try:
-        init_state(a.state, scope=a.scope)
-    except StateError as exc:
+        init_state(canonical_state_path(a.state), scope=a.scope)
+    except (StateError, OwnerError) as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 2
     print(f"Initialized empty replay state for scope {a.scope!r} at {a.state}")
