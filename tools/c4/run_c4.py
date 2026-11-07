@@ -70,11 +70,11 @@ def run_baseline(out_dir: Path) -> int:
     out_dir.mkdir(parents=True, exist_ok=True)
     c1_dir = ROOT / "docs/ble-id/runs/c1-capture-20261107T202438Z"
     c1_replay = {
-        "A_stopped": replay_tsv_through_verifier(c1_dir / "capture_A_stopped.tsv", 30.0, scope="TESTKEY-c1-A"),
-        "B_static": replay_tsv_through_verifier(c1_dir / "capture_B_static.tsv", 60.0, scope="TESTKEY-c1-B"),
-        "C_rotating_retry": replay_tsv_through_verifier(c1_dir / "capture_C_rotating.tsv", 120.0, scope="TESTKEY-c1-C"),
-        "C_attempt1_failed": replay_tsv_through_verifier(c1_dir / "attempt1_capture_C_rotating.tsv", 120.0, scope="TESTKEY-c1-C1"),
-        "provenance_note": "Real C1 hardware captures (iPhone 14 Pro iOS 26.0 -> passive ESP32-C5) replayed through C2/C3 BeaconMonitor + ble_state.",
+        "A_stopped": replay_tsv_through_verifier(c1_dir / "capture_A_stopped.tsv", 30.0, scope="TESTKEY-c1-A", c1_hb=True),
+        "B_static": replay_tsv_through_verifier(c1_dir / "capture_B_static.tsv", 60.0, scope="TESTKEY-c1-B", c1_hb=True),
+        "C_rotating_retry": replay_tsv_through_verifier(c1_dir / "capture_C_rotating.tsv", 120.0, scope="TESTKEY-c1-C", c1_hb=True),
+        "C_attempt1_failed": replay_tsv_through_verifier(c1_dir / "attempt1_capture_C_rotating.tsv", 120.0, scope="TESTKEY-c1-C1", c1_hb=True),
+        "provenance_note": "Real C1 hardware captures (iPhone 14 Pro iOS 26.0 -> passive ESP32-C5, pre-discovery heartbeat format) replayed through C2/C3 BeaconMonitor + ble_state.",
     }
     (out_dir / "c1_verifier_replay.json").write_text(json.dumps(c1_replay, indent=2) + "\n")
     (out_dir / "aging_and_recovery.json").write_text(json.dumps(sim_aging_and_recovery(), indent=2) + "\n")

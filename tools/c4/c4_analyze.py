@@ -28,22 +28,22 @@ def rssi_dist(values: list[int]) -> dict | None:
     if not values:
         return None
     s = sorted(values)
-    return {"count": len(s), "min_dbm": s[0], "p10_dbm": _pct(s, 0.10),
-            "median_dbm": _pct(s, 0.50), "p90_dbm": _pct(s, 0.90), "max_dbm": s[-1]}
+    return {"count": len(s), "min_dbm": s[0], "p10_dbm": _pct(s, 0.10), "median_dbm": _pct(s, 0.50), "p90_dbm": _pct(s, 0.90), "max_dbm": s[-1]}
 
 
 def replay_tsv_through_verifier(tsv_path: Path, expected_s: float, *, scope: str,
-                                state_path: Path | None = None) -> dict:
+                                state_path: Path | None = None, c1_hb: bool = False) -> dict:
     """Replay a recorded capture_serial TSV through Discovery + BeaconMonitor."""
     if not tsv_path.is_file():
         return {"status": "UNTESTED", "file": tsv_path.name}
     if state_path is None:
         state_path = Path(tempfile.mkdtemp(prefix="c4-grade-")) / "state.json"
         init_state(state_path, scope=scope)
-    clock = {"wall": 1_794_083_000.0, "mono": 0.0}
+    clock = {"wall": 1_794_083_000.0, "mono": 0.0, "hb": None}
     disc = Discovery(lambda: clock["mono"], source="LIVE-HW")
+    ready = (lambda: clock["hb"] is not None and clock["mono"] - clock["hb"] <= 4.0) if c1_hb else disc.ready
     mon = BeaconMonitor(TEST_KEYS, str(state_path), scope=scope, mode="test-keys",
-                        source="LIVE-HW", receiver_ready=disc.ready,
+                        source="LIVE-HW", receiver_ready=ready,
                         wall=lambda: clock["wall"], mono=lambda: clock["mono"])
     start_m = end_m = None
     heartbeats = scan_errors = bad_tsv = 0
@@ -65,7 +65,9 @@ def replay_tsv_through_verifier(tsv_path: Path, expected_s: float, *, scope: str
                 bad_tsv += 1
                 continue
             line = parts[2]
-            heartbeats += line.startswith("#HEARTBEAT,scanning=1")
+            if line.startswith("#HEARTBEAT,scanning=1"):
+                heartbeats += 1
+                clock["hb"] = clock["mono"]
             scan_errors += line.startswith(("#SCAN_ERROR", "#SCAN_END"))
             before_v = mon.counts.get("verified:fresh", 0)
             disc.ingest(line)
