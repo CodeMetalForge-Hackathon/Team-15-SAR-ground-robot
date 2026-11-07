@@ -80,16 +80,12 @@ def replay_tsv_through_verifier(tsv_path: Path, expected_s: float, *, scope: str
                 verified_counters.append(mon.sightings[1]["counter"])
     os.close(mon.owner)
     dur = (end_m - start_m) if (start_m is not None and end_m is not None) else 0.0
-    snap = mon.snapshot()
-    return {
-        "status": "MEASURED", "file": tsv_path.name, "duration_s": round(dur, 6),
-        "duration_ok": dur >= expected_s - 0.5, "heartbeats": heartbeats,
-        "scan_errors": scan_errors, "bad_tsv_lines": bad_tsv,
-        "protocol_rows": len(protocol_rssis), "verified_windows": len(verified_counters),
-        "verified_counters": verified_counters, "rssi_dbm": rssi_dist(protocol_rssis),
-        "decision_counts": snap["counts"], "halted": mon.halted,
-        "persisted_high_water": dict(load_state(state_path, scope=scope)),
-    }
+    return {"status": "MEASURED", "file": tsv_path.name, "duration_s": round(dur, 6),
+            "duration_ok": dur >= expected_s - 0.5, "heartbeats": heartbeats, "scan_errors": scan_errors,
+            "bad_tsv_lines": bad_tsv, "protocol_rows": len(protocol_rssis),
+            "verified_windows": len(verified_counters), "verified_counters": verified_counters,
+            "rssi_dbm": rssi_dist(protocol_rssis), "decision_counts": mon.snapshot()["counts"],
+            "halted": mon.halted, "persisted_high_water": dict(load_state(state_path, scope=scope))}
 
 
 def grade_e2_trials(jsonl_path: Path) -> dict:
