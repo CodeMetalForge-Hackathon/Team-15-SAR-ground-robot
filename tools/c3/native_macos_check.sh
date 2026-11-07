@@ -47,11 +47,13 @@ for name, ver in {"pytest": "8.3.4", "pluggy": "1.5.0", "iniconfig": "2.0.0", "p
     print(w["filename"], "sha256", got, "matches PyPI")
 WHEELS
 fi
-cat "$E/wheels.log" 2>/dev/null
-step env PYTHONPATH="$DEPS" "$PY" -B -m pytest -v -p no:cacheprovider tests > "$E/pytest_native_macos.log" 2>&1
-echo "pytest exit=$?: $(tail -1 "$E/pytest_native_macos.log")"
-step "$PY" -B -m unittest discover -s tests -p test_discovery.py -v > "$E/discovery_unittest_macos.log" 2>&1
-echo "discovery unittest exit=$?: $(tail -1 "$E/discovery_unittest_macos.log")"
+if [ -f "$E/wheels.log" ]; then cat "$E/wheels.log"; else echo "pytest wheels already present in $DEPS"; fi
+rc=0; step env PYTHONPATH="$DEPS" "$PY" -B -m pytest -v -p no:cacheprovider tests > "$E/pytest_native_macos.log" 2>&1 || rc=$?
+echo "pytest exit=$rc: $(tail -1 "$E/pytest_native_macos.log")"
+[ "$rc" -eq 0 ] || { echo "ERROR: native tests failed; see pytest_native_macos.log"; exit 8; }
+rc=0; step "$PY" -B -m unittest discover -s tests -p test_discovery.py -v > "$E/discovery_unittest_macos.log" 2>&1 || rc=$?
+echo "discovery unittest exit=$rc: $(tail -1 "$E/discovery_unittest_macos.log")"
+[ "$rc" -eq 0 ] || { echo "ERROR: discovery tests failed"; exit 8; }
 command -v node >/dev/null && { step node --check discovery/static/app.js && step node --check discovery/static/beacons.js && echo "JS syntax OK"; }
 
 echo "== 3/5 Receiver"
