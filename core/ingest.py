@@ -8,8 +8,12 @@ the sensor (RGB 300 s, §9.6).
 """
 from __future__ import annotations
 
+import datetime as _dt
 import re
 import time
+
+from contracts.pi_frame_stream import (CAMERA_SOURCES, CAPTURE_CLOCKS, PI5_IMX708,
+                                       TRANSPORTS)
 
 REQUIRED = ("obs_id", "drone_id", "source_mode", "sensor", "kind", "how", "cell", "obs_time")
 SOURCE_MODES = {"SIMULATED", "RECORDED-IMAGERY", "LIVE-HW"}
@@ -19,8 +23,40 @@ STALE_AFTER_S = {"rgb": 300.0, "ble": 120.0, "thermal": 300.0}
 OBS_ID_RE = re.compile(r"^(?P<drone>[A-Za-z0-9]+)-(?P<boot>[A-Za-z0-9]+)-(?P<seq>\d{6})$")
 
 
+COORDINATE_FIELDS = ("xy_m", "lat", "lon", "alt_m", "bearing_deg")
+
+
 class InvalidObservation(ValueError):
     pass
+
+
+def _check_camera(obs: dict) -> None:
+    """evidence.camera is optional; when present it must follow
+    contracts/PI_CAMERA_CONTRACT.md. Pi sightings are always bench, sector-only,
+    operator-assigned, with the Pi's sensor capture clock."""
+    cam = (obs.get("evidence") or {}).get("camera")
+    if cam is None:
+        return
+    if not isinstance(cam, dict):
+        raise InvalidObservation("evidence.camera must be an object")
+    if cam.get("source") not in CAMERA_SOURCES:
+        raise InvalidObservation(f"unknown evidence.camera.source {cam.get('source')!r}")
+    if cam.get("transport") not in TRANSPORTS:
+        raise InvalidObservation(f"unknown evidence.camera.transport {cam.get('transport')!r}")
+    if cam.get("capture_clock") not in CAPTURE_CLOCKS:
+        raise InvalidObservation(f"unknown evidence.camera.capture_clock {cam.get('capture_clock')!r}")
+    if cam["source"] == PI5_IMX708:
+        need = {"source_mode": "LIVE-HW", "platform": "BENCH", "how": "SECTOR_ONLY",
+                "cell_source": "OPERATOR_ASSIGNED"}
+        bad = [f"{k}={obs.get(k)!r}" for k, v in need.items() if obs.get(k) != v]
+        if cam["capture_clock"] != "PI_SENSOR_TIMESTAMP_NTP":
+            bad.append(f"capture_clock={cam['capture_clock']!r}")
+        if cam.get("transport") != "JPEG_OVER_SSH_TAILSCALE":
+            bad.append(f"transport={cam.get('transport')!r}")
+        if bad:
+            raise InvalidObservation("Pi camera sighting must be LIVE-HW/BENCH/SECTOR_ONLY/"
+                                     "OPERATOR_ASSIGNED with the Pi capture clock; got "
+                                     + ", ".join(bad))
 
 
 def normalise(obs: dict, *, known_cells, rx_time: float | None = None) -> dict:
@@ -53,6 +89,21 @@ def normalise(obs: dict, *, known_cells, rx_time: float | None = None) -> dict:
         raise InvalidObservation("seq does not match obs_id")
     if obs.get("evidence") is not None and not isinstance(obs["evidence"], dict):
         raise InvalidObservation("evidence must be an object")
+
+    if obs["how"] == "SECTOR_ONLY":
+        coords = [k for k in COORDINATE_FIELDS if obs.get(k) is not None]
+        if coords:
+            raise InvalidObservation("SECTOR_ONLY sighting must not carry coordinates: "
+                                     + ", ".join(coords))
+    iso = obs.get("obs_time_iso")
+    if iso is not None:
+        try:
+            iso_t = _dt.datetime.fromisoformat(str(iso).replace("Z", "+00:00")).timestamp()
+        except ValueError:
+            raise InvalidObservation(f"obs_time_iso {iso!r} is not ISO-8601") from None
+        if abs(iso_t - obs_time) > 1.0:
+            raise InvalidObservation("obs_time_iso disagrees with obs_time")
+    _check_camera(obs)
 
     out = dict(obs)
     out["obs_time"] = obs_time

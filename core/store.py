@@ -24,6 +24,7 @@ import threading
 import time
 from pathlib import Path
 
+from contracts.pi_frame_stream import CAMERA_SOURCES
 from core.ingest import normalise
 from planner.graph import TrailGraph, load_graph
 from planner.route import compute_route
@@ -61,6 +62,25 @@ def cell_position(graph: TrailGraph, cell: str) -> tuple[int, int]:
 
 def _name(path) -> str | None:
     return Path(path).name if path else None
+
+
+CLOCK_SKEW_S = 2.0
+
+
+def _camera_view(cam: dict | None) -> dict:
+    """Which physical camera produced the sighting (evidence.camera)."""
+    if not cam:
+        return {"source": None, "label": "camera not reported", "transport": None,
+                "capture_clock": None, "rotation_deg": None, "host": None,
+                "frame_seq": None, "capture_to_rx_s": None}
+    return {"source": cam["source"],
+            "label": CAMERA_SOURCES.get(cam["source"], cam["source"]),
+            "transport": cam.get("transport"),
+            "capture_clock": cam.get("capture_clock"),
+            "rotation_deg": cam.get("rotation_deg"),
+            "host": cam.get("host"),
+            "frame_seq": cam.get("frame_seq"),
+            "capture_to_rx_s": cam.get("capture_to_rx_s")}
 
 
 class MissionStore:
@@ -120,7 +140,9 @@ class MissionStore:
                 track["latest_obs_id"] = obs_id
             self._alerts.append({"alert_id": len(self._alerts) + 1, "obs_id": obs_id,
                                  "track_id": track_id, "cell": obs["cell"],
-                                 "badge": badge_for(obs), "rx_time": obs["rx_time"]})
+                                 "badge": badge_for(obs), "rx_time": obs["rx_time"],
+                                 "camera": _camera_view((obs.get("evidence") or {})
+                                                        .get("camera"))["label"]})
             self._replan()
             return {"obs_id": obs_id, "duplicate": False, "track_id": track_id}
 
@@ -212,6 +234,10 @@ class MissionStore:
             "detector_score_kind": ev.get("detector_score_kind"),
             "count_in_frame": ev.get("count_in_frame"),
             "frame_sha256": ev.get("frame_sha256"),
+            "camera": _camera_view(ev.get("camera")),
+            # capture -> dashboard ingest; obs_time is the capture time, never replaced
+            "capture_to_ingest_s": o["rx_time"] - o["obs_time"],
+            "clock_skew": o["obs_time"] > o["rx_time"] + CLOCK_SKEW_S,
             "has_photo": has_frame or has_annotated,
             # Display the annotated JPEG when there is one; /frame is the exact evidence.
             "photo_url": f"/evidence/{o['obs_id']}" if (has_frame or has_annotated) else None,

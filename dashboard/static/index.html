@@ -61,7 +61,8 @@
   .alert { display: flex; gap: 10px; align-items: center; justify-content: space-between; flex-wrap: wrap;
            padding: 10px 16px; background: var(--warn-bg); color: var(--warn); font-weight: 600;
            border-bottom: 1px solid var(--line); }
-  .alert[hidden] { display: none; }
+  [hidden] { display: none !important; }   /* .badge/.alert set display and would override it */
+  b.bad { color: var(--sim); }
   button { font: inherit; font-size: 14px; padding: 6px 12px; border-radius: 6px; cursor: pointer;
            border: 1px solid var(--line); background: var(--panel); color: var(--ink); }
   button.confirm { border-color: var(--live); color: var(--live); }
@@ -159,6 +160,29 @@ function scoreText(L) {
     return `n/a (detector score ${Number(L.detector_score).toFixed(L.detector_score < 1 ? 4 : 2)}, ${esc(L.detector_score_kind)}; not a probability)`;
   return "n/a";
 }
+function cameraChip(L) {
+  const c = L.camera || {};
+  const icon = c.source === "PI5_IMX708" ? "📷 " : c.source === "MAC_LOCAL" ? "💻 " : "";
+  return `<span class="badge neutral" id="camera-chip" data-camera="${esc(c.source || "")}">${icon}${esc(c.label || "camera not reported")}</span>`;
+}
+function cameraText(L) {
+  const c = L.camera || {};
+  if (!c.source) return "not reported (sighting made before camera provenance was added)";
+  const parts = [esc(c.label)];
+  if (c.host) parts.push(`host ${esc(c.host)}`);
+  if (c.transport) parts.push(esc(c.transport));
+  if (c.rotation_deg) parts.push(`rotated ${esc(c.rotation_deg)}° on the Pi`);
+  if (c.frame_seq != null) parts.push(`frame #${esc(c.frame_seq)}`);
+  return parts.join(" · ");
+}
+function timingText(L) {
+  const c = L.camera || {};
+  const clock = c.capture_clock === "PI_SENSOR_TIMESTAMP_NTP" ? "Pi sensor timestamp (NTP-synced Pi clock)"
+    : c.capture_clock === "MAC_WALL_CLOCK_AT_READ" ? "Mac clock at frame read" : "not reported";
+  const rx = c.capture_to_rx_s != null ? ` · capture→Mac ${(c.capture_to_rx_s * 1000).toFixed(0)} ms` : "";
+  const skew = L.clock_skew ? ' · <b class="bad">CLOCK SKEW: capture time is in the future</b>' : "";
+  return `${clock}${rx} · capture→dashboard ${L.capture_to_ingest_s.toFixed(2)} s${skew}`;
+}
 const newest = st => st.tracks.length ? st.tracks.reduce((a, b) => (b.latest.obs_time > a.latest.obs_time ? b : a)) : null;
 
 function drawMap(st) {
@@ -216,13 +240,16 @@ function drawCandidate(st) {
   el.innerHTML = `
     <span class="badge ${badgeClass(t.badge)}">${badgeIcon(t.badge)}${esc(t.badge)}</span>
     ${confChip(L)}
+    ${cameraChip(L)}
     <span class="badge neutral" id="stale-chip" hidden>STALE</span>
     <div class="cand-title" id="cand-label">${esc(t.label)}</div>
     <div class="note">${esc(t.track_id)} · ${t.n_observations} sighting(s) in this sector · sources: ${esc(t.sources.join(", "))} · bench camera has no identity</div>
     <div class="age" id="age"></div>
     <div class="note">evidence age (now − obs_time)</div>
     <dl>
-      <dt>Observed</dt><dd>${fmtTime(L)}</dd>
+      <dt>Captured</dt><dd>${fmtTime(L)}</dd>
+      <dt>Time source</dt><dd>${timingText(L)}</dd>
+      <dt>Camera</dt><dd id="camera-detail">${cameraText(L)}</dd>
       <dt>Observation</dt><dd>${esc(L.obs_id)} · ${esc(L.kind)} · ${esc(L.sensor.toUpperCase())}</dd>
       <dt>Provenance</dt><dd>${esc(L.source_mode)} / ${esc(L.platform ?? "n/a")}: not an aerial detection</dd>
       <dt>Location</dt><dd>${esc(t.how)}: sector ${esc(t.cell)} was <b>assigned</b>${L.cell_source ? ` (${esc(L.cell_source)})` : ""}, not measured</dd>
@@ -259,7 +286,7 @@ function drawHistory(st) {
   el.innerHTML = `<ul class="hist">${items.map(h => `
     <li data-obs="${esc(h.obs_id)}">
       ${h.photo_url ? `<img src="${esc(h.photo_url)}" alt="" loading="lazy" onerror="this.outerHTML='<div class=noimg></div>'">` : '<div class="noimg"></div>'}
-      <div><b>${esc(h.obs_id)}</b> · ${esc(h.track_id)} sector ${esc(h.cell)} · ${esc(h.badge)}<br>
+      <div><b>${esc(h.obs_id)}</b> · ${esc(h.track_id)} sector ${esc(h.cell)} · ${esc(h.badge)} · ${esc((h.camera && h.camera.label) || "camera not reported")}<br>
         ${fmtTime(h)}<br>${detectorText(h)} · ${esc(h.confirmation.toUpperCase())}${h.decided_by ? ` by ${esc(h.decided_by)}` : ""}</div>
     </li>`).join("")}</ul>`;
 }
@@ -295,7 +322,7 @@ function drawAlert(st) {
   const fresh = st.alerts.filter(a => a.alert_id > seenAlert);
   seenAlert = maxId;
   const a = fresh[fresh.length - 1];
-  box.innerHTML = `<span>🔔 New sighting ${esc(a.obs_id)}: candidate in sector ${esc(a.cell)} (assigned) · ${esc(a.badge)} · UNCONFIRMED. Review the photo.${fresh.length > 1 ? ` (+${fresh.length - 1} more)` : ""}</span><button id="alert-x">Dismiss</button>`;
+  box.innerHTML = `<span>🔔 New sighting ${esc(a.obs_id)}: candidate in sector ${esc(a.cell)} (assigned) · ${esc(a.badge)} · ${esc(a.camera)} · UNCONFIRMED. Review the photo.${fresh.length > 1 ? ` (+${fresh.length - 1} more)` : ""}</span><button id="alert-x">Dismiss</button>`;
   box.hidden = false;
 }
 
