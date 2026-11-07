@@ -46,8 +46,21 @@ class JsonLogFormatter(logging.Formatter):
         return json.dumps(d)
 
 
+class _StderrHandler(logging.StreamHandler):
+    """Always writes to the current sys.stderr (survives stream swaps)."""
+
+    @property
+    def stream(self):
+        import sys
+        return sys.stderr
+
+    @stream.setter
+    def stream(self, _):
+        pass
+
+
 def setup_logging(level: str = "INFO") -> None:
-    h = logging.StreamHandler()
+    h = _StderrHandler()
     h.setFormatter(JsonLogFormatter())
     root = logging.getLogger("ranging")
     root.handlers[:] = [h]
@@ -96,6 +109,9 @@ class RangeService:
         self.counts = {s.value: 0 for s in MeasurementStatus}
         self.consecutive_invalid = 0
         self.last_error: Optional[str] = None
+        self.run_counts: dict = {}
+        self.last_invalid_status: Optional[str] = None               # statuses in the current run of invalid readings
+        self.last_echo_mono_ns: Optional[int] = None  # last ping with physical echo evidence
         self._lock = threading.Lock()
         self._snap: Optional[dict] = None
         self._stop = threading.Event()
@@ -107,6 +123,45 @@ class RangeService:
         self._publish(None)
 
     # -- health ------------------------------------------------------------
+    # Statuses that prove the sensor drove SIG high (it is powered and connected).
+    ECHO_EVIDENCE = {MeasurementStatus.VALID, MeasurementStatus.OUT_OF_RANGE, MeasurementStatus.BELOW_MIN_RANGE,
+                     MeasurementStatus.ECHO_TIMEOUT, MeasurementStatus.MISSED_ECHO_START}
+
+    def _diagnosis(self) -> dict:
+        """Name the likely cause of the current invalid run, only as far as the evidence supports.
+
+        This is diagnostics only. Every one of these conditions is UNKNOWN for motion (STOP).
+        """
+        if self.consecutive_invalid == 0:
+            return {"code": "NONE", "evidence": None}
+        dom = self.last_invalid_status          # the current condition; counts below are context
+        n = self.run_counts.get(dom, 0)
+        since = None if self.last_echo_mono_ns is None else round((time.monotonic_ns() - self.last_echo_mono_ns) / 1e9, 2)
+        ev = {"latest_status": dom, "count_in_run": n, "run_counts": dict(self.run_counts), "run_length": self.consecutive_invalid,
+              "last_echo_evidence_age_s": since}
+        codes = {
+            "ECHO_TIMEOUT": ("ECHO_NOT_ENDING", "echo started but SIG stayed high past the max-range time"),
+            "OUT_OF_RANGE": ("TARGET_BEYOND_RANGE", "sensor answered with an echo longer than the max range: "
+                             "sensor is alive, nearest return is beyond max_range_m"),
+            "BELOW_MIN_RANGE": ("TARGET_TOO_CLOSE", "echo shorter than min_range_m: object at the sensor face or crosstalk"),
+            "MISSED_ECHO_START": ("RELEASE_TOO_SLOW", "falling edge seen without its rising edge: SIG was released "
+                                  "after the echo began (see reading extra.release_us)"),
+            "LINE_STUCK_HIGH": ("LINE_FAULT", "SIG high before the trigger: short to VCC, wrong pin, or a long echo still running"),
+            "DRIVER_ERROR": ("DRIVER_FAULT", self.last_error or "GPIO request/read failed"),
+        }
+        if dom in codes:
+            code, why = codes[dom]
+        elif dom == "NO_ECHO" and self.last_echo_mono_ns is None:
+            code, why = ("NO_RESPONSE_EVER", "SIG never went high since the service started. Consistent with an "
+                         "unplugged/unpowered sensor or a wrong pin. Software cannot tell this apart from "
+                         "'nothing in range' until the board's no-target behaviour is characterised (WIRING.md 6.2)")
+        elif dom == "NO_ECHO":
+            code, why = ("NO_RESPONSE_AFTER_ECHOES", "the sensor did answer earlier, now no echo starts. Consistent "
+                         "with open space, a soft or angled target, or a connection lost since then")
+        else:
+            code, why = ("INVALID", dom)
+        return {"code": code, "explanation": why, "evidence": ev, "motion": "STOP (UNKNOWN)"}
+
     def _health(self) -> dict:
         if self.counts[MeasurementStatus.VALID.value] == 0 and self.consecutive_invalid == 0:
             state = "STARTING"
@@ -118,8 +173,7 @@ class RangeService:
             state = "OK"
         return {"state": state, "consecutive_invalid": self.consecutive_invalid, "counts": dict(self.counts),
                 "last_error": self.last_error, "reopen_count": getattr(self.driver, "reopen_count", 0),
-                "hint": ("no echo for many pings: sensor unplugged, SIG on the wrong pin, nothing within "
-                         "range, or an absorbing/angled target" if state == "FAULT" else None)}
+                "diagnosis": self._diagnosis()}
 
     def _publish(self, assessment) -> dict:
         now_wall, now_mono = time.time(), time.monotonic_ns()
@@ -168,10 +222,15 @@ class RangeService:
                              source=self.cfg.source, sensor_id=self.cfg.sensor_id, driver=self.driver.name,
                              detail=self.last_error)
         self.counts[r.status.value] += 1
+        if r.status in self.ECHO_EVIDENCE:
+            self.last_echo_mono_ns = r.mono_ns
         if r.valid:
             self.consecutive_invalid = 0
+            self.run_counts = {}
         else:
             self.consecutive_invalid += 1
+            self.run_counts[r.status.value] = self.run_counts.get(r.status.value, 0) + 1
+            self.last_invalid_status = r.status.value
             if r.status is MeasurementStatus.DRIVER_ERROR:
                 self.last_error = r.detail
         a = self.assessor.update(r)

@@ -48,12 +48,13 @@ class RangeDriver:
         pass
 
     def _reading(self, status: S, distance_m: Optional[float], wall: float, mono: int,
-                 echo_us: Optional[float] = None, detail: Optional[str] = None) -> RangeReading:
+                 echo_us: Optional[float] = None, detail: Optional[str] = None,
+                 extra: Optional[dict] = None) -> RangeReading:
         self._seq += 1
         return RangeReading(status=status, distance_m=distance_m, wall_time=wall, mono_ns=mono,
                             echo_us=echo_us, seq=self._seq, source=self.cfg.source,
                             sensor_mount=self.cfg.sensor_mount, sensor_id=self.cfg.sensor_id,
-                            driver=self.name, detail=detail)
+                            driver=self.name, detail=detail, extra=extra or {})
 
 
 # ---------------------------------------------------------------------------- simulator
@@ -178,9 +179,27 @@ class GpiodDriver(RangeDriver):
         g = self._mod()
         return g.LineSettings(direction=g.line.Direction.OUTPUT, output_value=g.line.Value.INACTIVE)
 
+    def _check_line_identity(self):
+        """Read-only: the line must be the header pin we think it is, and unclaimed.
+
+        On Pi 5 kernels >= 6.6 the RP1 header is gpiochip0 (older images: gpiochip4).
+        A wrong chip would make us drive some other SoC line.
+        """
+        g = self._mod()
+        with g.Chip(self.cfg.gpiochip) as chip:
+            label = chip.get_info().label
+            info = chip.get_line_info(self.pin)
+        if label != "pinctrl-rp1":
+            raise RuntimeError(f"{self.cfg.gpiochip} is {label!r}, not the Pi 5 RP1 header chip 'pinctrl-rp1'")
+        if info.name != f"GPIO{self.pin}":
+            raise RuntimeError(f"line {self.pin} on {self.cfg.gpiochip} is named {info.name!r}, expected GPIO{self.pin}")
+        if info.used:
+            raise RuntimeError(f"GPIO{self.pin} already in use by {info.consumer!r}")
+
     def _open(self):
         if self._req is None:
             g = self._mod()
+            self._check_line_identity()
             self._req = g.request_lines(self.cfg.gpiochip, consumer="team15-grove-ranger",
                                         config={self.pin: self._input_settings()})
             log.info("opened %s line %d", self.cfg.gpiochip, self.pin)
@@ -225,6 +244,9 @@ class GpiodDriver(RangeDriver):
             req.set_value(self.pin, g.line.Value.INACTIVE)
             trig_end = time.monotonic_ns()
             req.reconfigure_lines({self.pin: self._input_settings()})
+            # Time the Pi kept driving SIG after the trigger. If the sensor raises SIG before this,
+            # the two outputs meet through the 1 kOhm resistor and we report MISSED_ECHO_START.
+            release_us = (time.monotonic_ns() - trig_end) / 1e3
             events: List[Tuple[str, int]] = []
             deadline = trig_end + int((self.cfg.echo_start_timeout_s + self.cfg.echo_end_timeout_s) * 1e9)
             while True:
@@ -238,11 +260,14 @@ class GpiodDriver(RangeDriver):
                     break
             status, echo_us, detail = echo_from_events(trig_end, events,
                                                        int(self.cfg.echo_start_timeout_s * 1e9))
+            rises = [ts for k, ts in events if k == RISING]
+            extra = {"release_us": round(release_us, 1), "edges": len(events),
+                     "echo_start_us": round((rises[0] - trig_end) / 1e3, 1) if rises else None}
             self.last_error = None
             if status is not S.VALID:
-                return self._reading(status, None, wall, mono, detail=detail)
+                return self._reading(status, None, wall, mono, detail=detail, extra=extra)
             status, dist = classify_echo(echo_us, self.cfg)
-            return self._reading(status, dist, wall, mono, echo_us=echo_us)
+            return self._reading(status, dist, wall, mono, echo_us=echo_us, extra=extra)
         except Exception as e:  # noqa: any GPIO failure is an invalid reading + reopen next time
             self.last_error = f"{type(e).__name__}: {e}"
             log.warning("gpio error, will reopen: %s", self.last_error)

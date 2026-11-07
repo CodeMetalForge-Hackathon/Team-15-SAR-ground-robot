@@ -12,6 +12,12 @@
     "series_resistor_ohm": 1000,
     "gpio_bcm": 5,
     "sensor_revision": null,
+    "revision_evidence_ref": null,
+    "powered_off_while_wiring": null,
+    "continuity_checked": null,
+    "vcc_measured_v": null,
+    "sig_idle_measured_v": null,
+    "mount_verified": null,
     "wiring_verified_by": null,
     "wiring_verified_at": null
   },
@@ -19,7 +25,7 @@
     "mount_height_m": 0.08,
     "mount_pitch_deg": 0.0,
     "sensor_setback_m": 0.0,
-    "max_speed_mps": 0.30,
+    "max_speed_mps": 0.3,
     "decel_mps2": 0.5,
     "control_latency_s": 0.2
   }

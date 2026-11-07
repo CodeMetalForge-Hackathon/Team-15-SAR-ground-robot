@@ -50,7 +50,14 @@ class ElectricalConfig:
     header_vcc_pin: Optional[int] = None       # physical header pin used for VCC
     wiring_verified_by: Optional[str] = None   # name of the hardware teammate
     wiring_verified_at: Optional[str] = None   # ISO date/time of the check
-    sensor_revision: Optional[str] = None      # "V2.0" etc., as read off the PCB
+    sensor_revision: Optional[str] = None      # "V2.0" etc., as read off the PCB silkscreen
+    revision_evidence_ref: Optional[str] = None  # photo of the silkscreen (path/URL, outside Git)
+    # Checklist results (WIRING.md section 4). All must be recorded before GPIO is opened.
+    powered_off_while_wiring: Optional[bool] = None
+    continuity_checked: Optional[bool] = None    # SIG/VCC/GND to the intended pins, VCC not on pin 2/4
+    vcc_measured_v: Optional[float] = None       # at the sensor, Pi powered, before any range code
+    sig_idle_measured_v: Optional[float] = None  # SIG to GND at idle, sensor side
+    mount_verified: Optional[bool] = None        # height/pitch/setback measured and entered in "obstacle"
 
 
 @dataclass
@@ -135,11 +142,31 @@ def check_electrical(e: ElectricalConfig) -> None:
             problems.append(f"header pin {e.header_vcc_pin} is 3.3 V but sensor_vcc_v says {e.sensor_vcc_v}")
         if e.header_vcc_pin not in _3V3_PINS | _5V_PINS:
             problems.append(f"header pin {e.header_vcc_pin} is not a power pin")
-    if e.sensor_revision is None or not str(e.sensor_revision).upper().startswith("V2"):
-        if e.sensor_vcc_v is not None and e.sensor_vcc_v < 4.5:
-            problems.append(f"sensor_revision {e.sensor_revision!r}: only V2.0 is documented as 3.3 V compatible")
+    rev = str(e.sensor_revision or "").strip().upper()
+    if not rev.startswith("V2"):
+        problems.append(f"sensor_revision {e.sensor_revision!r}: must be read off the PCB as V2.x "
+                        "(V1.0 is not documented as 3.3 V compatible)")
+    if not e.revision_evidence_ref:
+        problems.append("revision_evidence_ref (photo of the PCB revision marking) not recorded")
+    if e.powered_off_while_wiring is not True:
+        problems.append("powered_off_while_wiring not confirmed (Seeed: do not hot plug)")
+    if e.continuity_checked is not True:
+        problems.append("continuity_checked not confirmed")
+    if e.mount_verified is not True:
+        problems.append("mount_verified not confirmed (height/pitch/setback measured)")
+    if e.sensor_vcc_v is not None and SPEC_VCC_MIN_V <= e.sensor_vcc_v <= SPEC_VCC_MAX_V:
+        lo, hi = (3.2, 3.45) if e.sensor_vcc_v < 4.5 else (4.75, 5.25)
+        if e.vcc_measured_v is None:
+            problems.append("vcc_measured_v not recorded")
+        elif not (lo <= e.vcc_measured_v <= hi):
+            problems.append(f"vcc_measured_v {e.vcc_measured_v} V outside {lo}-{hi} V for a "
+                            f"{e.sensor_vcc_v} V supply")
+    if e.sig_idle_measured_v is None:
+        problems.append("sig_idle_measured_v not recorded")
+    elif not (-0.1 <= e.sig_idle_measured_v <= 3.4):
+        problems.append(f"sig_idle_measured_v {e.sig_idle_measured_v} V: SIG above 3.4 V must never reach a Pi GPIO")
     if not e.wiring_verified_by or not e.wiring_verified_at:
         problems.append("wiring not verified: set wiring_verified_by and wiring_verified_at after the "
-                        "WIRING.md checklist (meter reading on SIG) is done")
+                        "WIRING.md checklist is done")
     if problems:
         raise ElectricalInterfaceError("refusing GPIO access: " + "; ".join(problems))

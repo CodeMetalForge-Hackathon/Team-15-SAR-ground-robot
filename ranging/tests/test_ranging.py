@@ -50,6 +50,8 @@ def run(assessor, driver, n):
 
 def good_elec(**over):
     d = dict(sensor_vcc_v=3.3, header_vcc_pin=1, gpio_bcm=5, series_resistor_ohm=1000, sensor_revision="V2.0",
+             revision_evidence_ref="~/Team15_evidence/range/pcb.jpg", powered_off_while_wiring=True,
+             continuity_checked=True, vcc_measured_v=3.31, sig_idle_measured_v=0.02, mount_verified=True,
              wiring_verified_by="hw-teammate", wiring_verified_at="2026-11-07T20:00:00Z")
     d.update(over)
     return ElectricalConfig(**d)
@@ -263,7 +265,20 @@ def test_good_wiring_passes():
     (dict(gpio_bcm=None), "not a 40-pin header GPIO"),
     (dict(sensor_vcc_v=None), "not recorded"),
     (dict(sensor_vcc_v=2.5), "outside spec"),
-    (dict(sensor_revision=None), "only V2.0"),
+    (dict(sensor_revision=None), "must be read off the PCB as V2"),
+    (dict(sensor_revision="V1.0"), "must be read off the PCB as V2"),
+    (dict(sensor_revision="V1.0", sensor_vcc_v=5.0, header_vcc_pin=2, signal_level_shifter="BSS138",
+          vcc_measured_v=5.0), "must be read off the PCB as V2"),
+    (dict(revision_evidence_ref=None), "revision_evidence_ref"),
+    (dict(powered_off_while_wiring=None), "hot plug"),
+    (dict(powered_off_while_wiring=False), "hot plug"),
+    (dict(continuity_checked=None), "continuity_checked"),
+    (dict(mount_verified=False), "mount_verified"),
+    (dict(vcc_measured_v=None), "vcc_measured_v not recorded"),
+    (dict(vcc_measured_v=3.0), "outside 3.2-3.45"),
+    (dict(vcc_measured_v=4.9), "outside 3.2-3.45"),
+    (dict(sig_idle_measured_v=None), "sig_idle_measured_v not recorded"),
+    (dict(sig_idle_measured_v=4.8), "must never reach a Pi GPIO"),
     (dict(wiring_verified_by=None), "wiring not verified"),
     (dict(wiring_verified_at=""), "wiring not verified"),
 ])
@@ -273,7 +288,8 @@ def test_invalid_electrical_configuration_is_refused(over, msg):
 
 
 def test_5v_with_level_shifter_is_allowed():
-    check_electrical(good_elec(sensor_vcc_v=5.0, header_vcc_pin=2, signal_level_shifter="BSS138-bidirectional"))
+    check_electrical(good_elec(sensor_vcc_v=5.0, header_vcc_pin=2, signal_level_shifter="BSS138-bidirectional",
+                               vcc_measured_v=5.02))
 
 
 def test_gpiod_driver_refuses_unverified_wiring_before_importing_gpiod():
@@ -290,7 +306,8 @@ def test_cli_requires_hardware_flag_and_verified_config(tmp_path, capsys):
     assert cli.main(["check-config", "--config", str(p)]) == 2              # no --hardware
     assert "pass --hardware" in capsys.readouterr().out
     assert cli.main(["check-config", "--config", str(p), "--hardware"]) == 0
-    p.write_text(json.dumps({"driver": "gpiod", "electrical": vars(good_elec(sensor_vcc_v=5.0, header_vcc_pin=2))}))
+    p.write_text(json.dumps({"driver": "gpiod", "electrical": vars(good_elec(sensor_vcc_v=5.0, header_vcc_pin=2,
+                                                                              vcc_measured_v=5.0))}))
     assert cli.main(["check-config", "--config", str(p), "--hardware"]) == 2
     assert "5 V could reach" in capsys.readouterr().out
     assert cli.main(["check-config", "--hardware"]) == 2                      # --hardware with sim config
@@ -328,8 +345,30 @@ class FakeGpiod:
         self.requests = 0
         self.fake = self
 
+    chip_label = "pinctrl-rp1"
+    line_name = None      # default GPIO<pin>
+    line_used = False
+
     def LineSettings(self, **kw):  # noqa: N802
         return dict(kw)
+
+    def Chip(self, path):  # noqa: N802
+        g = self
+
+        class _Chip:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *a):
+                return False
+
+            def get_info(self):
+                return types.SimpleNamespace(label=g.chip_label)
+
+            def get_line_info(self, off):
+                return types.SimpleNamespace(name=g.line_name or f"GPIO{off}", used=g.line_used,
+                                             consumer="other" if g.line_used else None)
+        return _Chip()
 
     def request_lines(self, chip, consumer, config):
         if self.plan and self.plan[0] == ("raise",):
@@ -412,6 +451,22 @@ def test_gpiod_error_recovery_reopens():
     assert r1.status is S.DRIVER_ERROR and "chip busy" in r1.detail and drv.reopen_count == 1
     r2 = drv.measure()
     assert r2.status is S.VALID and fake.requests == 1
+
+
+def test_gpiod_reading_records_sig_timing_evidence():
+    drv, _ = gpiod_driver([("ok", echo_us_for(0.5))])
+    x = drv.measure().extra
+    assert x["edges"] == 2 and x["release_us"] >= 0 and x["echo_start_us"] == pytest.approx(250, abs=200)
+
+
+@pytest.mark.parametrize("attr,val,msg", [("chip_label", "gpio-brcmstb@107d508500", "not the Pi 5 RP1"),
+                                          ("line_name", "PCIE_RP1_WAKE", "expected GPIO5"),
+                                          ("line_used", True, "already in use")])
+def test_gpiod_refuses_wrong_chip_or_busy_line(attr, val, msg):
+    drv, fake = gpiod_driver([("ok", echo_us_for(0.5))])
+    setattr(fake, attr, val)
+    r = drv.measure()
+    assert r.status is S.DRIVER_ERROR and msg in r.detail and fake.requests == 0
 
 
 def test_gpiod_out_of_range_echo():
@@ -523,3 +578,126 @@ def test_cli_read_and_calibrate_simulated(tmp_path, capsys):
                      "--sim-distance", "0.5", "--sim-noise", "0", "--out", str(out)]) == 0
     rep = json.loads(out.read_text())
     assert rep["rows"][0]["error_m"] == pytest.approx(0.2) and rep["provenance"]["source_mode"] == "SIMULATED"
+
+
+# ---------------------------------------------------------------- diagnosis (all still STOP)
+
+def diag_after(tmp_path, scene, n):
+    svc = make_service(tmp_path, scene=scene)
+    for _ in range(n):
+        s = svc.step()
+    return s
+
+
+@pytest.mark.parametrize("scene,code", [
+    ([None], "NO_RESPONSE_EVER"),
+    ([2.0] * 3 + [None], "NO_RESPONSE_AFTER_ECHOES"),
+    ([S.ECHO_TIMEOUT], "ECHO_NOT_ENDING"),
+    ([5.0], "TARGET_BEYOND_RANGE"),
+    ([S.LINE_STUCK_HIGH], "LINE_FAULT"),
+    ([S.MISSED_ECHO_START], "RELEASE_TOO_SLOW"),
+    ([S.DRIVER_ERROR], "DRIVER_FAULT"),
+    ([2.0], "NONE"),
+])
+def test_diagnosis_distinguishes_causes_but_always_stops(tmp_path, scene, code):
+    s = diag_after(tmp_path, scene, 6)
+    assert s["health"]["diagnosis"]["code"] == code
+    if code != "NONE":
+        assert s["obstacle_status"] == "UNKNOWN" and s["forward_motion_allowed"] is False
+        assert s["health"]["diagnosis"]["motion"] == "STOP (UNKNOWN)"
+
+
+def test_out_of_range_counts_as_echo_evidence_for_later_no_echo(tmp_path):
+    s = diag_after(tmp_path, [5.0, 5.0, None, None], 4)
+    assert s["health"]["diagnosis"]["code"] == "NO_RESPONSE_AFTER_ECHOES"
+
+
+# ---------------------------------------------------------------- rover navigation adapter
+
+from ranging.rover_io import GroveRangeIO, snapshot_to_rover_fields  # noqa: E402
+
+
+def rover_fields(tmp_path, scene, n=6, now_offset_s=0.0):
+    svc = make_service(tmp_path, scene=scene)
+    for _ in range(n):
+        svc.step()
+    io = GroveRangeIO(RangeClient(path=str(tmp_path / "snap.json")))
+    if now_offset_s:
+        snap = json.loads((tmp_path / "snap.json").read_text())
+        snap = apply_freshness(snap, now_mono_ns=time.monotonic_ns() + int(now_offset_s * 1e9))
+        return snapshot_to_rover_fields(snap, time.monotonic() + now_offset_s, 3.0)
+    return io.read_fields()
+
+
+ROVER_KEYS = {"t", "status", "range_m", "max_range_m", "source", "seq"}
+
+
+def test_rover_clear_is_ok_with_range_on_monotonic_clock(tmp_path):
+    f = rover_fields(tmp_path, 2.0)
+    assert ROVER_KEYS <= set(f) and f["status"] == "OK" and f["range_m"] == pytest.approx(2.0, abs=0.01)
+    assert f["source"] == "grove-ultrasonic" and f["forward_motion_allowed"] is True
+    assert 0 <= time.monotonic() - f["t"] < 1.0
+
+
+@pytest.mark.parametrize("scene,n,status,obst", [
+    (0.2, 6, "OK", "BLOCKED"),            # range reported honestly, but forward not allowed
+    (2.0, 2, "ERROR", "UNKNOWN"),          # valid reading, filter window not full -> UNKNOWN
+    (None, 6, "NO_ECHO", "UNKNOWN"),
+    (5.0, 6, "NO_ECHO", "UNKNOWN"),        # out of range
+    (S.ECHO_TIMEOUT, 6, "ERROR", "UNKNOWN"),
+    (S.BELOW_MIN_RANGE, 6, "ERROR", "UNKNOWN"),
+    (S.DRIVER_ERROR, 6, "ERROR", "UNKNOWN"),
+])
+def test_rover_mapping_never_allows_motion_unless_clear(tmp_path, scene, n, status, obst):
+    f = rover_fields(tmp_path, scene, n)
+    assert f["status"] == status and f["obstacle_status"] == obst and f["forward_motion_allowed"] is False
+    if status != "OK":
+        assert f["range_m"] is None
+
+
+def test_rover_stale_and_unreachable_are_error(tmp_path):
+    f = rover_fields(tmp_path, 2.0, now_offset_s=2.0)
+    assert f["status"] == "ERROR" and f["forward_motion_allowed"] is False
+    f = GroveRangeIO(RangeClient(path=str(tmp_path / "nope.json"))).read_fields()
+    assert f["status"] == "ERROR" and f["forward_motion_allowed"] is False and f["range_m"] is None
+
+
+def test_rover_other_host_snapshot_is_error(tmp_path):
+    svc = make_service(tmp_path, scene=2.0)
+    for _ in range(6):
+        svc.step()
+    snap = svc.snapshot()
+    f = snapshot_to_rover_fields(snap, time.monotonic(), 3.0, this_host="some-other-host")
+    assert f["status"] == "ERROR" and f["forward_motion_allowed"] is False
+
+
+# ---------------------------------------------------------------- floor check and calibration analysis
+
+def test_floor_check_detects_floor_echo_in_caution(tmp_path, capsys):
+    out = tmp_path / "floor.json"
+    rc = cli.main(["floor-check", "--yes", "--samples", "8", "--interval", "0.06", "--sim-noise", "0",
+                   "--sim-distance", "0.6", "--out", str(out)])
+    rep = json.loads(out.read_text())
+    assert rc == 1 and rep["verdict"] == "FAIL_FALSE_CAUTION" and rep["consistent_with_floor"] is True
+
+
+def test_floor_check_open_space_records_no_target_signature(tmp_path):
+    out = tmp_path / "floor.json"
+    assert cli.main(["floor-check", "--yes", "--samples", "8", "--interval", "0.06", "--sim-scenario", "open",
+                     "--out", str(out)]) == 0
+    rep = json.loads(out.read_text())
+    assert rep["verdict"] == "PASS_NO_ECHO" and rep["no_target_signature"] == "NO_ECHO"
+
+
+def test_calibration_analysis_fit_and_margin():
+    rows = [{"target_m": t, "n_valid": 30, "median_m": t * 1.02 + 0.01, "error_m": t * 0.02 + 0.01, "sd_m": 0.004}
+            for t in (0.3, 0.5, 1.0, 1.5, 2.0)]
+    a = cli.fit_and_thresholds(rows, ObstacleConfig(), 30)
+    assert a["fit_true_vs_measured"]["scale"] == pytest.approx(1 / 1.02, rel=1e-3)
+    assert a["recommended"]["safety_margin_m"] == pytest.approx(max(0.10, 0.05 + 0.012))
+    assert a["calibration_complete"] is True
+    rows[0]["n_valid"] = 10
+    assert cli.fit_and_thresholds(rows, ObstacleConfig(), 30)["calibration_complete"] is False
+    big = [dict(r, error_m=0.2) for r in rows]
+    rec = cli.fit_and_thresholds(big, ObstacleConfig(), 30)["recommended"]
+    assert rec["safety_margin_m"] == pytest.approx(0.212) and rec["blocked_m"] > ObstacleConfig().blocked_m()

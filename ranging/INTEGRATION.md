@@ -52,6 +52,53 @@ Rules for the navigation controller:
    maps to UNKNOWN, so the robot does not drive forward there. This is
    deliberate: a missing echo is not proof of a clear path.
 
+### Adapter for `rover/` (feature/rover-navigation)
+
+`rover/sensors.py` expects `RangeReading(t, status OK|NO_ECHO|ERROR, range_m,
+max_range_m, source, seq)` with `t` on the controller clock.
+`ranging.rover_io.GroveRangeIO` produces exactly those fields, plus our verdict:
+
+```python
+from ranging.rover_io import GroveRangeIO
+from rover.sensors import RangeReading
+
+class PiRangeIO:                                  # navigator IO.clock()/read_range()
+    def __init__(self):
+        self.g = GroveRangeIO()                   # reads /dev/shm/team15_range.json
+        self.last = None
+    def clock(self) -> float:
+        return GroveRangeIO.clock()               # time.monotonic(): MUST be the navigator clock
+    def read_range(self):
+        f = self.g.read_fields()                  # never raises
+        self.last = f
+        return RangeReading(**{k: f[k] for k in ("t", "status", "range_m", "max_range_m", "source", "seq")})
+    def forward_motion_allowed(self) -> bool:     # AND this into every forward command
+        return bool(self.last and self.last["forward_motion_allowed"])
+```
+
+| Our state | `status` | `range_m` | `forward_motion_allowed` |
+|---|---|---|---|
+| fresh VALID, CLEAR / CAUTION | `OK` | decision range | `true` |
+| fresh VALID, **BLOCKED** | `OK` | decision range (honest, for the obstacle map) | **`false`** |
+| VALID but UNKNOWN (filter window not full) | `ERROR` | null | false |
+| `NO_ECHO`, `OUT_OF_RANGE` | `NO_ECHO` | null | false |
+| any other status, **stale**, unreadable, other host | `ERROR` | null | false |
+
+Required on the navigation side. These are points to agree on; this branch does
+not edit `rover/`:
+1. **AND `forward_motion_allowed` into the forward gate.** `rover.sensors.assess()`
+   checks only `range_m < required_clear_m`. If `required_clear_m` is below our
+   `blocked_threshold_m` (0.28 m now), a BLOCKED reading would pass as CLEAR.
+   Also set `required_clear_m ≥ blocked_threshold_m`. That value is included in
+   every reading's fields.
+2. **Keep `NoEchoPolicy.UNKNOWN` for the Grove sensor.** `CLEAR_TO_MAX` must
+   not be used with real hardware. A missing echo is not proof of a clear path
+   (fail-safe STOP).
+3. Navigation's `clock()` must be `time.monotonic()` on the same Pi.
+4. `sensor_max_age_s = 0.20` (navigation) is stricter than our 0.5 s, which is
+   fine, because the stricter limit wins. At a 0.1 s sample interval, one missed
+   ping will stop the robot. Don't set the interval above 0.1 s.
+
 ## Snapshot schema `team15.range_snapshot/1`
 
 | Field | Type | Meaning |

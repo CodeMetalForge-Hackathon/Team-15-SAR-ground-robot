@@ -4,7 +4,9 @@
   read          take readings and print them (simulated unless --hardware + verified config)
   serve         run the range service: snapshot file + HTTP /range,/health + evidence log
   watch         print what a consumer (navigation/dashboard) sees, via RangeClient
-  calibrate     tape-measure demo: read N samples at each known distance, report error
+  calibrate     tape-measure demo: read N samples at each known distance, report error + thresholds
+  floor-check   installed height/angle, clear floor ahead: are there floor echoes? no-target signature
+  diagnose      N pings: status counts, SIG release timing, echo start, health diagnosis
 
 Hardware access needs BOTH a config with driver "gpiod" that passes the
 electrical gate (ranging/WIRING.md) AND the --hardware flag.
@@ -141,6 +143,112 @@ def cmd_watch(args) -> int:
         return 0
 
 
+def _collect(driver, n: int, timeout_s: float, interval_s: float):
+    """Up to n pings (or timeout). Returns (valid distances, status counts, readings)."""
+    vals, statuses, readings = [], {}, []
+    deadline = time.monotonic() + timeout_s
+    while len(readings) < n and time.monotonic() < deadline:
+        r = driver.measure()
+        readings.append(r)
+        statuses[r.status.value] = statuses.get(r.status.value, 0) + 1
+        if r.valid:
+            vals.append(r.distance_m)
+        time.sleep(interval_s)
+    return vals, statuses, readings
+
+
+def _write(path, obj):
+    if path:
+        os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
+        with open(path, "w") as f:
+            json.dump(obj, f, indent=2)
+
+
+def fit_and_thresholds(rows: list, ocfg: ObstacleConfig, samples: int) -> dict:
+    """Linear fit true ~ a*measured + b, and thresholds whose margin covers the measured error."""
+    pts = [(r["median_m"], r["target_m"]) for r in rows if "median_m" in r]
+    out = {"n_targets_with_data": len(pts)}
+    if len(pts) >= 2:
+        mx = statistics.fmean(p[0] for p in pts); my = statistics.fmean(p[1] for p in pts)
+        sxx = sum((p[0] - mx) ** 2 for p in pts)
+        a = sum((p[0] - mx) * (p[1] - my) for p in pts) / sxx if sxx else 1.0
+        out["fit_true_vs_measured"] = {"scale": round(a, 4), "offset_m": round(my - a * mx, 4)}
+        # scale ~ 343/c_effective: suggests a speed-of-sound correction
+        out["suggested_speed_of_sound_mps"] = round(SensorConfig().speed_of_sound_mps * a, 1)
+    errs = [abs(r["error_m"]) for r in rows if "error_m" in r]
+    sds = [r["sd_m"] for r in rows if "sd_m" in r]
+    dropout = [r["target_m"] for r in rows if r["n_valid"] < 0.9 * samples]
+    complete = len(pts) == len(rows) and not dropout
+    if errs:
+        margin = max(ocfg.safety_margin_m, max(errs) + 3 * max(sds))
+        cal = ObstacleConfig(**{**vars(ocfg), "safety_margin_m": round(margin, 3)})
+        out["recommended"] = {"safety_margin_m": round(margin, 3), "blocked_m": round(cal.blocked_m(), 3),
+                              "caution_m": round(cal.caution_m(), 3),
+                              "basis": "margin = max(configured, max|error| + 3*max SD); stopping distance still "
+                                       "uses the PLACEHOLDER speed/decel/latency unless measured"}
+    out["targets_with_dropouts"] = dropout
+    out["calibration_complete"] = complete
+    return out
+
+
+def cmd_floor_check(args) -> int:
+    """Robot stationary at its installed height/pitch on the real floor, nothing ahead for >= 3 m."""
+    cfg, ocfg = _load(args)
+    svc = RangeService(cfg, ocfg, driver=_sim_driver(cfg, args), snapshot_path=None)
+    if not args.yes:
+        input("Robot stationary at its installed mount height/angle, on the demo floor, nothing within 3 m "
+              "ahead (walls, legs, cables). Press Enter... ")
+    try:
+        vals, statuses, _ = _collect(svc.driver, args.samples, args.timeout, cfg.sample_interval_s)
+    finally:
+        svc.stop()
+    g = ocfg.geometry()
+    fi = g["floor_intercept_m"]
+    near = sorted(vals)
+    in_blocked = [v for v in near if v <= ocfg.blocked_m()]
+    in_caution = [v for v in near if ocfg.blocked_m() < v <= ocfg.caution_m()]
+    if in_blocked:
+        verdict = "FAIL_FALSE_BLOCKED"
+    elif in_caution:
+        verdict = "FAIL_FALSE_CAUTION"
+    elif near:
+        verdict = "PASS_ECHOES_BEYOND_CAUTION"
+    else:
+        verdict = "PASS_NO_ECHO"
+    invalid = {k: v for k, v in statuses.items() if k != "VALID"}
+    rep = {"kind": "GROVE_FLOOR_CHECK", "provenance": svc.provenance, "robot_stationary": True,
+           "mount_height_m": ocfg.mount_height_m, "mount_pitch_deg": ocfg.mount_pitch_deg,
+           "predicted_floor_intercept_m": fi, "thresholds": {"blocked_m": round(ocfg.blocked_m(), 3),
+                                                             "caution_m": round(ocfg.caution_m(), 3)},
+           "n_pings": sum(statuses.values()), "statuses": statuses, "verdict": verdict,
+           "valid_fraction": round(len(vals) / max(1, sum(statuses.values())), 3),
+           "nearest_valid_m": round(near[0], 3) if near else None,
+           "median_valid_m": round(statistics.median(near), 3) if near else None,
+           "consistent_with_floor": bool(near and fi and abs(near[0] - fi) <= 0.3 * fi),
+           # What this board reports with no target: evidence for the NO_ECHO vs OUT_OF_RANGE diagnosis.
+           "no_target_signature": max(invalid, key=invalid.get) if invalid else None,
+           "time": time.time()}
+    _write(args.out, rep)
+    print(json.dumps(rep, indent=2))
+    return 0 if verdict.startswith("PASS") else 1
+
+
+def cmd_diagnose(args) -> int:
+    cfg, ocfg = _load(args)
+    svc = RangeService(cfg, ocfg, driver=_sim_driver(cfg, args), snapshot_path=None)
+    try:
+        for _ in range(args.samples):
+            snap = svc.step()
+            time.sleep(cfg.sample_interval_s)
+    finally:
+        svc.stop()
+    rep = {"kind": "GROVE_DIAGNOSE", "provenance": svc.provenance, "health": snap["health"],
+           "last_reading": snap["latest"], "time": time.time()}
+    _write(args.out, rep)
+    print(json.dumps(rep, indent=2))
+    return 0
+
+
 def cmd_calibrate(args) -> int:
     """Robot stationary. For each tape-measured distance, collect N valid readings and report error."""
     cfg, ocfg = _load(args)
@@ -152,14 +260,7 @@ def cmd_calibrate(args) -> int:
             if not args.yes:
                 input(f"\nPlace a flat target (>= 0.5 m^2, perpendicular) at {tgt:.3f} m from the sensor face "
                       f"(tape measure), keep the robot stationary, press Enter... ")
-            vals, statuses = [], {}
-            deadline = time.monotonic() + args.timeout
-            while len(vals) < args.samples and time.monotonic() < deadline:
-                r = svc.driver.measure()
-                statuses[r.status.value] = statuses.get(r.status.value, 0) + 1
-                if r.valid:
-                    vals.append(r.distance_m)
-                time.sleep(cfg.sample_interval_s)
+            vals, statuses, _ = _collect(svc.driver, args.samples, args.timeout, cfg.sample_interval_s)
             row = {"target_m": tgt, "n_valid": len(vals), "statuses": statuses}
             if vals:
                 med = statistics.median(vals)
@@ -176,11 +277,9 @@ def cmd_calibrate(args) -> int:
     errs = [abs(r["error_m"]) for r in rows if "error_m" in r]
     report["max_abs_error_m"] = round(max(errs), 4) if errs else None
     report["rms_error_m"] = round(math.sqrt(sum(e * e for e in errs) / len(errs)), 4) if errs else None
-    if args.out:
-        os.makedirs(os.path.dirname(os.path.abspath(args.out)), exist_ok=True)
-        with open(args.out, "w") as f:
-            json.dump(report, f, indent=2)
-    print(json.dumps({k: report[k] for k in ("max_abs_error_m", "rms_error_m")}))
+    report["analysis"] = fit_and_thresholds(rows, ocfg, args.samples)
+    _write(args.out, report)
+    print(json.dumps({k: report[k] for k in ("max_abs_error_m", "rms_error_m", "analysis")}, indent=2))
     return 0
 
 
@@ -207,6 +306,13 @@ def main(argv=None) -> int:
     p.add_argument("--yes", action="store_true", help="do not prompt (simulator / scripted runs)")
     p.add_argument("--out", help="write report JSON here (keep outside Git, e.g. ~/Team15_evidence/range/)")
     p.set_defaults(fn=cmd_calibrate)
+    p = sub.add_parser("floor-check"); _add_common(p)
+    p.add_argument("--samples", type=int, default=100); p.add_argument("--timeout", type=float, default=30)
+    p.add_argument("--yes", action="store_true"); p.add_argument("--out")
+    p.set_defaults(fn=cmd_floor_check)
+    p = sub.add_parser("diagnose"); _add_common(p)
+    p.add_argument("--samples", type=int, default=50); p.add_argument("--out")
+    p.set_defaults(fn=cmd_diagnose)
     args = ap.parse_args(argv)
     setup_logging(getattr(args, "log_level", "WARNING"))
     try:

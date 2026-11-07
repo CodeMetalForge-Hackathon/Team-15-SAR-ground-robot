@@ -1,8 +1,8 @@
 # Grove Ultrasonic Ranger → Raspberry Pi 5: hardware connection guide
 
-**Status: NOT YET VERIFIED.** No GPIO line has been configured. The hardware
-driver is locked until this checklist is done and recorded in the config. See
-"Unlock the driver" below.
+**Status: NOT YET VERIFIED.** No GPIO line has been configured (GPIO5 still reads
+`pinctrl` function `none`). The hardware driver stays locked until every
+checklist item in section 5 is recorded in the config (section 6).
 
 ## 1. What the sources say
 
@@ -87,53 +87,111 @@ is a single-wire timing device that I²C cannot read. Plugging it in would put
 SIG on SDA and VCC from the RoverC rail. Do not power it from the RoverC-Pro
 battery rail either: use the Pi's 3.3 V and GND.
 
-## 4. Checklist (power OFF for steps 1–4)
+## 4. Single-wire SIG: how the Pi 5 switches between trigger and echo
 
-1. Read the PCB silkscreen and write down the revision (`V2.0` expected). Photograph it.
-2. Shut down the Pi (`sudo poweroff`) and remove power. **No hot plugging** (Seeed).
-3. Wire it as in the table. Check with a meter in continuity mode:
-   yellow ↔ pin 29 (through 1 kΩ, so ~1 kΩ), red ↔ pin 1, black ↔ pin 9.
-   **Red must not be continuous with pin 2 or 4.**
-4. Check that red and black are not shorted (open circuit, or a high resistance).
-5. Power the Pi on. Before running any range code, measure:
-   - VCC at the sensor end of the red wire: **3.2–3.4 V**.
-   - SIG (yellow, sensor side) to GND at idle: **≤ 3.4 V**. Anything higher means stop and unplug.
-6. Mount: front center, beam axis horizontal, nothing within ~30 cm of the
-   sensor face. Record the axis height above the floor, the tilt, and how far
-   the sensor face sits behind the front bumper.
-7. Record who checked and when (next section).
+There is one wire. Either the Pi drives it (trigger) or the sensor drives it
+(echo). They must never drive it at the same time. Sequence in
+`GpiodDriver.measure()`, using libgpiod v2 on `/dev/gpiochip0` (`pinctrl-rp1`):
 
-## 5. Unlock the driver
+| Step | Pi side of SIG | Sensor side | Guard |
+|---|---|---|---|
+| 0. open (once) | Read-only check: chip label is `pinctrl-rp1`, line 5 is named `GPIO5`, line is unused. Then request it as **input, pull-down, edge detection both, CLOCK_MONOTONIC** | input (waiting) | wrong chip, wrong line or busy line → `DRIVER_ERROR`, nothing driven |
+| 1. idle check | input. Drain old edge events, read the level | input | level high → `LINE_STUCK_HIGH`; **the Pi never switches to output onto a high line** |
+| 2. trigger | `reconfigure_lines` → **output low**; 2 µs low; **high 15 µs** (spec > 10 µs); low | input | the sensor is listening, so no contention |
+| 3. release | `reconfigure_lines` → **input + pull-down + edges**. `release_us` = time from trigger end to release done, recorded on every reading | sends 8 × 40 kHz (≈ 200 µs), then **drives SIG high** | the sensor must not drive before the Pi releases (next row) |
+| 4. echo | input. The kernel timestamps the rising and falling edges (CLOCK_MONOTONIC) | high for the round trip, then low | echo starting > 2 ms after the trigger → `NO_ECHO` (Seeed rejects > 530 µs). No falling edge in time → `ECHO_TIMEOUT` |
+| 5. between pings | input + pull-down | input | an unplugged SIG reads low → `NO_ECHO`, never a distance |
 
-Copy `ranging/configs/pi5_gpio5.UNVERIFIED.json` to the Pi, outside Git, for
-example `~/Team15_config/grove_range.json`, and fill in:
+- **Overlap risk at step 3:** if releasing takes longer than the gap before
+  the sensor starts its echo, the Pi drives low while the sensor drives high.
+  The 1 kΩ series resistor limits that to ≤ 3.3 mA, which is safe for both
+  sides. The driver then sees a falling edge with no rising edge and reports
+  `MISSED_ECHO_START`. It does not guess a distance.
+- `release_us` on a Pi 5 has **not yet been measured**, because no GPIO has been
+  configured. `diagnose` reports it during the first powered run. Release must
+  finish well before the echo starts (`echo_start_us`, expected ~200–500 µs).
+- Trigger level: a 3.3 V high into a sensor powered from 3.3 V is a full logic high.
+- Libraries: this driver uses only libgpiod v2 (`python3-libgpiod` 2.2.0 on the
+  Pi). Don't use classic `RPi.GPIO` on a Pi 5: it was written for the older
+  SoC GPIO, not RP1. `lgpio` is also installed but isn't used.
+
+## 5. Checklist (Pi fully powered OFF for steps 1–5)
+
+1. **Revision:** read the PCB silkscreen. It must say **V2.0** (or V2.x). Photograph it
+   and keep the photo outside Git, e.g. `~/Team15_evidence/range/pcb_revision.jpg`. If
+   it says V1.0 or has no marking, **stop**: the 3.3 V wiring isn't
+   documented for that board, and GPIO stays locked.
+2. `sudo poweroff`, wait for the green LED to stop, **unplug the Pi's USB-C power**.
+   Unplug the RoverC-Pro battery link too, if it shares ground with the Pi. **No hot plugging** (Seeed).
+3. Wire it as in section 3. With a meter in continuity/resistance mode:
+   yellow ↔ pin 29 ≈ 1 kΩ, red ↔ pin 1 ≈ 0 Ω, black ↔ pin 9 ≈ 0 Ω.
+   **Red must not connect to pin 2 or 4.** White must not touch anything.
+4. Red ↔ black must not be a short.
+5. Mount: front center, beam axis level (or tilted up). Measure the axis height
+   above the floor, the pitch, and how far the sensor face sits behind the front
+   bumper. These go into the `obstacle` section of the config.
+6. Power on the Pi. **No range code yet.** Measure:
+   - VCC at the sensor (red to black): **3.20–3.45 V**.
+   - SIG (yellow) to GND: **≤ 3.4 V**. Expect about 3.3 V or less, because at
+     boot GPIO5 has the Pi's default pull-up (`pinctrl get 5` → `pu`). Anything
+     above 3.4 V: unplug the Pi's power and stop.
+7. Record everything (next section).
+
+## 6. Unlock the driver (only after every step passes)
+
+Copy `ranging/configs/pi5_gpio5.UNVERIFIED.json` to `~/Team15_config/grove_range.json`
+on the Pi (outside Git) and fill in **every** field:
 
 ```json
 "electrical": {
   "sensor_vcc_v": 3.3, "header_vcc_pin": 1, "signal_level_shifter": null,
-  "series_resistor_ohm": 1000, "gpio_bcm": 5, "sensor_revision": "V2.0",
-  "wiring_verified_by": "<teammate name>", "wiring_verified_at": "<ISO time>"
+  "series_resistor_ohm": 1000, "gpio_bcm": 5,
+  "sensor_revision": "V2.0", "revision_evidence_ref": "~/Team15_evidence/range/pcb_revision.jpg",
+  "powered_off_while_wiring": true, "continuity_checked": true,
+  "vcc_measured_v": <meter>, "sig_idle_measured_v": <meter>, "mount_verified": true,
+  "wiring_verified_by": "<teammate>", "wiring_verified_at": "<ISO time>"
 },
-"obstacle": { "mount_height_m": <measured>, "mount_pitch_deg": <measured>, "sensor_setback_m": <measured> }
+"obstacle": { "mount_height_m": <m>, "mount_pitch_deg": <deg>, "sensor_setback_m": <m> }
 ```
 
 `python3 -m ranging check-config --config ~/Team15_config/grove_range.json --hardware`
-must print `"ok": true`. The gate refuses all of these:
-- 5 V without a level shifter
-- a header VCC pin that doesn't match the stated voltage
-- GPIO0/1 (HAT EEPROM), GPIO2/3 (I²C), GPIO14/15 (UART)
-- a non-V2 board at 3.3 V
-- a config with no verifier recorded
+must print `"ok": true`. The gate refuses each of these:
+- a missing or false checklist item
+- a revision other than V2.x
+- no revision photo
+- VCC measured outside 3.20–3.45 V (or 4.75–5.25 V with a level shifter)
+- SIG idle above 3.4 V
+- 5 V with no shifter
+- a VCC header pin that doesn't match the stated voltage
+- a reserved pin
+- no verifier recorded
 
-## 6. First read-only run (robot stationary, motors off)
+## 7. Powered runs (robot stationary, motors off, wheels off the ground)
+
+Each run writes evidence to `~/Team15_evidence/range/`:
 
 ```
-python3 -B -m ranging read --config ~/Team15_config/grove_range.json --hardware --count 50
-python3 -B -m ranging calibrate --config ~/Team15_config/grove_range.json --hardware \
-        --targets 0.30,0.50,1.00,1.50,2.00 --samples 30 --out ~/Team15_evidence/range/calibration.json
+CFG=~/Team15_config/grove_range.json; EV=~/Team15_evidence/range
+# 7.1 SIG switching + liveness: release_us, echo_start_us, status counts. Target ~1 m.
+python3 -B -m ranging diagnose   --config $CFG --hardware --samples 50 --out $EV/diagnose_1m.json
+# 7.2 Floor reflections + no-target signature: installed height/angle, real floor, nothing within 3 m.
+python3 -B -m ranging floor-check --config $CFG --hardware --samples 200 --out $EV/floor_check.json
+# 7.3 Accuracy: flat board >= 0.5 m^2, perpendicular, tape measured from the sensor face.
+python3 -B -m ranging calibrate  --config $CFG --hardware --targets 0.30,0.50,1.00,1.50,2.00 \
+        --samples 30 --out $EV/calibration.json
 ```
 
-At each tape-measured distance, use a flat board (≥ 0.5 m²) held perpendicular to
-the beam. Report median error, standard deviation and the status counts. If
-there are many `MISSED_ECHO_START` statuses, the Pi switched SIG to input too
-late after the trigger. Report it so the timing can be revisited.
+- **7.1:** `release_us` must be well below `echo_start_us`. Any
+  `MISSED_ECHO_START` means the release is too slow. Stop and report it.
+- **7.2:** `verdict` must be `PASS_*`. If it says `FAIL_FALSE_CAUTION` or
+  `FAIL_FALSE_BLOCKED` and `consistent_with_floor` is true, raise the sensor or
+  tilt it up, update `mount_height_m`/`mount_pitch_deg`, and rerun.
+  `no_target_signature` records what this physical board reports with nothing
+  ahead (`NO_ECHO` or `OUT_OF_RANGE`). That evidence sharpens the
+  no-echo diagnosis. Motion is still STOP either way.
+- **Disconnected signature** (optional): power off, unplug the Grove cable at the
+  sensor, power on, run `diagnose --samples 30`. Expect
+  `NO_RESPONSE_EVER`. Power off again before reconnecting.
+- **7.3:** the report has the per-target error, a linear fit (scale, offset), a
+  suggested speed of sound, and **recommended `blocked_m`/`caution_m`** with
+  margin = max(0.10 m, max|error| + 3·SD).
