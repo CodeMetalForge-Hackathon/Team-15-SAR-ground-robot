@@ -1,21 +1,20 @@
 """Live bench camera person detector (LIVE-HW, platform=BENCH).
 
-Captures frames from a local camera (e.g. a MacBook built-in camera), runs
-OpenCV's built-in pretrained detectors, and on the first frame containing a
-person saves an annotated JPEG and prints one observation JSON line.
+Captures frames from a local camera (e.g. a MacBook built-in camera) and runs
+every detector on every frame, keeping results labeled by family:
+PERSON_DETECTOR (COCO-pretrained torchvision Faster R-CNN, class "person"),
+FULL_BODY_HOG, UPPER_BODY_HAAR and FACE_ONLY (see perception/detectors.py).
 
-This is a bench test with a *declared* drone and cell. It is NOT an aerial
-detection claim; location is SECTOR_ONLY (the declared cell), not localized.
+By default only PERSON_DETECTOR hits can raise a sighting. When a candidate is
+confirmed, the exact evidence frame is saved losslessly outside Git and ONE
+sighting JSON line is printed on stdout (and appended to sightings.jsonl in the
+evidence dir). Repeated frames of the same candidate are attached to that
+sighting, not re-emitted (see perception/sightings.py for the dedup rule).
 
-Detectors (all bundled with OpenCV, no downloads):
-  1. HOG + linear SVM people detector (full body)
-  2. Haar frontal-face cascade (fallback; laptop cameras usually see head/shoulders)
-  3. Haar upper-body cascade (fallback)
-
-Confidence: none of these detectors produce a calibrated probability, so the
-observation's ``confidence`` is null. The raw detector score (HOG SVM margin or
-Haar cascade level weight) is recorded in ``evidence.detector_score`` with its
-kind, so it is not mistaken for a probability.
+This is a bench test with a *declared* drone and an operator-assigned sector.
+It is NOT an aerial detection claim; location is SECTOR_ONLY.
+``confidence`` is null: detector scores are recorded with their kind in
+``evidence`` and are not calibrated probabilities.
 """
 from __future__ import annotations
 
@@ -24,11 +23,16 @@ import json
 import os
 import sys
 import time
-from dataclasses import dataclass
 from typing import List, Optional, Sequence
 
 import cv2
 import numpy as np
+
+from .detectors import (DEFAULT_DNN_MODEL, DNN_MODELS, FACE_ONLY, FAMILIES,
+                        FULL_BODY_HOG, PERSON_DETECTOR, UPPER_BODY_HAAR, Detection,
+                        OpenCVDetectors, TorchPersonDetector, _cascade, best)
+from .sightings import (DEFAULT_EVIDENCE_DIR, SightingGate, ensure_evidence_dir,
+                        iso_utc, make_sighting, save_evidence, validate_sector)
 
 EXIT_OK = 0
 EXIT_NO_PERSON = 2
@@ -50,24 +54,9 @@ CAMERA_HELP = (
 )
 
 
-@dataclass
-class Detection:
-    bbox: List[int]  # [x, y, w, h]
-    detector: str
-    score: Optional[float]
-    score_kind: Optional[str]
-
-
-def _cascade(name: str) -> cv2.CascadeClassifier:
-    path = os.path.join(cv2.data.haarcascades, name)
-    c = cv2.CascadeClassifier(path)
-    if c.empty():
-        raise RuntimeError(f"failed to load Haar cascade {path}")
-    return c
-
-
 class PersonDetector:
-    """HOG people detector first, then Haar face and upper-body fallbacks."""
+    """Original first-hit OpenCV detector (kept for compatibility; run() uses
+    detectors.OpenCVDetectors + TorchPersonDetector instead)."""
 
     def __init__(self) -> None:
         self.hog = cv2.HOGDescriptor()
@@ -96,12 +85,12 @@ class PersonDetector:
             weights = np.asarray(weights).reshape(-1)
             i = int(np.argmax(weights))
             return Detection(unscale(rects[i]), "opencv_hog_default_people",
-                             float(weights[i]), "hog_svm_margin")
+                             float(weights[i]), "hog_svm_margin", FULL_BODY_HOG)
 
         # 2/3. Haar cascades
-        for name, casc, min_size in (
-            ("opencv_haar_frontalface_default", self.face, (60, 60)),
-            ("opencv_haar_upperbody", self.upper, (80, 80)),
+        for fam, name, casc, min_size in (
+            (FACE_ONLY, "opencv_haar_frontalface_default", self.face, (60, 60)),
+            (UPPER_BODY_HAAR, "opencv_haar_upperbody", self.upper, (80, 80)),
         ):
             rects, _levels, lw = casc.detectMultiScale3(
                 gray, scaleFactor=1.1, minNeighbors=5, minSize=min_size,
@@ -112,7 +101,8 @@ class PersonDetector:
                 i = int(np.argmax(lw)) if lw.size == len(rects) else 0
                 score = float(lw[i]) if lw.size == len(rects) else None
                 return Detection(unscale(rects[i]), name, score,
-                                 "haar_level_weight" if score is not None else None)
+                                 "haar_level_weight" if score is not None else None,
+                                 fam)
         return None
 
 
@@ -181,67 +171,171 @@ def open_camera(index: int, warmup_s: float = 1.0) -> cv2.VideoCapture:
     return cap
 
 
-def run(camera: int, drone_id: str, cell: str, out_dir: str, timeout_s: float,
-        once: bool) -> int:
-    detector = PersonDetector()
+FAMILY_COLORS = {PERSON_DETECTOR: (0, 255, 0), FULL_BODY_HOG: (255, 128, 0),
+                 UPPER_BODY_HAAR: (0, 200, 255), FACE_ONLY: (255, 0, 255)}
+TRIGGERS = {"person": (PERSON_DETECTOR,),
+            "any": (PERSON_DETECTOR, FULL_BODY_HOG, UPPER_BODY_HAAR, FACE_ONLY)}
+
+
+def annotate_all(frame: np.ndarray, dets: List[Detection], trigger: Detection,
+                 header: str) -> np.ndarray:
+    out = frame.copy()
+    for d in dets:
+        x, y, w, h = d.bbox
+        thick = 4 if d is trigger else 2
+        cv2.rectangle(out, (x, y), (x + w, y + h), FAMILY_COLORS[d.family], thick)
+        sc = "" if d.score is None else f" {d.score:.2f}"
+        cv2.putText(out, f"{d.family}{sc}", (x, max(20, y - 8)),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, FAMILY_COLORS[d.family], 2)
+    cv2.putText(out, header, (10, out.shape[0] - 12), cv2.FONT_HERSHEY_SIMPLEX, 0.7,
+                (0, 255, 0), 2)
+    return out
+
+
+def _log(msg: str) -> None:
+    print(msg, file=sys.stderr, flush=True)
+
+
+def run(a: argparse.Namespace) -> int:
     try:
-        cap = open_camera(camera)
+        sector = validate_sector(a.sector)
+        out_dir = ensure_evidence_dir(a.out_dir)
+    except ValueError as e:
+        _log(f"ERROR: {e}")
+        return 1
+
+    detectors = []
+    if not a.no_dnn:
+        detectors.append(TorchPersonDetector(a.dnn_model, a.person_thresh))
+    detectors.append(OpenCVDetectors())
+    trigger_families = TRIGGERS[a.trigger]
+
+    try:
+        cap = open_camera(a.camera)
     except CameraUnavailable as e:
-        print(f"ERROR: {e}", file=sys.stderr)
+        _log(f"ERROR: {e}")
         return EXIT_CAMERA_UNAVAILABLE
 
-    os.makedirs(out_dir, exist_ok=True)
-    seq = 0
-    deadline = time.time() + timeout_s
+    start = time.time()
+    boot_id = f"b{int(start)}"  # unique per run so obs_ids never collide across runs
+    run_id = f"{a.declare_drone}-{boot_id}" + (f"-{a.label}" if a.label else "")
+    frame_log = open(os.path.join(out_dir, f"{run_id}_frames.jsonl"), "w")
+    sightings_path = os.path.join(out_dir, "sightings.jsonl")
+    gate = SightingGate(confirm_frames=a.confirm_frames, rearm_s=a.rearm_s)
+    frames = 0
+    frames_with = {f: 0 for f in FAMILIES}
+    first_hit_s = {f: None for f in FAMILIES}
+    sightings: List[dict] = []
     empty_streak = 0
-    found_any = False
+    _log(f"run {run_id}: sector={sector} trigger={a.trigger} "
+         f"detectors={[getattr(d, 'name', 'opencv') for d in detectors]} "
+         f"duration={a.duration_s:.0f}s evidence_dir={out_dir}")
     try:
-        while time.time() < deadline:
+        while time.time() - start < a.duration_s:
             ok, frame = cap.read()
+            obs_time = time.time()
             if not ok or is_black(frame):
                 empty_streak += 1
                 if empty_streak > 60:
-                    print("ERROR: camera stopped delivering frames. " + CAMERA_HELP,
-                          file=sys.stderr)
+                    _log("ERROR: camera stopped delivering frames. " + CAMERA_HELP)
                     return EXIT_CAMERA_UNAVAILABLE
                 continue
             empty_streak = 0
-            obs_time = time.time()
-            det = detector.detect(frame)
-            if det is None:
+            frames += 1
+            dets: List[Detection] = []
+            for d in detectors:
+                dets.extend(d.detect_all(frame))
+            rel = obs_time - start
+            for f in FAMILIES:
+                if any(d.family == f for d in dets):
+                    frames_with[f] += 1
+                    if first_hit_s[f] is None:
+                        first_hit_s[f] = round(rel, 2)
+            frame_log.write(json.dumps({
+                "t": round(obs_time, 3), "rel_s": round(rel, 2),
+                "counts": {f: sum(d.family == f for d in dets) for f in FAMILIES},
+                "best": {f: (b.to_json() if (b := best(dets, f)) else None)
+                         for f in FAMILIES}}) + "\n")
+
+            trig = None
+            for f in trigger_families:  # priority order: person detector first
+                trig = best(dets, f)
+                if trig is not None:
+                    break
+            if not gate.update(obs_time, trig is not None):
                 continue
-            seq += 1
-            found_any = True
-            obs_id = f"{drone_id}-b1-{seq:06d}"
-            path = os.path.abspath(os.path.join(out_dir, f"{obs_id}_{int(obs_time)}.jpg"))
-            if not cv2.imwrite(path, annotate(frame, det)):
-                print(f"ERROR: failed to write {path}", file=sys.stderr)
-                return 1
-            obs = make_observation(seq=seq, drone_id=drone_id, cell=cell,
-                                   obs_time=obs_time, frame_ref=path, det=det)
-            print(json.dumps(obs), flush=True)
-            if once:
-                return EXIT_OK
-            time.sleep(1.0)  # simple rate limit in continuous mode
+            seq = len(sightings) + 1
+            obs_id = f"{a.declare_drone}-{boot_id}-{seq:06d}"
+            header = (f"{obs_id} LIVE-HW BENCH sector {sector} "
+                      f"{iso_utc(obs_time)}")
+            frame_ref, sha, ann = save_evidence(
+                out_dir, obs_id, frame, annotate_all(frame, dets, trig, header))
+            s = make_sighting(drone_id=a.declare_drone, boot_id=boot_id, seq=seq,
+                              sector=sector, obs_time=obs_time, frame_ref=frame_ref,
+                              frame_sha256=sha, annotated_ref=ann,
+                              frame_size=[int(frame.shape[1]), int(frame.shape[0])],
+                              trigger=trig, all_dets=dets, operator=a.operator)
+            sightings.append(s)
+            line = json.dumps(s)
+            print(line, flush=True)
+            with open(sightings_path, "a") as f:
+                f.write(line + "\n")
+            _log(f"[+{rel:.1f}s] SIGHTING {obs_id} {trig.family} {trig.detector} "
+                 f"score={trig.score:.3f} bbox={trig.bbox} -> {frame_ref}")
+            if a.once:
+                break
     finally:
         cap.release()
-    if found_any:
+        frame_log.close()
+
+    elapsed = time.time() - start
+    summary = {
+        "run_id": run_id, "label": a.label, "sector": sector, "trigger": a.trigger,
+        "elapsed_s": round(elapsed, 1), "frames": frames,
+        "fps": round(frames / elapsed, 2) if elapsed else 0.0,
+        "frames_with": frames_with,
+        "frac_frames_with": {f: round(n / frames, 3) if frames else 0.0
+                             for f, n in frames_with.items()},
+        "first_hit_s": first_hit_s,
+        "sightings_emitted": [s["obs_id"] for s in sightings],
+        "frames_attached_to_existing_sighting": gate.suppressed_total,
+    }
+    with open(os.path.join(out_dir, f"{run_id}_summary.json"), "w") as f:
+        json.dump(summary, f, indent=1)
+    _log("SUMMARY " + json.dumps(summary))
+    if sightings:
         return EXIT_OK
-    print(f"NO PERSON DETECTED within {timeout_s:.0f}s on camera {camera}; "
-          "no picture saved, no observation emitted.", file=sys.stderr)
+    _log(f"NO SIGHTING within {a.duration_s:.0f}s on camera {a.camera}; "
+         "no picture saved, no sighting emitted.")
     return EXIT_NO_PERSON
 
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
     p = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     p.add_argument("--camera", type=int, default=0)
-    p.add_argument("--declare-drone", required=True)
-    p.add_argument("--declare-cell", required=True)
-    p.add_argument("--out-dir", required=True)
-    p.add_argument("--timeout-s", type=float, default=30.0)
-    p.add_argument("--once", action="store_true")
+    p.add_argument("--declare-drone", default="D1")
+    p.add_argument("--sector", "--declare-cell", dest="sector", required=True,
+                   help="operator-assigned sector A-Z (SECTOR_ONLY location)")
+    p.add_argument("--operator", default=None, help="operator who assigned the sector")
+    p.add_argument("--out-dir", default=DEFAULT_EVIDENCE_DIR,
+                   help="evidence dir; must be outside any Git work tree")
+    p.add_argument("--duration-s", "--timeout-s", dest="duration_s", type=float,
+                   default=30.0)
+    p.add_argument("--once", action="store_true", help="stop after the first sighting")
+    p.add_argument("--trigger", choices=sorted(TRIGGERS), default="person",
+                   help="person = pretrained person detector only (default); "
+                        "any = also HOG / upper-body / face-only")
+    p.add_argument("--dnn-model", choices=sorted(DNN_MODELS), default=DEFAULT_DNN_MODEL)
+    p.add_argument("--person-thresh", type=float, default=0.6)
+    p.add_argument("--no-dnn", action="store_true", help="OpenCV detectors only")
+    p.add_argument("--confirm-frames", type=int, default=3)
+    p.add_argument("--rearm-s", type=float, default=60.0,
+                   help="absence needed before the same camera emits a new sighting")
+    p.add_argument("--label", default="", help="tag for this run's log files")
     a = p.parse_args(argv)
-    return run(a.camera, a.declare_drone, a.declare_cell, a.out_dir, a.timeout_s, a.once)
+    if a.trigger == "person" and a.no_dnn:
+        p.error("--no-dnn requires --trigger any")
+    return run(a)
 
 
 if __name__ == "__main__":
