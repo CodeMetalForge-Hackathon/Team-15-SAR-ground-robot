@@ -25,7 +25,7 @@ following. Only **verified** decisions become observations:
 | --- | --- | --- |
 | `obs_id` | `{receiver_id}-{boot_id}-{seq:06d}` | (new) |
 | `drone_id` | `receiver_id`: alphanumeric only, e.g. `BLE1`. The field name is the team's; it identifies our receiver, not a drone. | `sensor="ble_id"` |
-| `boot_id` | A fresh random value generated at every process start: 8 lowercase hex characters from a CSPRNG (`secrets.token_hex(4)`). It is never persisted or reused, and it is logged at startup | (new) |
+| `boot_id` | A fresh random value generated at every process start with `secrets.token_hex(16)`: 128 bits, written as 32 lowercase hex characters (accepted by ingest's alphanumeric `obs_id` pattern). It is never persisted or reused, and it is logged at startup | (new) |
 | `seq` | Monotonic within one boot, starting at 1, and starting over with each new `boot_id`. At 999999 the verifier stops posting and reports an error; it never wraps | (new) |
 | `source_mode` / `platform` | `LIVE-HW` / `BENCH` in live mode; `SIMULATED` / `SIM` in sim mode | SIMULATED/LIVE banner |
 | `sensor` | `ble` | (new) |
@@ -45,22 +45,38 @@ only to keep `obs_id` unique, and it is new on every start. Replay state (the
 per-alias high-water counters) is stored durably on its own, under the base
 spec's "Persist replay state" rules. It survives restarts and fails closed if
 lost or corrupt. A restart therefore keeps replay protection but always gets a
-new `boot_id`. Two random 32-bit boot IDs colliding is negligible over a
-mission; a collision would make the store treat a post as a duplicate, which
-loses that one observation but never forges one.
+new `boot_id`. With 128 random bits, the birthday bound puts the chance of
+any two boot IDs colliding below 10^-26, even after a million process starts.
+If one ever did collide, the store would treat a post as a duplicate. That
+would lose that one observation but could never forge one.
 
 **Secret keys are never written outside their key stores.** That covers the
-iOS Keychain and the ignored, permission-restricted `keys.json`. Key bytes, and
-anything derived from them other than the 80-bit tag, must never appear in:
+iOS Keychain and the ignored, permission-restricted `keys.json`. Real (secret)
+key bytes, and anything derived from them other than the 80-bit tag, must never
+appear in:
 - observations
 - decision logs, console or serial output, or error messages
 - evidence, reports, test fixtures, or video
 
 The decision log may record alias, counter, truncated tag, decision, and reason
-for diagnostics. Those never go into an observation. Evidence and tests use
-only the PUBLIC SYNTHETIC TEST KEYS in
-`evidence/c0-20261107T1914Z/protocol_vectors_v1.json`. Those keys must never be
-enrolled, and the verifier refuses to load any key equal to one of them.
+for diagnostics. Those never go into an observation.
+
+**Public synthetic test keys.** These are the keys in
+`evidence/c0-20261107T1914Z/protocol_vectors_v1.json`. They are not secret, and
+they are the only keys allowed in evidence, tests, and fixtures.
+- **Production:** enrollment and key loading reject any key equal to a
+  published synthetic key, and fail visibly.
+- **Tests and experiments:** synthetic keys are explicitly permitted in two
+  places. One is isolated unit or integration tests that never read the
+  production `keys.json`. The other is labelled experiments, such as the C1
+  rotating stage on a real iPhone.
+- **Opting in:** test-key mode is enabled only by an explicit opt-in, such as a
+  dedicated command-line flag or test entry point. When it is on, the startup
+  banner and every decision-log line say SYNTHETIC TEST KEYS.
+- **No silent fallback:** production never enables test-key mode silently. That
+  rules out a default setting, an environment-variable fallback, a missing or
+  unreadable `keys.json`, or recovery after an error. Each of those fails
+  closed instead.
 
 ## A2. Non-verified decisions are not posted
 
@@ -174,3 +190,6 @@ cell is the receiver's declared location; fresh boot ID per start with separate
 durable replay state; offline permits a local dashboard link; vectors (A8).
 r3: alias 0 = malformed and the four replay reason labels accepted by the user;
 moved into the base spec. The rest of this amendment is still PROPOSED.
+r4: `boot_id` is 128 bits (`secrets.token_hex(16)`); synthetic keys are rejected
+in production but explicitly permitted in isolated tests and labelled
+experiments, with no silent test mode.

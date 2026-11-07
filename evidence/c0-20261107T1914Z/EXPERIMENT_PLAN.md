@@ -12,7 +12,7 @@ would change something, it is marked [A1].
 | iPhone: exact model and iOS version | E1 to E4 | UNKNOWN: record at C1 |
 | Mac with Xcode, Apple ID signing for that iPhone, Developer Mode on | E1 to E4 | UNKNOWN |
 | BLE-capable ESP32 board (e.g. ESP32-C3/S3/C6) and data USB cable | E1 to E4 | UNCONFIRMED. The build plan lists two Seeed boards of unknown type; identify via silkscreen / `esptool.py chip_id` |
-| `arduino-cli`, Arduino ESP32 core, NimBLE-Arduino (versions pinned) | E1 to E4 | Not installed; download before going offline |
+| `arduino-cli`, Arduino ESP32 core, NimBLE-Arduino (versions pinned) | E1 to E4 | UNVERIFIED on the Mac; if absent, download before going offline (only after C1 is authorized) |
 | Python 3.11 (matches CI) with `pyserial` | E0 to E4 | `pyserial` not in `requirements.txt` (request R5) |
 | Tape measure, masking tape, one fixed obstruction, second phone for filming | E2 to E4 | UNKNOWN |
 | Local dashboard (t2 branch) | E2, E4 dashboard shots | Available, but live BLE posting is BLOCKED by request R1 |
