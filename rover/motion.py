@@ -267,6 +267,8 @@ class SafetySupervisor:
             return "no fresh range reading"
         if cmd == Command.MOVE_FORWARD and self.forward_assessment != Assessment.CLEAR:
             return f"forward not CLEAR: {self.forward_assessment.value} ({self.forward_reason})"
+        if cmd == Command.MOVE_FORWARD and getattr(self.range, "forward_allowed", None) is False:
+            return "ranging service forward_motion_allowed=false"
         if cmd in _UNSENSED:
             if evidence is None or evidence.command != cmd or now - evidence.t > evidence.max_age_s:
                 return f"{cmd.value}: no sensor covers that direction; needs fresh operator evidence"
@@ -312,6 +314,8 @@ class SafetySupervisor:
                 self._latch(SafetyStop.SENSOR_STALE, "range reading stale while moving")
             elif self.active == Command.MOVE_FORWARD and self.forward_assessment != Assessment.CLEAR:
                 self.stop(f"obstacle check {self.forward_assessment.value}: {self.forward_reason}")
+            elif self.active == Command.MOVE_FORWARD and getattr(self.range, "forward_allowed", None) is False:
+                self.stop("ranging service forward_motion_allowed=false")
             else:
                 p = self._power_problem(now)
                 if p:

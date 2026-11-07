@@ -48,6 +48,50 @@ def test_left_then_right_then_back_views_with_measured_heading():
     assert s.nav.state == State.ARRIVED
 
 
+def _collapse(states):
+    out = []
+    for s in states:
+        if not out or out[-1] != s:
+            out.append(s)
+    return out
+
+
+def test_stop_rotate_scan_replan_sequence():
+    s = build("A", [BOX_DE])
+    s.nav.start("G")
+    trace = []
+    s.run(until=lambda sim: trace.append((sim.world.t, sim.driver.velocity.vx)) or not sim.nav.running)
+    states = _collapse(h["state"] for h in s.nav.history)
+    i = states.index("OBSTACLE_DETECTED")
+    seq = states[i:]
+    expected_order = ["OBSTACLE_DETECTED", "STOP", "VERIFY_OBSTACLE", "MARK_EDGE_BLOCKED_IF_JUSTIFIED",
+                      "SCAN_DIRECTIONS", "TURN_TO_HEADING", "REPLAN_SHORTEST_ROUTE", "VERIFY_DETOUR",
+                      "CONTINUE_OR_REQUEST_OPERATOR", "TURN_TO_HEADING", "CHECK_SENSORS", "ADVANCE_IF_SAFE",
+                      "PLAN_ROUTE"]
+    pos = 0
+    for st in seq:
+        if pos < len(expected_order) and st == expected_order[pos]:
+            pos += 1
+    assert pos == len(expected_order), (seq[:20], expected_order[pos:])
+    # no forward motion between the obstacle stop and the approved detour
+    t_stop = next(h["t"] for h in s.nav.history if h["state"] == "OBSTACLE_DETECTED")
+    t_go = next(h["t"] for h in s.nav.history if h["state"] == "CONTINUE_OR_REQUEST_OPERATOR" and h["t"] > t_stop)
+    between = [vx for t, vx in trace if t_stop < t <= t_go]
+    assert between and all(vx == 0 for vx in between)
+
+
+def test_scan_waits_for_settle_readings_after_each_rotation():
+    s = build("A", [BOX_DE], scan_settle_readings=3)
+    s.nav.start("G")
+    s.run()
+    sc = _scan_for(s, "D-E")
+    # each sample must be at least the 3rd fresh reading after the rotation stopped
+    for v in sc["views"].values():
+        seqs = [x["reading"]["seq"] for x in v["samples"]]
+        assert all(b - a >= 3 for a, b in zip(seqs, seqs[1:])), seqs
+    assert s.nav.state == State.ARRIVED
+
+
 def test_rotations_are_bounded_segments():
     s = build("A", [BOX_DE])
     s.nav.start("G")

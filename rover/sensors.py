@@ -38,12 +38,14 @@ class RangeReading:
     forward_allowed: Optional[bool] = None     # the service's forward_motion_allowed, ANDed into every check
     blocked_threshold_m: Optional[float] = None  # required clearance is never below this
     hardware: bool = False       # real sensor: NO_ECHO is always UNKNOWN, whatever the policy
+    service_status: Optional[str] = None  # ranging service obstacle_status: CLEAR|CAUTION|BLOCKED|UNKNOWN
+    reason: str = ""
 
     def to_dict(self) -> dict:
         return {"t": self.t, "status": self.status, "range_m": self.range_m,
                 "max_range_m": self.max_range_m, "source": self.source, "seq": self.seq,
                 "forward_allowed": self.forward_allowed, "blocked_threshold_m": self.blocked_threshold_m,
-                "hardware": self.hardware}
+                "hardware": self.hardware, "service_status": self.service_status, "reason": self.reason}
 
 
 @dataclass(frozen=True)
@@ -70,46 +72,96 @@ class CameraDetection:
     source: str
 
 
-GROVE_FIELDS = ("t", "status", "range_m", "max_range_m", "source", "seq", "forward_motion_allowed")
-GROVE_SOURCE = "grove-ultrasonic"  # PR #7 ranging/rover_io.py ROVER_SOURCE
+ROVER_FIELDS_SCHEMA = "team15.rover_range_fields/1"  # PR #7 ranging/rover_io.py (versioned interface)
+GROVE_FIELDS = ("schema", "clock", "t", "status", "range_m", "max_range_m", "source", "seq",
+                "forward_motion_allowed", "obstacle_status", "measurement_status")
+GROVE_SOURCE = "grove-ultrasonic"  # PR #7 ROVER_SOURCE
+_SERVICE_STATUSES = ("CLEAR", "CAUTION", "BLOCKED", "UNKNOWN")
+_NO_ECHO_MS = ("NO_ECHO", "OUT_OF_RANGE")
 
 
 def _finite(x) -> bool:
     return isinstance(x, (int, float)) and not isinstance(x, bool) and math.isfinite(x)
 
 
-def from_rover_fields(f: dict) -> RangeReading:
-    """Adopt PR #7 ``ranging.rover_io.snapshot_to_rover_fields()`` output as a RangeReading.
+def _error(why: str, seq: int = 0) -> RangeReading:
+    # t = -inf: an ERROR is not fresh sensor data, so it can never satisfy a freshness check
+    return RangeReading(-math.inf, ERROR, None, 0.0, GROVE_SOURCE, seq, forward_allowed=False, hardware=True,
+                        service_status="UNKNOWN", reason=why)
 
-    The dict's ``t`` is ``time.monotonic()`` on the Pi (taken from the reading's own ``mono_ns``), so
-    the navigator's clock must be ``time.monotonic`` on that same Pi. Anything malformed becomes an
-    ERROR reading that is stamped -inf, so it is always stale. It never raises and never guesses
-    "clear".
+
+def from_rover_fields(f, expected_clock: str) -> RangeReading:
+    """Validate PR #7 ``team15.rover_range_fields/1`` (``GroveRangeIO.read_fields()``) into a RangeReading.
+
+    ``expected_clock`` is the navigator's own clock domain, ``"time.monotonic@<this host>"``. A reading
+    from any other clock domain (another host, or wall clock) is rejected as ERROR.
+    Every problem gives an ERROR reading, never an exception and never "clear":
+      - a wrong schema, a missing key, a non-finite number or an unknown status;
+      - a contradiction between the numbers and the verdict, such as forward_motion_allowed=true
+        while status/obstacle_status is not OK/CLEAR|CAUTION, a range below the blocked threshold
+        while motion is allowed, a range on a non-OK status, or a measurement_status that
+        disagrees with status.
+    BLOCKED at a large range is allowed. PR #7 reports its honest decision range, so the verdict
+    decides and we treat it as BLOCKED.
+    An ERROR reading gets t = -inf, so service loss and malformed input always read as stale.
     """
     try:
+        if not isinstance(f, dict):
+            return _error("fields are not a dict")
         missing = [k for k in GROVE_FIELDS if k not in f]
         if missing:
-            raise ValueError(f"missing {missing}")
-        status = f["status"]
+            return _error(f"missing fields {missing}")
+        if f["schema"] != ROVER_FIELDS_SCHEMA:
+            return _error(f"schema {f['schema']!r} != {ROVER_FIELDS_SCHEMA}")
+        if f["clock"] != expected_clock:
+            return _error(f"clock domain {f['clock']!r} != {expected_clock!r}")
+        if f["source"] != GROVE_SOURCE:
+            return _error(f"source {f['source']!r}")
+        status, rng, ms, obst = f["status"], f["range_m"], f["measurement_status"], f["obstacle_status"]
+        allowed = f["forward_motion_allowed"]
+        seq = f["seq"]
+        if not _finite(f["t"]):
+            return _error("non-finite t")
+        if not (_finite(f["max_range_m"]) and f["max_range_m"] > 0):
+            return _error("bad max_range_m")
+        if not (isinstance(seq, int) and not isinstance(seq, bool) and seq >= 0):
+            return _error(f"bad seq {seq!r}")
         if status not in (OK, NO_ECHO, ERROR):
-            raise ValueError(f"status {status!r}")
-        if not _finite(f["t"]) or not _finite(f["max_range_m"]):
-            raise ValueError("non-finite t/max_range_m")
-        rng = f["range_m"]
-        if status == OK and not (_finite(rng) and rng >= 0):
-            raise ValueError("OK without a usable range_m")
-        if status != OK:
-            rng = None
+            return _error(f"status {status!r}")
+        if obst not in _SERVICE_STATUSES:
+            return _error(f"obstacle_status {obst!r}")
+        if not isinstance(allowed, bool):
+            return _error("forward_motion_allowed is not a bool")
         thr = f.get("blocked_threshold_m")
+        if thr is not None and not (_finite(thr) and thr >= 0):
+            return _error("bad blocked_threshold_m")
+        # numerical / status contradictions
+        if status == OK:
+            if not (_finite(rng) and 0 <= rng <= f["max_range_m"] * 1.05):
+                return _error(f"OK with unusable range_m {rng!r}")
+            if ms != "VALID":
+                return _error(f"status OK but measurement_status {ms!r}")
+            if obst == "UNKNOWN":
+                return _error("status OK but obstacle_status UNKNOWN")
+        else:
+            if rng is not None:
+                return _error(f"status {status} carries range_m {rng!r}")
+            if status == NO_ECHO and ms not in _NO_ECHO_MS:
+                return _error(f"status NO_ECHO but measurement_status {ms!r}")
+        if allowed and (status != OK or obst not in ("CLEAR", "CAUTION")):
+            return _error(f"forward_motion_allowed with status {status}/{obst}")
+        if allowed and thr is not None and rng < thr:
+            return _error(f"forward_motion_allowed with range {rng} < blocked threshold {thr}")
+        if status == ERROR:
+            return _error(f"service: {f.get('reason')}", seq=seq)
         return RangeReading(
             t=float(f["t"]), status=status, range_m=None if rng is None else float(rng),
-            max_range_m=float(f["max_range_m"]), source=str(f["source"]), seq=int(f["seq"] or 0),
-            forward_allowed=f["forward_motion_allowed"] is True,
-            blocked_threshold_m=float(thr) if _finite(thr) else None,
-            hardware=f.get("source_mode") != "SIMULATED")
-    except (ValueError, TypeError, KeyError) as e:
-        return RangeReading(-math.inf, ERROR, None, 0.0, f"{GROVE_SOURCE}:malformed({e})", 0,
-                            forward_allowed=False, hardware=True)
+            max_range_m=float(f["max_range_m"]), source=GROVE_SOURCE, seq=seq,
+            forward_allowed=allowed, blocked_threshold_m=None if thr is None else float(thr),
+            hardware=f.get("source_mode") != "SIMULATED", service_status=obst,
+            reason=str(f.get("reason") or ""))
+    except Exception as e:  # never let a malformed reading escape as anything but ERROR
+        return _error(f"malformed: {type(e).__name__}: {e}")
 
 
 def age(reading_t: Optional[float], now: float) -> float:
@@ -129,7 +181,8 @@ def assess(reading: Optional[RangeReading], now: float, required_clear_m: float,
     if reading is None:
         return Assessment.UNKNOWN, "no range reading"
     if not _finite(reading.t) or not _finite(now):
-        return Assessment.UNKNOWN, "range reading has no valid timestamp"
+        why = f"range reading stale (no valid timestamp{': ' + reading.reason if reading.reason else ''})"
+        return Assessment.UNKNOWN, why
     a = now - reading.t
     if a < -0.05:
         return Assessment.UNKNOWN, f"range reading timestamp {-a:.3f}s in the future (clock fault)"
@@ -143,7 +196,9 @@ def assess(reading: Optional[RangeReading], now: float, required_clear_m: float,
         if reading.range_m < required_clear_m:
             return Assessment.BLOCKED, f"obstacle at {reading.range_m:.2f} m < {required_clear_m:.2f} m"
         if reading.forward_allowed is False:
-            return Assessment.UNKNOWN, "ranging service forward_motion_allowed=false"
+            if reading.service_status == "BLOCKED":
+                return Assessment.BLOCKED, f"ranging service BLOCKED at {reading.range_m:.2f} m"
+            return Assessment.UNKNOWN, f"ranging service forward_motion_allowed=false ({reading.service_status})"
         return Assessment.CLEAR, f"clear {reading.range_m:.2f} m >= {required_clear_m:.2f} m"
     if reading.status == NO_ECHO:
         if reading.hardware:

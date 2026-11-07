@@ -5,10 +5,10 @@ Date: 2026-11-07. Branch `feature/rover-navigation`.
 ## 0. Gate status
 | Gate | Status | Evidence |
 |---|---|---|
-| 1 Protocol understood | **Partly: documentation only** | Datasheet facts are encoded in `rover/protocol.py`. The undocumented items are listed in section 1 below. |
+| 1 Protocol understood | **Partly: documentation only.** Hardware inspected read-only on 2026-11-07: see `HARDWARE_READINESS.md` | Datasheet facts are encoded in `rover/protocol.py`. The undocumented items are listed in section 1 below. |
 | 2 Simulated motor commands + watchdog | **PASS (sim)** | `rover/tests/test_supervisor.py`, `test_protocol_hardware.py` |
 | 3 Dynamic shortest-path rerouting | **PASS (sim)** | `rover/tests/test_scenarios.py` A–F, `test_scanning.py`, `planner/tests/test_astar.py` |
-| 4 Sensor integration with fake readings | **PASS (sim)** | Scenarios G and H, stale/no-echo/unknown tests |
+| 4 Sensor integration with fake readings | **PASS (sim + PR #7 interface)** | Scenarios G and H, plus `rover/tests/test_grove_adapter.py`, which runs PR #7's own `rover_io`/`RangeClient` |
 | 5 Physical motor tests | **NOT STARTED: blocked** | Section 1 |
 | 6 Supervised movement with real sensors | **NOT STARTED** | Needs Gate 5 and the Grove contract |
 | 7 Localization/odometry validation | **NOT POSSIBLE with current hardware** | No encoders, no calibrated heading |
@@ -28,7 +28,7 @@ Verified from M5Stack documentation (not from our unit):
 
 Not verified, so each one blocks Gate 5:
 1. **Exact controller model and firmware.** We don't yet know whether it is a StickC or a StickC Plus, nor what sketch is flashed. Nothing on this Mac shows a USB serial device for it (only Bluetooth and debug ports).
-2. **The Pi-to-RoverC link does not exist.** The Pi refused SSH at 10.42.0.1:22 during this session, so its I²C and USB couldn't be inventoried.
+2. **The Pi-to-RoverC link does not exist.** Inspected over Tailscale (100.97.93.118): no USB devices, no serial devices, and the header I²C bus is not enabled. See `HARDWARE_READINESS.md`.
    - The RoverC bus is mastered by the StickC.
    - Wiring the Pi into a Grove I²C port would put two masters on one bus. That is unsupported.
    - **Recommendation:** add StickC bridge firmware that takes commands over USB serial (or Wi-Fi UDP) and **zeroes the motors when commands stop arriving** (for example after 300 ms). Then measure that timeout and record it in `HardwareVerification.stop_on_link_loss_ms`.
