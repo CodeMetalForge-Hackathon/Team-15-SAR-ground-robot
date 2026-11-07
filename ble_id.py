@@ -1,10 +1,9 @@
 """BLE-ID adapter: validated serial rows -> C2 verifier -> durable state -> sightings.
 
-One serial reader (discovery.server.serial_worker) hands every line here. Only a
-verified decision whose new replay state was persisted first becomes a sighting;
-replay/forged/unknown/drop stay in diagnostics. Sightings are keyed by the
-authenticated alias, never by MAC address. Verifier, clock, or persistence
-errors halt verification visibly (fail closed) until restart. First use:
+The single serial reader hands every line here. Only a verified decision whose
+replay state was persisted first becomes a sighting; replay/forged/unknown/drop
+stay in diagnostics. Sightings are keyed by authenticated alias, never MAC address.
+Verifier, clock or persistence errors halt verification visibly. First use:
     python3 -m ble_id init-state --state PATH --scope SCOPE   # explicit first init
 """
 from __future__ import annotations
