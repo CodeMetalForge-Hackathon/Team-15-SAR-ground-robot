@@ -40,6 +40,9 @@ function draw() {
   const data = current;
   const live = data.status === "scanning";
   const hw = data.source === "LIVE-HW";
+  $("source-detail").textContent = hw
+    ? "USB ESP32 → local view · Discovery stays in memory; verification saves replay protection locally."
+    : `${data.source} serial → local view · Not hardware; separate test replay state.`;
   $("connection").className = `connection${live && hw ? " live" : ""}`;
   $("connection").textContent = live ? `${hw ? "LIVE USB" : `${data.source} · NOT HARDWARE`} · Passive scanning` : `Receiver ${data.status}`;
   $("active").textContent = live ? data.active : "—";
