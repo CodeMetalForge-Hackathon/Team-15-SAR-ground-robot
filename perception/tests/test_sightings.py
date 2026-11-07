@@ -142,3 +142,15 @@ def test_person_detector_blank_frames():
     d = TorchPersonDetector("frcnn_mbv3_fpn", device="cpu")
     for val in (0, 128, 255):
         assert d.detect_all(np.full((360, 640, 3), val, np.uint8)) == []
+
+
+def test_small_boxes_never_trigger():
+    from perception.live_camera import select_trigger
+    refl = Detection([573, 711, 78, 82], "frcnn", 0.99, "k", PERSON_DETECTOR)
+    real = Detection([842, 512, 196, 565], "frcnn", 0.95, "k", PERSON_DETECTOR)
+    face = Detection([10, 10, 300, 300], "haar", 5.0, "k", FACE_ONLY)
+    h = 0.15 * 1080
+    assert select_trigger([refl], (PERSON_DETECTOR,), h) is None
+    assert select_trigger([refl, real], (PERSON_DETECTOR,), h) is real
+    assert select_trigger([face], (PERSON_DETECTOR,), h) is None  # face never triggers by default
+    assert select_trigger([face], (PERSON_DETECTOR, FACE_ONLY), h) is face

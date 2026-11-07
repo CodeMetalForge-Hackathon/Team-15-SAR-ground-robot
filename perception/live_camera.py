@@ -192,6 +192,18 @@ def annotate_all(frame: np.ndarray, dets: List[Detection], trigger: Detection,
     return out
 
 
+def select_trigger(dets: List[Detection], families: Sequence[str],
+                   min_box_h: float) -> Optional[Detection]:
+    """Best detection from the first family (in priority order) that has one at
+    least ``min_box_h`` pixels tall. Smaller boxes are logged but never trigger:
+    on the bench they were window reflections (80-130 px in a 1080 px frame)."""
+    for f in families:
+        trig = best([d for d in dets if d.bbox[3] >= min_box_h], f)
+        if trig is not None:
+            return trig
+    return None
+
+
 def _log(msg: str) -> None:
     print(msg, file=sys.stderr, flush=True)
 
@@ -216,6 +228,13 @@ def run(a: argparse.Namespace) -> int:
         _log(f"ERROR: {e}")
         return EXIT_CAMERA_UNAVAILABLE
 
+    if a.start_delay_s > 0:
+        _log(f"camera open; ignoring frames for {a.start_delay_s:.0f}s so the "
+             "operator can step out of view")
+        t_wait = time.time() + a.start_delay_s
+        while time.time() < t_wait:
+            cap.read()  # keep the stream draining; frames are discarded
+        _log("capture started")
     start = time.time()
     boot_id = f"b{int(start)}"  # unique per run so obs_ids never collide across runs
     run_id = f"{a.declare_drone}-{boot_id}" + (f"-{a.label}" if a.label else "")
@@ -228,6 +247,7 @@ def run(a: argparse.Namespace) -> int:
     sightings: List[dict] = []
     empty_streak = 0
     _log(f"run {run_id}: sector={sector} trigger={a.trigger} "
+         f"min_box_frac={a.min_box_frac} "
          f"detectors={[getattr(d, 'name', 'opencv') for d in detectors]} "
          f"duration={a.duration_s:.0f}s evidence_dir={out_dir}")
     try:
@@ -255,13 +275,11 @@ def run(a: argparse.Namespace) -> int:
                 "t": round(obs_time, 3), "rel_s": round(rel, 2),
                 "counts": {f: sum(d.family == f for d in dets) for f in FAMILIES},
                 "best": {f: (b.to_json() if (b := best(dets, f)) else None)
-                         for f in FAMILIES}}) + "\n")
+                         for f in FAMILIES},
+                "all": [d.to_json() for d in dets]}) + "\n")
 
-            trig = None
-            for f in trigger_families:  # priority order: person detector first
-                trig = best(dets, f)
-                if trig is not None:
-                    break
+            trig = select_trigger(dets, trigger_families,
+                                  a.min_box_frac * frame.shape[0])
             if not gate.update(obs_time, trig is not None):
                 continue
             seq = len(sightings) + 1
@@ -291,6 +309,7 @@ def run(a: argparse.Namespace) -> int:
     elapsed = time.time() - start
     summary = {
         "run_id": run_id, "label": a.label, "sector": sector, "trigger": a.trigger,
+        "min_box_frac": a.min_box_frac,
         "elapsed_s": round(elapsed, 1), "frames": frames,
         "fps": round(frames / elapsed, 2) if elapsed else 0.0,
         "frames_with": frames_with,
@@ -321,6 +340,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                    help="evidence dir; must be outside any Git work tree")
     p.add_argument("--duration-s", "--timeout-s", dest="duration_s", type=float,
                    default=30.0)
+    p.add_argument("--start-delay-s", type=float, default=0.0,
+                   help="open the camera, then ignore frames for this long")
     p.add_argument("--once", action="store_true", help="stop after the first sighting")
     p.add_argument("--trigger", choices=sorted(TRIGGERS), default="person",
                    help="person = pretrained person detector only (default); "
@@ -328,6 +349,9 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     p.add_argument("--dnn-model", choices=sorted(DNN_MODELS), default=DEFAULT_DNN_MODEL)
     p.add_argument("--person-thresh", type=float, default=0.6)
     p.add_argument("--no-dnn", action="store_true", help="OpenCV detectors only")
+    p.add_argument("--min-box-frac", type=float, default=0.15,
+                   help="min box height as a fraction of frame height to trigger a "
+                        "sighting (BENCH-tuned: drops window reflections); 0 = off")
     p.add_argument("--confirm-frames", type=int, default=3)
     p.add_argument("--rearm-s", type=float, default=60.0,
                    help="absence needed before the same camera emits a new sighting")
