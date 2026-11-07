@@ -16,7 +16,7 @@ It is NOT an aerial detection claim; location is SECTOR_ONLY.
 
 ``--source pi`` reads the Raspberry Pi 5 camera instead, as timestamped JPEGs
 over SSH (see perception/pi_source.py). Frames are rotated on arrival
-(``--pi-rotation``, default 180 for the inverted mount), ``obs_time`` is the
+(``--pi-rotation``, default 180 for the robot mount), ``obs_time`` is the
 Pi's capture time, and ``evidence.camera`` records the camera and transport.
 ``confidence`` is null: detector scores are recorded with their kind in
 ``evidence`` and are not calibrated probabilities.
@@ -37,7 +37,7 @@ from .detectors import (DEFAULT_DNN_MODEL, DNN_MODELS, FACE_ONLY, FAMILIES,
                         FULL_BODY_HOG, PERSON_DETECTOR, UPPER_BODY_HAAR, Detection,
                         OpenCVDetectors, TorchPersonDetector, _cascade, best)
 from .pi_source import ENV_HOST, ENV_KEY, ENV_USER, PiSourceError, open_pi_camera, \
-    parse_size, ROTATIONS
+    parse_size, ROTATIONS, DEFAULT_PI_ROTATION
 from .sightings import (DEFAULT_EVIDENCE_DIR, SightingGate, ensure_evidence_dir,
                         iso_utc, make_sighting, save_evidence, validate_sector)
 
@@ -416,9 +416,11 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                    help="capture size WxH (default 1280x720)")
     g.add_argument("--pi-fps", type=float, default=5.0)
     g.add_argument("--pi-quality", type=int, default=80, help="JPEG quality 1-100")
-    g.add_argument("--pi-rotation", type=int, choices=sorted(ROTATIONS), default=180,
-                   help="rotate frames on arrival (default 180: camera mounted "
-                        "upside down)")
+    g.add_argument("--pi-rotation", type=int, choices=sorted(ROTATIONS),
+                   default=DEFAULT_PI_ROTATION,
+                   help="rotate frames on arrival (default %(default)s: verified "
+                        "upright on the wheeled-robot mount; re-check after a "
+                        "remount with perception.orientation_check)")
     g.add_argument("--pi-startup-timeout-s", type=float, default=30.0)
     p.add_argument("--declare-drone", default="D1")
     p.add_argument("--sector", "--declare-cell", dest="sector", required=True,
