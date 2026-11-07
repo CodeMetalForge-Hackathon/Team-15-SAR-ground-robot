@@ -47,10 +47,17 @@ def normalise(obs: dict, *, known_cells, rx_time: float | None = None) -> dict:
     except (TypeError, ValueError):
         raise InvalidObservation("obs_time must be a number (epoch seconds)") from None
 
+    if obs.get("boot_id") is not None and obs["boot_id"] != m["boot"]:
+        raise InvalidObservation("boot_id does not match obs_id")
+    if obs.get("seq") is not None and obs["seq"] != int(m["seq"]):
+        raise InvalidObservation("seq does not match obs_id")
+    if obs.get("evidence") is not None and not isinstance(obs["evidence"], dict):
+        raise InvalidObservation("evidence must be an object")
+
     out = dict(obs)
     out["obs_time"] = obs_time
-    out.setdefault("boot_id", m["boot"])
-    out.setdefault("seq", int(m["seq"]))
+    out["boot_id"] = m["boot"]
+    out["seq"] = int(m["seq"])
     out["rx_time"] = float(rx_time if rx_time is not None else time.time())
     out.setdefault("stale_after_s", STALE_AFTER_S.get(obs["sensor"], 300.0))
     return out
