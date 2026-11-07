@@ -1,5 +1,6 @@
 __pycache__/
 *.py[cod]
+.DS_Store
 
 # BLE-ID local secrets: production key files must never be committed
 keys.json
