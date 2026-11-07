@@ -1,0 +1,94 @@
+pre-fix check: new regression test against unfixed code at 4f63f0e
+$ python -B -m pytest -v -p no:cacheprovider tests/test_ble_state_ownership.py
+============================= test session starts ==============================
+platform linux -- Python 3.10.12, pytest-8.3.4, pluggy-1.7.0 -- /sessions/rcw-01mltomtfqcprbfmhevkrmxj/c2venv/bin/python
+rootdir: /sessions/rcw-01mltomtfqcprbfmhevkrmxj/mnt/Team-15
+collecting ... collected 7 items
+
+tests/test_ble_state_ownership.py::test_second_process_refused_before_processing_any_token[file symlink] FAILED [ 14%]
+tests/test_ble_state_ownership.py::test_second_process_refused_before_processing_any_token[directory symlink] PASSED [ 28%]
+tests/test_ble_state_ownership.py::test_second_process_refused_before_processing_any_token[dot-dot path] PASSED [ 42%]
+tests/test_ble_state_ownership.py::test_second_process_refused_before_processing_any_token[same path] PASSED [ 57%]
+tests/test_ble_state_ownership.py::test_lock_is_released_for_every_alias_when_the_owner_exits FAILED [ 71%]
+tests/test_ble_state_ownership.py::test_saving_through_a_symlink_updates_the_real_file_and_keeps_the_link FAILED [ 85%]
+tests/test_ble_state_ownership.py::test_hard_linked_state_is_rejected FAILED [100%]
+
+=================================== FAILURES ===================================
+____ test_second_process_refused_before_processing_any_token[file symlink] _____
+
+kind = 'file symlink'
+owned = PosixPath('/sessions/rcw-01mltomtfqcprbfmhevkrmxj/tmp/pytest-of-rcw-01mltomtfqcprbfmhevkrmxj/pytest-41/test_second_process_refused_be0/real/state.json')
+tmp_path = PosixPath('/sessions/rcw-01mltomtfqcprbfmhevkrmxj/tmp/pytest-of-rcw-01mltomtfqcprbfmhevkrmxj/pytest-41/test_second_process_refused_be0')
+
+    @pytest.mark.parametrize("kind", ["file symlink", "directory symlink", "dot-dot path", "same path"])
+    def test_second_process_refused_before_processing_any_token(kind, owned, tmp_path):
+        r = second_process(alias(kind, owned, tmp_path))
+>       assert r.returncode == 3 and r.stdout.startswith("REFUSED"), r.stdout + r.stderr
+E       AssertionError: PROCESSED {'verified:fresh': 1}
+E         
+E       assert (0 == 3)
+E        +  where 0 = CompletedProcess(args=['/sessions/rcw-01mltomtfqcprbfmhevkrmxj/c2venv/bin/python', '-c', "import sys, time; sys.path.insert(0, sys.argv[1])\nfrom ble_id import BeaconMonitor, OwnerError\nfrom ble_keys import TEST_KEYS\nkw = dict(scope=sys.argv[3], mode='test-keys', source='SIMULATED', receiver_ready=lambda: True)\nfrom ble_sim import row\nfrom ble_verify import counter_at, make_token\ntry:\n    m = BeaconMonitor(TEST_KEYS, sys.argv[2], **kw)\nexcept OwnerError as e:\n    print('REFUSED', e, flush=True); sys.exit(3)\nm.ingest(row(-60, make_token(TEST_KEYS[1], counter_at(time.time()), alias=1)))\nprint('PROCESSED', m.snapshot()['counts'], flush=True)\n", '/sessions/rcw-01mltomtfqcprbfmhevkrmxj/mnt/Team-15', '/sessions/rcw-01mltomtfqcprbfmhevkrmxj/tmp/pytest-of-rcw-01mltomtfqcprbfmhevkrmxj/pytest-41/test_second_process_refused_be0/link.json', 'TESTKEY-ownership'], returncode=0, stdout="PROCESSED {'verified:fresh': 1}\n", stderr='').returncode
+
+tests/test_ble_state_ownership.py:76: AssertionError
+__________ test_lock_is_released_for_every_alias_when_the_owner_exits __________
+
+tmp_path = PosixPath('/sessions/rcw-01mltomtfqcprbfmhevkrmxj/tmp/pytest-of-rcw-01mltomtfqcprbfmhevkrmxj/pytest-41/test_lock_is_released_for_ever0')
+
+    def test_lock_is_released_for_every_alias_when_the_owner_exits(tmp_path):
+        real = tmp_path / "state.json"
+        init_state(real, scope=SCOPE)
+        link = alias("file symlink", real, tmp_path)
+        holder = start_holder(real)
+>       assert second_process(link).returncode == 3
+E       assert 0 == 3
+E        +  where 0 = CompletedProcess(args=['/sessions/rcw-01mltomtfqcprbfmhevkrmxj/c2venv/bin/python', '-c', "import sys, time; sys.path.insert(0, sys.argv[1])\nfrom ble_id import BeaconMonitor, OwnerError\nfrom ble_keys import TEST_KEYS\nkw = dict(scope=sys.argv[3], mode='test-keys', source='SIMULATED', receiver_ready=lambda: True)\nfrom ble_sim import row\nfrom ble_verify import counter_at, make_token\ntry:\n    m = BeaconMonitor(TEST_KEYS, sys.argv[2], **kw)\nexcept OwnerError as e:\n    print('REFUSED', e, flush=True); sys.exit(3)\nm.ingest(row(-60, make_token(TEST_KEYS[1], counter_at(time.time()), alias=1)))\nprint('PROCESSED', m.snapshot()['counts'], flush=True)\n", '/sessions/rcw-01mltomtfqcprbfmhevkrmxj/mnt/Team-15', '/sessions/rcw-01mltomtfqcprbfmhevkrmxj/tmp/pytest-of-rcw-01mltomtfqcprbfmhevkrmxj/pytest-41/test_lock_is_released_for_ever0/link.json', 'TESTKEY-ownership'], returncode=0, stdout="PROCESSED {'verified:fresh': 1}\n", stderr='').returncode
+E        +    where CompletedProcess(args=['/sessions/rcw-01mltomtfqcprbfmhevkrmxj/c2venv/bin/python', '-c', "import sys, time; sys.path.insert(0, sys.argv[1])\nfrom ble_id import BeaconMonitor, OwnerError\nfrom ble_keys import TEST_KEYS\nkw = dict(scope=sys.argv[3], mode='test-keys', source='SIMULATED', receiver_ready=lambda: True)\nfrom ble_sim import row\nfrom ble_verify import counter_at, make_token\ntry:\n    m = BeaconMonitor(TEST_KEYS, sys.argv[2], **kw)\nexcept OwnerError as e:\n    print('REFUSED', e, flush=True); sys.exit(3)\nm.ingest(row(-60, make_token(TEST_KEYS[1], counter_at(time.time()), alias=1)))\nprint('PROCESSED', m.snapshot()['counts'], flush=True)\n", '/sessions/rcw-01mltomtfqcprbfmhevkrmxj/mnt/Team-15', '/sessions/rcw-01mltomtfqcprbfmhevkrmxj/tmp/pytest-of-rcw-01mltomtfqcprbfmhevkrmxj/pytest-41/test_lock_is_released_for_ever0/link.json', 'TESTKEY-ownership'], returncode=0, stdout="PROCESSED {'verified:fresh': 1}\n", stderr='') = second_process(PosixPath('/sessions/rcw-01mltomtfqcprbfmhevkrmxj/tmp/pytest-of-rcw-01mltomtfqcprbfmhevkrmxj/pytest-41/test_lock_is_released_for_ever0/link.json'))
+
+tests/test_ble_state_ownership.py:86: AssertionError
+____ test_saving_through_a_symlink_updates_the_real_file_and_keeps_the_link ____
+
+tmp_path = PosixPath('/sessions/rcw-01mltomtfqcprbfmhevkrmxj/tmp/pytest-of-rcw-01mltomtfqcprbfmhevkrmxj/pytest-41/test_saving_through_a_symlink_0')
+
+    def test_saving_through_a_symlink_updates_the_real_file_and_keeps_the_link(tmp_path):
+        real = tmp_path / "state.json"
+        init_state(real, scope=SCOPE)
+        link = tmp_path / "link.json"
+        link.symlink_to(real)
+        m = BeaconMonitor(TEST_KEYS, str(link), scope=SCOPE, mode="test-keys", source="SIMULATED",
+                          receiver_ready=lambda: True)
+        n = counter_at(1794077187.0)
+        m.wall = lambda: 1794077187.0
+        m.ingest(row(-60, make_token(TEST_KEYS[1], n, alias=1)))
+>       assert dict(load_state(real, scope=SCOPE)) == {1: n}
+E       assert {} == {1: 59802572}
+E         
+E         Right contains 1 more item:
+E         {1: 59802572}
+E         
+E         Full diff:
+E         + {}
+E         - {
+E         -     1: 59802572,
+E         - }
+
+tests/test_ble_state_ownership.py:103: AssertionError
+______________________ test_hard_linked_state_is_rejected ______________________
+
+tmp_path = PosixPath('/sessions/rcw-01mltomtfqcprbfmhevkrmxj/tmp/pytest-of-rcw-01mltomtfqcprbfmhevkrmxj/pytest-41/test_hard_linked_state_is_reje0')
+
+    def test_hard_linked_state_is_rejected(tmp_path):
+        real = tmp_path / "state.json"
+        init_state(real, scope=SCOPE)
+        os.link(real, tmp_path / "hard.json")
+        for p in (real, tmp_path / "hard.json"):
+>           with pytest.raises(OwnerError, match="hard link"):
+E           Failed: DID NOT RAISE <class 'ble_id.OwnerError'>
+
+tests/test_ble_state_ownership.py:113: Failed
+=========================== short test summary info ============================
+FAILED tests/test_ble_state_ownership.py::test_second_process_refused_before_processing_any_token[file symlink]
+FAILED tests/test_ble_state_ownership.py::test_lock_is_released_for_every_alias_when_the_owner_exits
+FAILED tests/test_ble_state_ownership.py::test_saving_through_a_symlink_updates_the_real_file_and_keeps_the_link
+FAILED tests/test_ble_state_ownership.py::test_hard_linked_state_is_rejected
+========================= 4 failed, 3 passed in 0.37s ==========================
+exit=1

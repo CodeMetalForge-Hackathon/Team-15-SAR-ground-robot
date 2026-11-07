@@ -1,0 +1,12 @@
+$ python3 -m venv /Users/culubo/.olf-c3-venv
+exit=1
+$ /Users/culubo/.olf-c3-venv/bin/python -m pip install -q pytest==8.3.4
+exit=1
+$ /Users/culubo/.olf-c3-venv/bin/python -B -m pytest -v -p no:cacheprovider tests
+exit=1
+$ /Users/culubo/.olf-c3-venv/bin/python -B -m unittest discover -s tests -p test_discovery.py -v
+exit=0
+$ node --check discovery/static/app.js
+exit=0
+$ node --check discovery/static/beacons.js
+exit=0

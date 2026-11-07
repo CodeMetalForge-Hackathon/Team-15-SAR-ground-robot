@@ -1,0 +1,15 @@
+============================= test session starts ==============================
+platform linux -- Python 3.10.12, pytest-8.3.4, pluggy-1.7.0 -- /sessions/rcw-01mltomtfqcprbfmhevkrmxj/c2venv/bin/python
+rootdir: /sessions/rcw-01mltomtfqcprbfmhevkrmxj/c3oclean
+collecting ... collected 8 items
+
+tests/test_ble_state_ownership.py::test_second_process_refused_before_processing_any_token[file symlink] PASSED [ 12%]
+tests/test_ble_state_ownership.py::test_second_process_refused_before_processing_any_token[directory symlink] PASSED [ 25%]
+tests/test_ble_state_ownership.py::test_second_process_refused_before_processing_any_token[dot-dot path] PASSED [ 37%]
+tests/test_ble_state_ownership.py::test_second_process_refused_before_processing_any_token[same path] PASSED [ 50%]
+tests/test_ble_state_ownership.py::test_lock_is_released_for_every_alias_when_the_owner_exits PASSED [ 62%]
+tests/test_ble_state_ownership.py::test_saving_through_a_symlink_updates_the_real_file_and_keeps_the_link PASSED [ 75%]
+tests/test_ble_state_ownership.py::test_symlinked_lock_file_is_refused PASSED [ 87%]
+tests/test_ble_state_ownership.py::test_hard_linked_state_is_rejected PASSED [100%]
+
+============================== 8 passed in 0.34s ===============================

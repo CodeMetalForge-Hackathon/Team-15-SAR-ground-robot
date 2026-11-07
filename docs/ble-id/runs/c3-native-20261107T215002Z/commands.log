@@ -1,0 +1,13 @@
+$ /opt/homebrew/bin/python3.13 - /Users/culubo/.olf-c3-pytest-python3.13
+exit=0
+$ env PYTHONPATH=/Users/culubo/.olf-c3-pytest-python3.13 /opt/homebrew/bin/python3.13 -B -m pytest -v -p no:cacheprovider tests
+exit=0
+$ /opt/homebrew/bin/python3.13 -B -m unittest discover -s tests -p test_discovery.py -v
+exit=0
+$ node --check discovery/static/app.js
+exit=0
+$ node --check discovery/static/beacons.js
+exit=0
+$ /opt/homebrew/bin/python3.13 -m ble_id init-state --state /Users/culubo/.olf-c3/TESTKEY-bench-c3-native-20261107T215002Z.json --scope TESTKEY-bench-c3-native-20261107T215002Z
+exit=0
+$ /opt/homebrew/bin/python3.13 -m discovery.server --serial /dev/cu.usbmodem2101 --test-keys --state <outside repo> --scope TESTKEY-bench-c3-native-20261107T215002Z  (pid 3005)

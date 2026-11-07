@@ -1,0 +1,3 @@
+port: /dev/cu.usbmodem2101
+Initialized empty replay state for scope 'TESTKEY-bench-c3-native-20261107T215002Z' at /Users/culubo/.olf-c3/TESTKEY-bench-c3-native-20261107T215002Z.json
+second owner via symlink: refused, exit=1 ERROR: verification not started: replay state /Users/culubo/.olf-c3/TESTKEY-bench-c3-native-20261107T215002Z.json is owned by another verifier process
