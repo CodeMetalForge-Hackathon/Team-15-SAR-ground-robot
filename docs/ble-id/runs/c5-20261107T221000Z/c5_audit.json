@@ -1,0 +1,17 @@
+{
+  "all_reproducible_checks_pass": false,
+  "max_handwritten_lines": 149,
+  "over_150_lines": {},
+  "tests": {
+    "passed": 211,
+    "failed": 0,
+    "skipped_loopback_socket_in_sandbox": 3
+  },
+  "c1_unittest_exit": 0,
+  "c1_retry_grades_pass": true,
+  "c1_attempt1_grades_fail": true,
+  "c2_e0_exit": 0,
+  "c4_c1_rotating_verified_windows": 5,
+  "bad_manifest_hashes": [],
+  "broken_markdown_links": []
+}

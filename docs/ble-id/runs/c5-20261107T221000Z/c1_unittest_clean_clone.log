@@ -12,6 +12,6 @@ test_deadline_and_complete_capture (test_capture.CaptureTests.test_deadline_and_
 test_occupied_serial_port_is_rejected (test_capture.CaptureTests.test_occupied_serial_port_is_rejected) ... ok
 
 ----------------------------------------------------------------------
-Ran 12 tests in 4.023s
+Ran 12 tests in 3.612s
 
 OK

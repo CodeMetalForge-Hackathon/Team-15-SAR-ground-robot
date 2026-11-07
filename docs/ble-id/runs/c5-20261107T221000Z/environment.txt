@@ -1,6 +1,6 @@
 run_id: c5-20261107T221000Z
-utc: 2026-11-07T22:24:02Z
-tested_commit: 2584e60cbf777817e993b79ed60c4dc60be2361c
+utc: 2026-11-07T22:55:50Z
+tested_commit: 10d6080925a3f18d9f887390dc2a282f94ba207d
 clean_status: ''
 ProductName:		macOS
 ProductVersion:		26.1
@@ -8,3 +8,4 @@ BuildVersion:		25B78
 arm64
 python3.13: Python 3.13.13
 node: v25.9.0
+ffmpeg: ffmpeg version 8.1.2 Copyright (c) 2000-2026 the FFmpeg developers

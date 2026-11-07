@@ -11,8 +11,10 @@
       94 ios/BeaconC1/BeaconC1/Advertiser.swift
       56 ios/BeaconC1/BeaconC1/BeaconC1App.swift
       43 ios/BeaconC1/BeaconC1/Token.swift
+     143 tools/c3/native_macos_check.sh
      149 tools/c4/c4_analyze.py
      145 tools/c4/run_c4.py
+     149 tools/c5/reproduce_c5.py
       28 tests/conftest.py
      130 tests/test_ble_c3_integration.py
      147 tests/test_ble_id_monitor.py
@@ -24,4 +26,4 @@
      109 tests/test_c4_analyze.py
      132 tests/test_discovery.py
       34 tests/test_repo_ignores.py
-    2654 total
+    2946 total

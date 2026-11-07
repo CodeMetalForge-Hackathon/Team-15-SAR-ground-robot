@@ -109,11 +109,11 @@ test_ble_verify_properties.py::test_every_tag_bit_flip_is_forged_and_changes_not
 test_ble_verify_properties.py::test_every_header_bit_flip_never_verifies PASSED
 test_ble_verify_properties.py::test_negative_control_bypass_would_be_caught PASSED
 test_ble_verify_properties.py::test_tag_comparison_uses_compare_digest PASSED
-test_ble_verify_properties.py::test_rejected_input_cannot_poison_state[<function <lambda> at 0x1085c3ce0>] PASSED
-test_ble_verify_properties.py::test_rejected_input_cannot_poison_state[<function <lambda> at 0x1085c3d80>] PASSED
-test_ble_verify_properties.py::test_rejected_input_cannot_poison_state[<function <lambda> at 0x1085c3e20>] PASSED
-test_ble_verify_properties.py::test_rejected_input_cannot_poison_state[<function <lambda> at 0x1085c3ec0>] PASSED
-test_ble_verify_properties.py::test_rejected_input_cannot_poison_state[<function <lambda> at 0x1085c3f60>] PASSED
+test_ble_verify_properties.py::test_rejected_input_cannot_poison_state[<function <lambda> at 0x10788fce0>] PASSED
+test_ble_verify_properties.py::test_rejected_input_cannot_poison_state[<function <lambda> at 0x10788fd80>] PASSED
+test_ble_verify_properties.py::test_rejected_input_cannot_poison_state[<function <lambda> at 0x10788fe20>] PASSED
+test_ble_verify_properties.py::test_rejected_input_cannot_poison_state[<function <lambda> at 0x10788fec0>] PASSED
+test_ble_verify_properties.py::test_rejected_input_cannot_poison_state[<function <lambda> at 0x10788ff60>] PASSED
 test_ble_verify_properties.py::test_aliases_are_isolated PASSED
 test_ble_verify_properties.py::test_state_is_shared_across_zones_in_one_process PASSED
 test_ble_verify_properties.py::test_verify_is_pure PASSED

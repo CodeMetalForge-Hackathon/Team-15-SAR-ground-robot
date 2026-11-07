@@ -1,4 +1,4 @@
-1200/1200 as expected; invalid verified: 0; latency p50 2.8 us, p95 3.2 us
+1200/1200 as expected; invalid verified: 0; latency p50 2.7 us, p95 3.1 us
   drop_length          expected drop:length                observed drop:length                n=100
   drop_reserved_alias  expected drop:reserved_alias        observed drop:reserved_alias        n=100
   drop_version         expected drop:unsupported_version   observed drop:unsupported_version   n=100

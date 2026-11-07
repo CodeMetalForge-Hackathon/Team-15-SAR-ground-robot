@@ -1,1 +1,23 @@
 6f4a2c1785d1ec3b0aea8311ae5c2193ba928ddbeef694a2d0f24b6e545f13aa  /Users/culubo/Team-15/_media/c3/c3-software-proof-SIMULATED.mp4
+{
+    "programs": [
+
+    ],
+    "stream_groups": [
+
+    ],
+    "streams": [
+        {
+            "codec_name": "h264",
+            "width": 1440,
+            "height": 900,
+            "r_frame_rate": "25/1"
+        }
+    ],
+    "format": {
+        "format_name": "mov,mp4,m4a,3gp,3g2,mj2",
+        "duration": "57.280000",
+        "size": "1135313"
+    }
+}
+ffmpeg_full_decode: PASS (0 errors)
