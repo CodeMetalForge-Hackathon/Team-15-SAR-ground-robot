@@ -1,0 +1,16 @@
+$ git clone /Users/culubo/Team-15 /tmp/clean-work/clean-c5-checkout
+exit=0
+$ wc -l ble_id.py ble_keys.py ble_owner.py ble_sim.py ble_state.py ble_verify.py discovery/beacons.py discovery/static/app.js discovery/static/beacons.js firmware/esp32_scanner/esp32_scanner.ino ios/BeaconC1/BeaconC1/*.swift tools/c4/*.py tests/*.py
+exit=0
+$ PYTHONPATH=/tmp/clean-work /opt/homebrew/bin/python3.13 -B -m pytest tests/test_ble_id_monitor.py tests/test_ble_keys.py tests/test_ble_state.py tests/test_ble_state_ownership.py tests/test_ble_verify_properties.py tests/test_ble_verify_vectors.py tests/test_repo_ignores.py tests/test_c4_analyze.py
+exit=0
+$ /opt/homebrew/bin/python3.13 -B -m unittest discover -s tools/c1 -p 'test_*.py' -v
+exit=0
+$ PYTHONPATH=/tmp/clean-work /opt/homebrew/bin/python3.13 -B tools/c2/mutation_check.py . /tmp/clean-work/c5mut
+exit=0
+$ /opt/homebrew/bin/python3.13 -I -B tools/c2/e0_experiment.py . /tmp/clean-work/c5e0 100
+exit=0
+$ /opt/homebrew/bin/node --check discovery/static/app.js && /opt/homebrew/bin/node --check discovery/static/beacons.js && bash -n tools/c1/run_c1.sh tools/c1/capture_serial.sh tools/c3/native_macos_check.sh
+exit=0
+$ shasum -a 256 /Users/culubo/Team-15/_media/c3/c3-software-proof-SIMULATED.mp4
+exit=0
