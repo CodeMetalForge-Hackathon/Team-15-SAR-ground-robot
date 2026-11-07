@@ -33,6 +33,7 @@ from .config import SensorConfig
 from .service import RangeClient
 
 ROVER_SOURCE = "grove-ultrasonic"
+ROVER_FIELDS_SCHEMA = "team15.rover_range_fields/1"   # the versioned navigation interface
 _NO_ECHO = {"NO_ECHO", "OUT_OF_RANGE"}
 
 
@@ -57,7 +58,8 @@ def snapshot_to_rover_fields(snap: dict, now_mono_s: float, max_range_m: float,
     else:
         status, rng = "ERROR", None
     allowed = bool(snap.get("forward_motion_allowed")) and status == "OK" and same_host and not stale
-    return {"t": t, "status": status, "range_m": rng, "max_range_m": max_range_m, "source": ROVER_SOURCE,
+    return {"schema": ROVER_FIELDS_SCHEMA, "clock": "time.monotonic@" + (this_host or socket.gethostname()),
+            "t": t, "status": status, "range_m": rng, "max_range_m": max_range_m, "source": ROVER_SOURCE,
             "seq": int(latest.get("seq") or 0),
             # Extra fields (not in rover RangeReading). Navigation must AND with forward_motion_allowed.
             "forward_motion_allowed": allowed, "obstacle_status": obst if not stale else "UNKNOWN",

@@ -7,6 +7,7 @@
   calibrate     tape-measure demo: read N samples at each known distance, report error + thresholds
   floor-check   installed height/angle, clear floor ahead: are there floor echoes? no-target signature
   diagnose      N pings: status counts, SIG release timing, echo start, health diagnosis
+  preflight     READ-ONLY Pi checks (model, gate, libgpiod, chip/line identity, pinctrl, NTP). No GPIO request.
 
 Hardware access needs BOTH a config with driver "gpiod" that passes the
 electrical gate (ranging/WIRING.md) AND the --hardware flag.
@@ -313,6 +314,8 @@ def main(argv=None) -> int:
     p = sub.add_parser("diagnose"); _add_common(p)
     p.add_argument("--samples", type=int, default=50); p.add_argument("--out")
     p.set_defaults(fn=cmd_diagnose)
+    p = sub.add_parser("preflight"); p.add_argument("--config"); p.add_argument("--log-level", default="WARNING")
+    p.set_defaults(fn=lambda a: __import__("ranging.preflight", fromlist=["main_preflight"]).main_preflight(a.config))
     args = ap.parse_args(argv)
     setup_logging(getattr(args, "log_level", "WARNING"))
     try:

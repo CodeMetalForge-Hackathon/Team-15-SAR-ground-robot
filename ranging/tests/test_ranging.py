@@ -52,7 +52,8 @@ def good_elec(**over):
     d = dict(sensor_vcc_v=3.3, header_vcc_pin=1, gpio_bcm=5, series_resistor_ohm=1000, sensor_revision="V2.0",
              revision_evidence_ref="~/Team15_evidence/range/pcb.jpg", powered_off_while_wiring=True,
              continuity_checked=True, vcc_measured_v=3.31, sig_idle_measured_v=0.02, mount_verified=True,
-             wiring_verified_by="hw-teammate", wiring_verified_at="2026-11-07T20:00:00Z")
+             wiring_verified_by="hw-teammate", wiring_verified_at="2026-11-07T20:00:00Z",
+             independently_verified_by="second-reviewer", independently_verified_at="2026-11-07T20:30:00Z")
     d.update(over)
     return ElectricalConfig(**d)
 
@@ -278,6 +279,9 @@ def test_good_wiring_passes():
     (dict(vcc_measured_v=3.0), "outside 3.2-3.45"),
     (dict(vcc_measured_v=4.9), "outside 3.2-3.45"),
     (dict(sig_idle_measured_v=None), "sig_idle_measured_v not recorded"),
+    (dict(independently_verified_by=None), "no independent verification"),
+    (dict(independently_verified_at=None), "no independent verification"),
+    (dict(independently_verified_by=" HW-Teammate "), "different person"),
     (dict(sig_idle_measured_v=4.8), "must never reach a Pi GPIO"),
     (dict(wiring_verified_by=None), "wiring not verified"),
     (dict(wiring_verified_at=""), "wiring not verified"),
@@ -636,6 +640,7 @@ def test_rover_clear_is_ok_with_range_on_monotonic_clock(tmp_path):
     f = rover_fields(tmp_path, 2.0)
     assert ROVER_KEYS <= set(f) and f["status"] == "OK" and f["range_m"] == pytest.approx(2.0, abs=0.01)
     assert f["source"] == "grove-ultrasonic" and f["forward_motion_allowed"] is True
+    assert f["schema"] == "team15.rover_range_fields/1" and f["clock"].startswith("time.monotonic@")
     assert 0 <= time.monotonic() - f["t"] < 1.0
 
 
@@ -701,3 +706,39 @@ def test_calibration_analysis_fit_and_margin():
     big = [dict(r, error_m=0.2) for r in rows]
     rec = cli.fit_and_thresholds(big, ObstacleConfig(), 30)["recommended"]
     assert rec["safety_margin_m"] == pytest.approx(0.212) and rec["blocked_m"] > ObstacleConfig().blocked_m()
+
+
+# ---------------------------------------------------------------- read-only preflight
+
+from ranging.preflight import run_preflight  # noqa: E402
+
+
+def preflight(elec=None, model="Raspberry Pi 5 Model B Rev 1.1", pinctrl=" 5: no    pu | -- // GPIO5 = none",
+              **fake_attrs):
+    fake = FakeGpiod([])
+    fake.__version__ = "2.2.0"
+    for k, v in fake_attrs.items():
+        setattr(fake, k, v)
+    raw = {"driver": "gpiod", "electrical": vars(elec or good_elec())}
+    runs = {"pinctrl": pinctrl, "timedatectl": "yes"}
+    rep = run_preflight(raw, gpiod_module=fake, read_file=lambda p: model + "\x00",
+                        run=lambda cmd: runs.get(cmd[0]))
+    return rep, fake, {c["check"]: c["result"] for c in rep["checks"]}
+
+
+def test_preflight_never_requests_a_line():
+    rep, fake, res = preflight()
+    assert fake.requests == 0 and "no line requested" in rep["note"]
+    assert res["chip_is_rp1"] == res["line_name"] == res["line_unused"] == res["electrical_gate"] == "PASS"
+
+
+@pytest.mark.parametrize("kw,check", [
+    (dict(elec=good_elec(independently_verified_by=None)), "electrical_gate"),
+    (dict(model="Raspberry Pi 4 Model B"), "pi5_model"),
+    (dict(chip_label="gpio-brcmstb@107d508500"), "chip_is_rp1"),
+    (dict(line_used=True), "line_unused"),
+    (dict(pinctrl=" 5: a3    pu | hi // GPIO5 = SPI0_CE1"), "pinctrl_function"),
+])
+def test_preflight_fails_on_each_problem(kw, check):
+    rep, _, res = preflight(**kw)
+    assert res[check] == "FAIL" and rep["ok"] is False and "locked" in rep["next"]

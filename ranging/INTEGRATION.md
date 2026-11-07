@@ -84,6 +84,28 @@ class PiRangeIO:                                  # navigator IO.clock()/read_ra
 | `NO_ECHO`, `OUT_OF_RANGE` | `NO_ECHO` | null | false |
 | any other status, **stale**, unreadable, other host | `ERROR` | null | false |
 
+**Versioned interface:** `team15.rover_range_fields/1`, the dict returned by
+`GroveRangeIO.read_fields()`. It carries `schema`, `clock`
+(`time.monotonic@<host>`), the six `RangeReading` fields, and
+`forward_motion_allowed`, `obstacle_status`, `measurement_status`, `reason`,
+`blocked_threshold_m`, `diagnosis`, `source_mode`. Navigation should consume
+**this**. It should not parse `latest` (`team15.range_reading/1`) itself: `latest`
+is one raw ping, without the filter, hysteresis, staleness or BLOCKED/UNKNOWN decision.
+
+### Integration status (reviewed PR #8 at `cba304d`, 2026-11-07)
+
+| Requirement | PR #8 at `cba304d` | Needed |
+|---|---|---|
+| Honor `forward_motion_allowed` | not used | AND it into every forward command |
+| No duplicated filtering/status logic | `from_grove_reading()` maps the raw `latest` ping | use `read_fields()` (`team15.rover_range_fields/1`) |
+| Clock domain | `t = obs_time` (Pi wall clock). The contract says the navigator clock must match | `t` from `read_fields()` is `time.monotonic()` on the Pi. Navigator `clock()` = `time.monotonic` |
+| Cross-host | not handled | `read_fields()` returns ERROR for a snapshot from another host. A remote consumer should use its own receipt time + `freshness`, never a remote monotonic value |
+| Real-hardware no-echo | default `UNKNOWN`; `simrun` uses `CLEAR_TO_MAX` | `CLEAR_TO_MAX` must be impossible when `source_mode == "LIVE-HW"` |
+
+The contract counts as **accepted** when PR #8 imports `ranging.rover_io`
+and gates forward motion on `forward_motion_allowed`, with tests for BLOCKED
+at a large range, UNKNOWN with a valid range, and stale/other-host → no motion.
+
 Required on the navigation side. These are points to agree on; this branch does
 not edit `rover/`:
 1. **AND `forward_motion_allowed` into the forward gate.** `rover.sensors.assess()`

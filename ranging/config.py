@@ -50,6 +50,9 @@ class ElectricalConfig:
     header_vcc_pin: Optional[int] = None       # physical header pin used for VCC
     wiring_verified_by: Optional[str] = None   # name of the hardware teammate
     wiring_verified_at: Optional[str] = None   # ISO date/time of the check
+    # A second person repeats revision + continuity + meter checks (HARDWARE_VALIDATION.md).
+    independently_verified_by: Optional[str] = None
+    independently_verified_at: Optional[str] = None
     sensor_revision: Optional[str] = None      # "V2.0" etc., as read off the PCB silkscreen
     revision_evidence_ref: Optional[str] = None  # photo of the silkscreen (path/URL, outside Git)
     # Checklist results (WIRING.md section 4). All must be recorded before GPIO is opened.
@@ -168,5 +171,11 @@ def check_electrical(e: ElectricalConfig) -> None:
     if not e.wiring_verified_by or not e.wiring_verified_at:
         problems.append("wiring not verified: set wiring_verified_by and wiring_verified_at after the "
                         "WIRING.md checklist is done")
+    if not e.independently_verified_by or not e.independently_verified_at:
+        problems.append("no independent verification: a second person must repeat the revision, continuity "
+                        "and meter checks (HARDWARE_VALIDATION.md) and set independently_verified_by/_at")
+    elif e.wiring_verified_by and \
+            e.independently_verified_by.strip().lower() == e.wiring_verified_by.strip().lower():
+        problems.append("independent verifier must be a different person from wiring_verified_by")
     if problems:
         raise ElectricalInterfaceError("refusing GPIO access: " + "; ".join(problems))

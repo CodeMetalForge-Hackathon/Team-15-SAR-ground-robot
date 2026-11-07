@@ -19,7 +19,9 @@
     "sig_idle_measured_v": null,
     "mount_verified": null,
     "wiring_verified_by": null,
-    "wiring_verified_at": null
+    "wiring_verified_at": null,
+    "independently_verified_by": null,
+    "independently_verified_at": null
   },
   "obstacle": {
     "mount_height_m": 0.08,
