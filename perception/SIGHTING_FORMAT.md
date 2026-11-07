@@ -52,7 +52,36 @@ probability. Show `evidence.detector_score` together with
 | `evidence.count_in_frame` | boxes of the trigger family in that frame (may include bystanders and reflections) |
 | `evidence.detections_in_frame` | every detection in that frame, each with its own `family` |
 
+| `evidence.camera` | camera and transport provenance (below). Additive field: older sightings may not have it |
+
 Not sent (ingest adds them): `rx_time`, `stale_after_s`.
+
+## Camera sources (`--source local|pi`)
+- `local` (default): this machine's camera, as before. `obs_time` is the time the
+  frame was read. `evidence.camera` = `{"source": "local", "transport": "local", ...}`.
+- `pi`: the Raspberry Pi 5 camera (Sony IMX708), sent as JPEG frames over SSH
+  (see `perception/pi_source.py`). Nothing is installed on the Pi: the sender
+  script is sent over SSH stdin and runs in memory.
+  - `obs_time` is the **Pi's capture time** of the evidence frame (the
+    picamera2 `SensorTimestamp` mapped to the Pi's NTP wall clock), not the Mac
+    arrival time. `evidence.camera.rx_time` is the arrival time and
+    `capture_to_rx_s` is the gap between the two.
+  - Frames are rotated on arrival (`--pi-rotation`, default 180, for the
+    upside-down mount). The saved PNG, the `bbox` and `frame_size` are all in the
+    rotated, upright image.
+  - Only the newest frame is processed. Older frames that arrive in a burst are
+    dropped (counted in the run summary under `pi_stream`).
+  - `evidence.camera` example:
+    `{"source": "pi5-imx708", "device": "Raspberry Pi camera (remote, bench)", "pi_model": "Raspberry Pi 5 Model B Rev 1.1", "sensor_model": "imx708", "transport": "ssh-jpeg", "stream_size": [1280, 720], "stream_fps": 5.0, "jpeg_quality": 80, "rotation_deg": 180, "rotation_applied_by": "receiver", "capture_clock": "sensor", "pi_frame_seq": 62, "capture_time": 1794090200.898, "rx_time": 1794090201.11, "capture_to_rx_s": 0.212}`
+    `sensor_model` and `pi_model` are reported by the Pi at connect time, not assumed.
+    `capture_clock` is `sensor`, or `pi_wall_at_request` if the sensor timestamp
+    was missing or implausible.
+  - Still a bench camera: `source_mode`/`platform` stay `LIVE-HW`/`BENCH`, `cell` is
+    operator-assigned, `how` is `SECTOR_ONLY`, and the sighting stays unconfirmed
+    until an operator acts on the dashboard. The Pi camera is not airborne and
+    gives no position.
+  - Exit code 3 if the Pi can't be reached or the stream is lost (after 3 reconnect
+    attempts, or no frame for 60 s).
 
 ## Example (real bench sighting, 2026-11-07, teammate standing full body)
 ```json

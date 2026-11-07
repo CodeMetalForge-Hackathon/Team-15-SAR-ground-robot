@@ -13,6 +13,11 @@ sighting, not re-emitted (see perception/sightings.py for the dedup rule).
 
 This is a bench test with a *declared* drone and an operator-assigned sector.
 It is NOT an aerial detection claim; location is SECTOR_ONLY.
+
+``--source pi`` reads the Raspberry Pi 5 camera instead, as timestamped JPEGs
+over SSH (see perception/pi_source.py). Frames are rotated on arrival
+(``--pi-rotation``, default 180 for the inverted mount), ``obs_time`` is the
+Pi's capture time, and ``evidence.camera`` records the camera and transport.
 ``confidence`` is null: detector scores are recorded with their kind in
 ``evidence`` and are not calibrated probabilities.
 """
@@ -31,6 +36,8 @@ import numpy as np
 from .detectors import (DEFAULT_DNN_MODEL, DNN_MODELS, FACE_ONLY, FAMILIES,
                         FULL_BODY_HOG, PERSON_DETECTOR, UPPER_BODY_HAAR, Detection,
                         OpenCVDetectors, TorchPersonDetector, _cascade, best)
+from .pi_source import ENV_HOST, ENV_KEY, ENV_USER, PiSourceError, open_pi_camera, \
+    parse_size, ROTATIONS
 from .sightings import (DEFAULT_EVIDENCE_DIR, SightingGate, ensure_evidence_dir,
                         iso_utc, make_sighting, save_evidence, validate_sector)
 
@@ -208,6 +215,35 @@ def _log(msg: str) -> None:
     print(msg, file=sys.stderr, flush=True)
 
 
+# --source pi: give up when no frame has arrived for this long
+PI_STALL_S = 60.0
+
+
+def local_camera_info(index: int) -> dict:
+    return {"source": "local", "device": f"local camera index {index}",
+            "transport": "local", "rotation_deg": 0,
+            "capture_clock": "receiver_wall_at_read"}
+
+
+def open_source(a: argparse.Namespace):
+    """Return (cap, describe) where describe() gives evidence.camera for the last
+    frame read. Raises CameraUnavailable."""
+    if a.source == "local":
+        cap = open_camera(a.camera)
+        return cap, lambda: local_camera_info(a.camera)
+    try:
+        cap = open_pi_camera(host=a.pi_host, user=a.pi_user, key=a.pi_key,
+                             port=a.pi_port, size=a.pi_size, fps=a.pi_fps,
+                             jpeg_quality=a.pi_quality, rotation=a.pi_rotation,
+                             startup_timeout_s=a.pi_startup_timeout_s)
+    except (PiSourceError, ValueError, OSError) as e:
+        raise CameraUnavailable(f"Pi camera unavailable: {e}. Check {ENV_HOST}/"
+                                "--pi-host, the SSH key, and that the host key is "
+                                "already trusted (ssh once by hand). No frame was "
+                                "faked.") from None
+    return cap, cap.camera_info
+
+
 def run(a: argparse.Namespace) -> int:
     try:
         sector = validate_sector(a.sector)
@@ -223,7 +259,7 @@ def run(a: argparse.Namespace) -> int:
     trigger_families = TRIGGERS[a.trigger]
 
     try:
-        cap = open_camera(a.camera)
+        cap, describe = open_source(a)
     except CameraUnavailable as e:
         _log(f"ERROR: {e}")
         return EXIT_CAMERA_UNAVAILABLE
@@ -246,14 +282,25 @@ def run(a: argparse.Namespace) -> int:
     first_hit_s = {f: None for f in FAMILIES}
     sightings: List[dict] = []
     empty_streak = 0
-    _log(f"run {run_id}: sector={sector} trigger={a.trigger} "
+    last_frame_at = time.time()
+    _log(f"run {run_id}: source={a.source} sector={sector} trigger={a.trigger} "
          f"min_box_frac={a.min_box_frac} "
          f"detectors={[getattr(d, 'name', 'opencv') for d in detectors]} "
          f"duration={a.duration_s:.0f}s evidence_dir={out_dir}")
     try:
         while time.time() - start < a.duration_s:
             ok, frame = cap.read()
-            obs_time = time.time()
+            rx_time = time.time()
+            # Pi: the Pi's capture time of this frame; local: read time (as before)
+            cap_t = getattr(cap, "last_capture_time", None) if ok else None
+            obs_time = cap_t if cap_t is not None else rx_time
+            if a.source == "pi" and not ok:
+                if not cap.isOpened() or rx_time - last_frame_at > PI_STALL_S:
+                    _log("ERROR: Pi stream lost (SSH closed or no frame for "
+                         f"{rx_time - last_frame_at:.0f}s); stopping. "
+                         f"stats={getattr(cap, 'stats', {})}")
+                    return EXIT_CAMERA_UNAVAILABLE
+                continue
             if not ok or is_black(frame):
                 empty_streak += 1
                 if empty_streak > 60:
@@ -261,6 +308,7 @@ def run(a: argparse.Namespace) -> int:
                     return EXIT_CAMERA_UNAVAILABLE
                 continue
             empty_streak = 0
+            last_frame_at = rx_time
             frames += 1
             dets: List[Detection] = []
             for d in detectors:
@@ -273,6 +321,7 @@ def run(a: argparse.Namespace) -> int:
                         first_hit_s[f] = round(rel, 2)
             frame_log.write(json.dumps({
                 "t": round(obs_time, 3), "rel_s": round(rel, 2),
+                "rx": round(rx_time, 3),
                 "counts": {f: sum(d.family == f for d in dets) for f in FAMILIES},
                 "best": {f: (b.to_json() if (b := best(dets, f)) else None)
                          for f in FAMILIES},
@@ -292,7 +341,8 @@ def run(a: argparse.Namespace) -> int:
                               sector=sector, obs_time=obs_time, frame_ref=frame_ref,
                               frame_sha256=sha, annotated_ref=ann,
                               frame_size=[int(frame.shape[1]), int(frame.shape[0])],
-                              trigger=trig, all_dets=dets, operator=a.operator)
+                              trigger=trig, all_dets=dets, operator=a.operator,
+                              camera=describe())
             sightings.append(s)
             line = json.dumps(s)
             print(line, flush=True)
@@ -308,7 +358,8 @@ def run(a: argparse.Namespace) -> int:
 
     elapsed = time.time() - start
     summary = {
-        "run_id": run_id, "label": a.label, "sector": sector, "trigger": a.trigger,
+        "run_id": run_id, "label": a.label, "source": a.source,
+        "sector": sector, "trigger": a.trigger,
         "min_box_frac": a.min_box_frac,
         "elapsed_s": round(elapsed, 1), "frames": frames,
         "fps": round(frames / elapsed, 2) if elapsed else 0.0,
@@ -319,19 +370,39 @@ def run(a: argparse.Namespace) -> int:
         "sightings_emitted": [s["obs_id"] for s in sightings],
         "frames_attached_to_existing_sighting": gate.suppressed_total,
     }
+    if a.source == "pi":
+        summary["pi_stream"] = dict(getattr(cap, "stats", {}))
+        summary["camera"] = describe()
     with open(os.path.join(out_dir, f"{run_id}_summary.json"), "w") as f:
         json.dump(summary, f, indent=1)
     _log("SUMMARY " + json.dumps(summary))
     if sightings:
         return EXIT_OK
-    _log(f"NO SIGHTING within {a.duration_s:.0f}s on camera {a.camera}; "
+    where = "the Pi camera" if a.source == "pi" else f"camera {a.camera}"
+    _log(f"NO SIGHTING within {a.duration_s:.0f}s on {where}; "
          "no picture saved, no sighting emitted.")
     return EXIT_NO_PERSON
 
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
     p = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    p.add_argument("--camera", type=int, default=0)
+    p.add_argument("--source", choices=("local", "pi"), default="local",
+                   help="local = this machine's camera (default); pi = Raspberry Pi "
+                        "camera as JPEG frames over SSH")
+    p.add_argument("--camera", type=int, default=0, help="local camera index")
+    g = p.add_argument_group("--source pi (nothing is installed on the Pi)")
+    g.add_argument("--pi-host", default=None, help=f"Pi host or IP (or ${ENV_HOST})")
+    g.add_argument("--pi-user", default=None, help=f"SSH user (or ${ENV_USER})")
+    g.add_argument("--pi-key", default=None, help=f"SSH private key (or ${ENV_KEY})")
+    g.add_argument("--pi-port", type=int, default=None)
+    g.add_argument("--pi-size", type=parse_size, default=(1280, 720),
+                   help="capture size WxH (default 1280x720)")
+    g.add_argument("--pi-fps", type=float, default=5.0)
+    g.add_argument("--pi-quality", type=int, default=80, help="JPEG quality 1-100")
+    g.add_argument("--pi-rotation", type=int, choices=sorted(ROTATIONS), default=180,
+                   help="rotate frames on arrival (default 180: camera mounted "
+                        "upside down)")
+    g.add_argument("--pi-startup-timeout-s", type=float, default=30.0)
     p.add_argument("--declare-drone", default="D1")
     p.add_argument("--sector", "--declare-cell", dest="sector", required=True,
                    help="operator-assigned sector A-Z (SECTOR_ONLY location)")
