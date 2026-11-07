@@ -3,12 +3,19 @@
 # PUBLIC SYNTHETIC TEST-KEY MODE (labelled experiment, not a production enrollment).
 #   bash ~/Team-15/tools/c3/native_macos_check.sh [/dev/cu.usbmodemXXXX]
 # Never stops other processes: if the receiver or port 8765 is busy, it says who and exits.
-set -uo pipefail
+set -euo pipefail
 ROOT="$HOME/Team-15"; cd "$ROOT" || exit 2
 [ "$(uname -s)" = Darwin ] || { echo "ERROR: run this on the Mac (native macOS)"; exit 2; }
 RUN="c3-native-$(date -u +%Y%m%dT%H%M%SZ)"; E="$ROOT/docs/ble-id/runs/$RUN"; mkdir -p "$E"
 CM="$E/commands.log"; : > "$CM"
-step() { echo "\$ $*" >> "$CM"; "$@"; local rc=$?; echo "exit=$rc" >> "$CM"; return $rc; }
+step() {
+  echo "\$ $*" >> "$CM"
+  local rc=0
+  "$@" || rc=$?
+  echo "exit=$rc" >> "$CM"
+  return "$rc"
+}
+trap 'if [ -n "${SRV:-}" ]; then kill "$SRV" 2>/dev/null || true; fi' EXIT
 echo "== $RUN  (evidence: $E)"
 
 echo "== 1/5 Environment"
@@ -72,8 +79,15 @@ ln -sf "$STATE" "$SD/alias-$RUN.json"
 "$PY" -B -m discovery.server --serial "$PORT" --port 8799 --test-keys --state "$SD/alias-$RUN.json" \
   --scope "$SCOPE" > "$E/second_owner_via_symlink.log" 2>&1 &
 P2=$!; sleep 4
-if kill -0 $P2 2>/dev/null; then kill $P2; echo "second owner via symlink: NOT REFUSED (FAIL)" | tee -a "$E/receiver.txt"
-else wait $P2; echo "second owner via symlink: refused, exit=$? $(cat "$E/second_owner_via_symlink.log")" | tee -a "$E/receiver.txt"; fi
+if kill -0 $P2 2>/dev/null; then
+  kill $P2
+  echo "second owner via symlink: NOT REFUSED (FAIL)" | tee -a "$E/receiver.txt"
+  exit 7
+else
+  rc=0; wait $P2 || rc=$?
+  grep -q 'owned by another verifier process' "$E/second_owner_via_symlink.log" || exit 7
+  echo "second owner via symlink: refused, exit=$rc" | tee -a "$E/receiver.txt"
+fi
 rm -f "$SD/alias-$RUN.json"
 echo
 echo "  >>> Open http://127.0.0.1:8765  ·  On the iPhone: C1 app, mode Rotating, tap Start, keep it in the FOREGROUND."
@@ -99,7 +113,8 @@ print()
 PY
 echo "  >>> Capture done. The server is STILL RUNNING so the page can be checked in the browser."
 read -r -p "  >>> Press Enter to stop the server... "
-kill $SRV; wait $SRV 2>/dev/null
+kill $SRV; wait $SRV 2>/dev/null || true
+SRV=""
 
 echo "== 5/5 Summary"
 "$PY" - "$E" "$STATE" "$SCOPE" <<'PY' | tee "$E/summary.txt"
@@ -116,6 +131,13 @@ print("first verified card at +%.1f s of capture" % (first["utc"] - recs[0]["utc
 print("final sightings:", [(s["alias"], s["verified_tokens"], s["counter"], s["rssi"]) for s in last.get("sightings", [])])
 print("final counts:", last.get("counts"))
 print("receiver:", last.get("receiver"))
-print("replay state on disk:", dict(load_state(state, scope=scope)))
+high = dict(load_state(state, scope=scope))
+print("replay state on disk:", high)
+passed = (len(ok) == len(recs) and bool(ok) and bool(last.get("sightings"))
+          and last.get("source") == "LIVE-HW" and last.get("mode") == "test-keys"
+          and last.get("status") == "verifying"
+          and all(high.get(s["alias"], -1) >= s["counter"] for s in last.get("sightings", [])))
+print("native live integration:", "PASS" if passed else "FAIL / INCOMPLETE")
+sys.exit(0 if passed else 1)
 PY
 echo "Done. Tell Claude: $RUN"
