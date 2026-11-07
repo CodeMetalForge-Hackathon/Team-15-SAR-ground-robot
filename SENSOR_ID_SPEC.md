@@ -6,6 +6,10 @@ module code, install dependencies, flash hardware, or claim tests passed until
 the user explicitly authorizes implementation. No testing or video evidence has
 been produced by this specification review.
 
+C0 found that the `forge/` and `Reading` interfaces assumed below do not exist.
+`SENSOR_ID_SPEC_AMENDMENT_1.md` proposes replacements (PROPOSED, not adopted);
+see `evidence/c0-20261107T1914Z/REPORT.md`.
+
 ## Branch and handoff
 
 Work on `culubo/sensor-id-specs`, the branch containing these specifications and

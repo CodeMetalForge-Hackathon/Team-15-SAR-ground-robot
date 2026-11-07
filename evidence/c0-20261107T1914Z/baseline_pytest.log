@@ -1,0 +1,55 @@
+$ git rev-parse HEAD
+a36a658d4c4604fd521ce145a4de88faf9da506c
+$ git status --short (baseline clone)
+$ python -m planner.route A G
+{"status": "OK", "path": ["A", "B", "C", "D", "E", "F", "G"], "edges": ["A-B", "B-C", "C-D", "D-E", "E-F", "F-G"], "length_m": 60, "reason": "shortest known walking route"}
+exit=0
+$ pytest -v
+============================= test session starts ==============================
+platform linux -- Python 3.10.12, pytest-8.3.4, pluggy-1.7.0 -- /sessions/rcw-01mltomtfqcprbfmhevkrmxj/c0-baseline/venv/bin/python3
+rootdir: /sessions/rcw-01mltomtfqcprbfmhevkrmxj/c0-baseline/repo
+configfile: pytest.ini
+testpaths: planner/tests, perception/tests, dashboard/tests
+plugins: anyio-4.16.0
+collecting ... collected 31 items
+
+planner/tests/test_route.py::test_route_a_to_g_60 PASSED                 [  3%]
+planner/tests/test_route.py::test_route_c_to_k_20 PASSED                 [  6%]
+planner/tests/test_route.py::test_blocked_jk_reroutes_22[blocked0] PASSED [  9%]
+planner/tests/test_route.py::test_blocked_jk_reroutes_22[blocked1] PASSED [ 12%]
+planner/tests/test_route.py::test_blocked_jk_reroutes_22[blocked2] PASSED [ 16%]
+planner/tests/test_route.py::test_blocked_jk_reroutes_22[blocked3] PASSED [ 19%]
+planner/tests/test_route.py::test_route_c_to_g_40 PASSED                 [ 22%]
+planner/tests/test_route.py::test_y_no_known_route PASSED                [ 25%]
+planner/tests/test_route.py::test_unknown_node PASSED                    [ 29%]
+planner/tests/test_route.py::test_fixture_matches_spec PASSED            [ 32%]
+planner/tests/test_route.py::test_cross_check_networkx_all_pairs PASSED  [ 35%]
+planner/tests/test_route.py::test_cross_check_networkx_blocked_jk PASSED [ 38%]
+perception/tests/test_live_camera.py::test_observation_json_shape PASSED [ 41%]
+perception/tests/test_live_camera.py::test_blank_image_no_person PASSED  [ 45%]
+perception/tests/test_live_camera.py::test_black_frame_flagged PASSED    [ 48%]
+dashboard/tests/test_dashboard.py::test_ingest_fills_contract_fields PASSED [ 51%]
+dashboard/tests/test_dashboard.py::test_ingest_rejects_bad_observations[patch0] PASSED [ 54%]
+dashboard/tests/test_dashboard.py::test_ingest_rejects_bad_observations[patch1] PASSED [ 58%]
+dashboard/tests/test_dashboard.py::test_ingest_rejects_bad_observations[patch2] PASSED [ 61%]
+dashboard/tests/test_dashboard.py::test_ingest_rejects_bad_observations[patch3] PASSED [ 64%]
+dashboard/tests/test_dashboard.py::test_ingest_rejects_bad_observations[patch4] PASSED [ 67%]
+dashboard/tests/test_dashboard.py::test_bench_sighting_shows_candidate_in_sector_g_assigned PASSED [ 70%]
+dashboard/tests/test_dashboard.py::test_sighting_age_counts_from_obs_time PASSED [ 74%]
+dashboard/tests/test_dashboard.py::test_route_v1_a_to_g_is_60_m PASSED   [ 77%]
+dashboard/tests/test_dashboard.py::test_duplicate_obs_id_is_idempotent PASSED [ 80%]
+dashboard/tests/test_dashboard.py::test_invalid_observation_is_422 PASSED [ 83%]
+dashboard/tests/test_dashboard.py::test_state_shows_synthetic_trail_map PASSED [ 87%]
+dashboard/tests/test_dashboard.py::test_photo_served_from_evidence_dir_only PASSED [ 90%]
+dashboard/tests/test_dashboard.py::test_photo_not_served_without_evidence_dir PASSED [ 93%]
+dashboard/tests/test_dashboard.py::test_index_page_renders_map_elements PASSED [ 96%]
+dashboard/tests/test_dashboard.py::test_no_photos_tracked_in_git PASSED  [100%]
+
+=============================== warnings summary ===============================
+../venv/lib/python3.10/site-packages/starlette/testclient.py:40
+  /sessions/rcw-01mltomtfqcprbfmhevkrmxj/c0-baseline/venv/lib/python3.10/site-packages/starlette/testclient.py:40: DeprecationWarning: The anyio.abc.BlockingPortal alias is deprecated, use anyio.from_thread.BlockingPortal instead.
+    _PortalFactoryType = typing.Callable[[], typing.ContextManager[anyio.abc.BlockingPortal]]
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+======================== 31 passed, 1 warning in 0.32s =========================
+exit=0
