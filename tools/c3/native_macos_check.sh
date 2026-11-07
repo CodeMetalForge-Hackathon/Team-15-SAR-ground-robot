@@ -18,15 +18,30 @@ echo "== 1/5 Environment"
   echo "HEAD: $(git rev-parse HEAD)"; echo "status:"; git status --short; } > "$E/environment.txt" 2>&1
 cat "$E/environment.txt"
 
-echo "== 2/5 Native macOS tests (pytest 8.3.4 in a venv outside the repo)"
+echo "== 2/5 Native macOS tests (pinned pytest 8.3.4 wheels, outside the repo)"
 BASE=""; for c in python3.13 python3.12 python3.11 python3.10; do command -v "$c" >/dev/null && { BASE=$(command -v "$c"); break; }; done
 [ -n "$BASE" ] || BASE=$(command -v python3)            # stable release preferred over pre-releases
-V="$HOME/.olf-c3-venv-$(basename "$BASE")"; PY="$V/bin/python"
-echo "base python: $BASE ($("$BASE" --version 2>&1))" | tee -a "$E/environment.txt"
-[ -x "$PY" ] || step "$BASE" -m venv "$V"
-"$PY" -m pip --version >/dev/null 2>&1 || step "$PY" -m ensurepip --upgrade > "$E/ensurepip.log" 2>&1
-step "$PY" -m pip install -q pytest==8.3.4 > "$E/pip.log" 2>&1 || { echo "ERROR: could not install pytest (see pip.log)"; exit 6; }
-step "$PY" -B -m pytest -v -p no:cacheprovider tests > "$E/pytest_native_macos.log" 2>&1
+PY="$BASE"; DEPS="$HOME/.olf-c3-pytest-$(basename "$BASE")"
+echo "python for tests and dashboard: $BASE ($("$BASE" --version 2>&1))" | tee -a "$E/environment.txt"
+# No pip: Homebrew Python's pyexpat can fail on macOS 26, which breaks pip. Fetch pinned pure-Python
+# wheels from PyPI, check each against PyPI's published SHA-256, unpack outside the repo.
+if ! PYTHONPATH="$DEPS" "$PY" -c "import pytest" 2>/dev/null; then
+  step "$PY" - "$DEPS" > "$E/wheels.log" 2>&1 <<'WHEELS' || { echo "ERROR: could not fetch pytest wheels (see wheels.log)"; exit 6; }
+import hashlib, io, json, os, sys, urllib.request, zipfile
+dest = sys.argv[1]; os.makedirs(dest, exist_ok=True)
+for name, ver in {"pytest": "8.3.4", "pluggy": "1.5.0", "iniconfig": "2.0.0", "packaging": "24.2"}.items():
+    meta = json.load(urllib.request.urlopen(f"https://pypi.org/pypi/{name}/{ver}/json", timeout=30))
+    w = next(u for u in meta["urls"] if u["packagetype"] == "bdist_wheel" and u["filename"].endswith("py3-none-any.whl"))
+    data = urllib.request.urlopen(w["url"], timeout=60).read()
+    got = hashlib.sha256(data).hexdigest()
+    if got != w["digests"]["sha256"]:
+        sys.exit(f"checksum mismatch: {w['filename']}")
+    zipfile.ZipFile(io.BytesIO(data)).extractall(dest)
+    print(w["filename"], "sha256", got, "matches PyPI")
+WHEELS
+fi
+cat "$E/wheels.log" 2>/dev/null
+step env PYTHONPATH="$DEPS" "$PY" -B -m pytest -v -p no:cacheprovider tests > "$E/pytest_native_macos.log" 2>&1
 echo "pytest exit=$?: $(tail -1 "$E/pytest_native_macos.log")"
 step "$PY" -B -m unittest discover -s tests -p test_discovery.py -v > "$E/discovery_unittest_macos.log" 2>&1
 echo "discovery unittest exit=$?: $(tail -1 "$E/discovery_unittest_macos.log")"
