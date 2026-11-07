@@ -74,9 +74,12 @@ def iso_utc(t: float) -> str:
 def make_sighting(*, drone_id: str, boot_id: str, seq: int, sector: str, obs_time: float,
                   frame_ref: str, frame_sha256: str, annotated_ref: Optional[str],
                   frame_size: List[int], trigger: Detection,
-                  all_dets: List[Detection], operator: Optional[str] = None) -> dict:
+                  all_dets: List[Detection], operator: Optional[str] = None,
+                  camera: Optional[dict] = None) -> dict:
+    """``camera`` (optional) is provenance for the capturing camera and transport;
+    it is added as ``evidence.camera`` and never changes location semantics."""
     persons = [d for d in all_dets if d.family == trigger.family]
-    return {
+    s = {
         "obs_id": f"{drone_id}-{boot_id}-{seq:06d}",
         "drone_id": drone_id,
         "boot_id": boot_id,
@@ -106,6 +109,9 @@ def make_sighting(*, drone_id: str, boot_id: str, seq: int, sector: str, obs_tim
             "detections_in_frame": [d.to_json() for d in all_dets],
         },
     }
+    if camera is not None:
+        s["evidence"]["camera"] = dict(camera)
+    return s
 
 
 def _nearest_existing(path: str) -> str:
