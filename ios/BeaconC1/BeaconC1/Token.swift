@@ -27,6 +27,24 @@ enum OLFToken {
         return header + Array(Array(mac).prefix(10))
     }
 
+    // Status v2 keeps the 80-bit tag. Header packs 27 window bits,
+    // 4 update-sequence bits, then the SOS bit. Domain-separated from v1.
+    static func statusPayload(alias: UInt8, counter: UInt32, revision: UInt8,
+                              sos: Bool, key: SymmetricKey) -> [UInt8] {
+        precondition(alias != 0 && counter < (1 << 27) && revision < 16)
+        let word = (counter << 5) | (UInt32(revision) << 1) | (sos ? 1 : 0)
+        let header: [UInt8] = [0x02, alias] + withUnsafeBytes(of: word.bigEndian) { Array($0) }
+        let mac = HMAC<SHA256>.authenticationCode(for: Array("OLF/BLE-STATUS/v2".utf8) + header, using: key)
+        return header + Array(Array(mac).prefix(10))
+    }
+
+    static func selfCheckStatus() -> Bool {
+        let normal = statusPayload(alias: 1, counter: vectorA1Counter, revision: 0, sos: false, key: syntheticKey)
+        let sos = statusPayload(alias: 1, counter: vectorA1Counter, revision: 1, sos: true, key: syntheticKey)
+        return uuidString(normal) == "02017210-7980-93FF-D776-54EF38E8C8ED"
+            && uuidString(sos) == "02017210-7983-424B-3137-DC7C1ED5AA69"
+    }
+
     /// Bytes 0..15 in order, formatted 8-4-4-4-12 (uppercase, as CBUUID prints it).
     static func uuidString(_ p: [UInt8]) -> String {
         precondition(p.count == 16)
