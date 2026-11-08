@@ -20,9 +20,11 @@ import base64
 import glob
 import json
 import os
+import socket
 import sys
 import threading
 import time
+import urllib.error
 import urllib.request
 from typing import List, Optional
 
@@ -43,12 +45,21 @@ def _log(msg: str) -> None:
     print(msg, file=sys.stderr, flush=True)
 
 
+class ProducerConflict(RuntimeError):
+    """The dashboard already has another live camera runner."""
+
+
 def post(url: str, body: dict, timeout: float = 3.0) -> Optional[dict]:
     req = urllib.request.Request(url, data=json.dumps(body).encode(),
                                  headers={"Content-Type": "application/json"})
     try:
         with urllib.request.urlopen(req, timeout=timeout) as r:
             return json.loads(r.read() or b"{}")
+    except urllib.error.HTTPError as e:
+        if e.code == 409:
+            raise ProducerConflict(e.read().decode(errors="replace")[:200]) from None
+        _log(f"post {url} refused: HTTP {e.code}")
+        return None
     except Exception as e:  # noqa: BLE001 - dashboard may be down; keep perceiving
         _log(f"post {url} failed: {type(e).__name__}: {e}")
         return None
@@ -112,6 +123,7 @@ class Advisor(threading.Thread):
             try:
                 adv = advise(st, self.qwen)
                 adv["qwen_url"] = self.qwen_url
+                adv["producer"] = getattr(self, "producer", None)
                 if self.dashboard:
                     post(self.dashboard + "/api/perception/advisory", adv, timeout=3.0)
             except Exception as e:  # noqa: BLE001 - the advisor must never die silently
@@ -216,7 +228,9 @@ def main(argv=None) -> int:
         det.detect(frame)
         _log(f"detector warm-up {time.perf_counter() - t:.2f}s (frame discarded)")
     pipe = PerceptionPipeline(cfg, source_mode=mode, camera_info=describe())
+    producer = f"{socket.gethostname()}:{os.getpid()}:{a.source}"
     advisor = Advisor(a.dashboard, a.qwen_url, a.advise_every_s)
+    advisor.producer = producer
     advisor.start()
     jl = open(os.path.expanduser(a.jsonl), "a") if a.jsonl else None
     start, fails, n, last_depth = time.time(), 0, 0, {}
@@ -260,7 +274,7 @@ def main(argv=None) -> int:
             okj, jpg = cv2.imencode(".jpg", ann, [cv2.IMWRITE_JPEG_QUALITY, a.jpeg_quality])
             st["latency_ms"]["annotate_ms"] = round((time.perf_counter() - t1) * 1000, 1)
             st["latency_ms"]["total_ms"] = round((time.time() - rx) * 1000 + st["latency_ms"]["capture_to_rx_ms"], 1)
-            body = {"state": st, "jpeg_b64": base64.b64encode(jpg.tobytes()).decode() if okj else None}
+            body = {"producer": producer, "state": st, "jpeg_b64": base64.b64encode(jpg.tobytes()).decode() if okj else None}
             post(a.dashboard + "/api/perception/frame", body, timeout=1.0)
             advisor.offer(st)
             if jl:
@@ -270,6 +284,9 @@ def main(argv=None) -> int:
                      f"route {st['route']['status']}, det {det_ms:.0f} ms")
     except KeyboardInterrupt:
         pass
+    except ProducerConflict as e:
+        _log(f"ERROR another camera runner is already feeding this dashboard; stopping this one. {e}")
+        return 4
     finally:
         cap.release()
         if jl:

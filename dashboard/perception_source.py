@@ -26,6 +26,10 @@ class InvalidPerception(ValueError):
     pass
 
 
+class ConflictingProducer(RuntimeError):
+    """A second camera runner posted while the first one is still live: never mix sources."""
+
+
 def validate_state(st: dict) -> None:
     if not isinstance(st, dict):
         raise InvalidPerception("state must be an object")
@@ -56,6 +60,8 @@ class PerceptionStore:
         self.health: dict = {}
         self.received = 0
         self.received_at: Optional[float] = None
+        self.producer: Optional[str] = None
+        self.conflict: Optional[dict] = None
         self.stale_after_s, self.clock = stale_after_s, clock
 
     def post_frame(self, body: dict) -> dict:
@@ -69,9 +75,17 @@ class PerceptionStore:
                 raise InvalidPerception("jpeg_b64 is not base64") from None
             if len(jpg) > MAX_JPEG or not jpg.startswith(b"\xff\xd8"):
                 raise InvalidPerception("frame must be a JPEG under 4 MB")
+        producer = str(body.get("producer") or "unspecified")
         with self.lock:
+            now = self.clock()
+            live = self.received_at is not None and now - self.received_at <= 2 * self.stale_after_s
+            if live and self.producer is not None and producer != self.producer:
+                self.conflict = {"rejected_producer": producer, "active_producer": self.producer,
+                                 "at": now, "count": (self.conflict or {}).get("count", 0) + 1}
+                raise ConflictingProducer(f"another camera runner ({self.producer}) is live; refusing {producer}")
+            self.producer = producer
             st = dict(st)
-            st["rx_time"] = self.clock()           # freshness is judged on the dashboard clock
+            st["rx_time"] = now           # freshness is judged on the dashboard clock
             self.state, self.jpeg = st, jpg
             self.received += 1
             self.received_at = st["rx_time"]
@@ -82,6 +96,9 @@ class PerceptionStore:
         if not isinstance(adv, dict) or adv.get("authority") != "NONE" or adv.get("advisory_only") is not True:
             raise InvalidPerception("advisory must be advisory_only with authority NONE")
         with self.lock:
+            prod = adv.get("producer")
+            if prod is not None and self.producer is not None and prod != self.producer:
+                raise ConflictingProducer("advisory from a camera runner that is not the active one")
             self.advisory = dict(adv, received_at=self.clock())
         return {"ok": True}
 
@@ -131,6 +148,8 @@ class PerceptionStore:
             "map_age_s": v.get("age_s"),
             "map_fresh": bool(v.get("fresh")),
             "frames_received": self.received,
+            "producer": self.producer,
+            "producer_conflict": self.conflict if self.conflict and self.clock() - self.conflict["at"] < 30 else None,
             "calibration_status": v.get("calibration_status") or "UNCALIBRATED",
             "intrinsics_source": (v.get("camera_model") or {}).get("intrinsics_source"),
             "mount_measured": (v.get("mount") or {}).get("measured", False),

@@ -155,7 +155,10 @@ def known_height(det: ObjectDetection, cfg: PerceptionConfig) -> MethodResult:
     x, y, w, h = det.bbox
     if h < MIN_BOX_H_PX:
         return MethodResult(name, UNKNOWN, reason="BOX_TOO_SMALL")
-    if y <= EDGE_MARGIN_PX or y + h >= cam.height - EDGE_MARGIN_PX:
+    if (y <= EDGE_MARGIN_PX or y + h >= cam.height - EDGE_MARGIN_PX
+            or x <= EDGE_MARGIN_PX or x + w >= cam.width - EDGE_MARGIN_PX):
+        # cut at any edge: the visible part may not be the whole object (seen live 2026-11-08:
+        # a side-cut 0.55-score "chair" would otherwise read ~7.9 m)
         return MethodResult(name, UNKNOWN, reason="BOX_TRUNCATED_BY_FRAME")
     if h / max(w, 1.0) < UPRIGHT_MIN_ASPECT.get(det.label, 0.0):
         return MethodResult(name, UNKNOWN, reason="NOT_UPRIGHT_OR_PARTLY_HIDDEN")

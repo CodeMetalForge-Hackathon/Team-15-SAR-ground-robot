@@ -37,7 +37,8 @@ cleanup() {
   wait 2>/dev/null
   echo "logs: $LOG"
 }
-trap cleanup EXIT INT TERM
+trap cleanup EXIT
+trap 'cleanup; exit 130' INT TERM      # must exit: otherwise the restart loop would carry on
 
 ok()   { printf '  \033[32mOK\033[0m   %s\n' "$*"; }
 warn() { printf '  \033[33mWARN\033[0m %s\n' "$*"; }

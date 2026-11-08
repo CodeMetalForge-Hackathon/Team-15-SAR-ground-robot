@@ -37,7 +37,7 @@ from fastapi.responses import FileResponse, HTMLResponse, Response
 from core import range_view
 from core.ingest import InvalidObservation
 from core.store import InvalidDecision, MissionStore, UnknownObservation
-from dashboard.perception_source import InvalidPerception, PerceptionStore
+from dashboard.perception_source import ConflictingProducer, InvalidPerception, PerceptionStore
 from dashboard.range_source import RangeSource
 
 STATIC = Path(__file__).resolve().parent / "static"
@@ -119,6 +119,8 @@ def create_app(store: MissionStore | None = None, evidence_dir=None,
             return perception.post_frame(body)
         except InvalidPerception as e:
             raise HTTPException(status_code=422, detail=str(e)) from None
+        except ConflictingProducer as e:
+            raise HTTPException(status_code=409, detail=str(e)) from None
 
     @app.post("/api/perception/advisory")
     def perception_advisory_post(body: dict) -> dict:
@@ -126,6 +128,8 @@ def create_app(store: MissionStore | None = None, evidence_dir=None,
             return perception.post_advisory(body)
         except InvalidPerception as e:
             raise HTTPException(status_code=422, detail=str(e)) from None
+        except ConflictingProducer as e:
+            raise HTTPException(status_code=409, detail=str(e)) from None
 
     @app.post("/api/perception/health")
     def perception_health_post(body: dict) -> dict:

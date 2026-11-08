@@ -281,3 +281,18 @@ def test_recorded_pi_frame_person_detection_pipeline():
     assert st["persons"] and st["calibration_status"] == "UNCALIBRATED"
     assert st["assessment"]["status"] != "CLEAR"           # mount unmeasured: never clear
     json.dumps(st)                                         # serialisable for the dashboard
+
+
+def test_dashboard_refuses_second_live_producer():
+    c, clk = client()
+    st = scene("LIVE-HW")
+    assert c.post("/api/perception/frame", json={"producer": "mac:1:pi", "state": st}).status_code == 200
+    r = c.post("/api/perception/frame", json={"producer": "mac:2:replay", "state": scene("RECORDED")})
+    assert r.status_code == 409
+    assert c.get("/api/perception").json()["source_mode"] == "LIVE-HW"
+    h = c.get("/api/perception/health").json()
+    assert h["producer_conflict"]["rejected_producer"] == "mac:2:replay"
+    adv = dict(A.advise(st, None), producer="mac:2:replay")
+    assert c.post("/api/perception/advisory", json=adv).status_code == 409
+    clk.t += 10                      # first producer gone quiet: a new runner may take over
+    assert c.post("/api/perception/frame", json={"producer": "mac:3:pi", "state": scene("LIVE-HW")}).status_code == 200

@@ -229,3 +229,10 @@ def test_estimate_all_uses_other_boxes_for_occlusion():
     e_far, e_near = estimate_all([far, near], c)
     assert e_far.status != ESTIMATED or e_far.method != "GROUND_PLANE"
     assert e_near.status == ESTIMATED
+
+
+def test_known_height_refuses_side_truncated_box():
+    c = cfg()
+    # box seen live on 2026-11-08: chair cut by the left frame edge
+    assert known_height(ObjectDetection("chair", [0, 51, 110, 157], 0.65), c).reason == "BOX_TRUNCATED_BY_FRAME"
+    assert known_height(ObjectDetection("chair", [1200, 51, 80, 157], 0.65), c).reason == "BOX_TRUNCATED_BY_FRAME"

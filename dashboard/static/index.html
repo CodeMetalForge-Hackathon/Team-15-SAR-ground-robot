@@ -576,7 +576,7 @@ function drawPanelD(h) {
     <span>Calibration</span><span><span class="badge ${h.calibration_status === "CALIBRATED" ? "ok" : "warn"}">${esc(h.calibration_status)}</span> intrinsics ${esc(h.intrinsics_source || "—")} · mount ${h.mount_measured ? "measured" : "<b>UNMEASURED</b>"}</span>
     <span>Rover controller</span><span><span class="badge ${rv.simulated === false ? "live" : "sim"}">${esc(rv.badge || rv.source || "NONE")}</span> ${esc(rv.status || "NOT_CONNECTED")} ${esc(rv.status_text || rv.note || "")}</span>
     <span>Source labels</span><span>distances: ${esc(h.labels.distances)} · navigation: <b>${esc(h.labels.navigation)}</b> · detections: ${esc(h.labels.detections)}</span>
-  </div><div class="note">No motor control from this page. Camera navigation stays advisory/simulated until a separate safety review.</div>`;
+  </div>${h.producer_conflict ? `<div class="banner">Second camera runner refused (${esc(h.producer_conflict.rejected_producer)}); showing only ${esc(h.producer_conflict.active_producer)}. Stop the extra runner.</div>` : ""}<div class="note">No motor control from this page. Camera navigation stays advisory/simulated until a separate safety review.</div>`;
 }
 let pAdv = null;
 async function pollPerception() {

@@ -31,6 +31,26 @@ The scene was empty: the camera faced a wall, so there were 0 detections. JSONL 
 | Pi capture → Mac receive | 274.4 ms | 347.7 ms | 379.1 ms |
 | **Capture → state posted (end to end)** | **479.8 ms** | **563.3 ms** | 804.4 ms |
 
+## 3b. Second live run via `scripts/camera_demo.sh` (06:52–06:53 ET, Pi camera re-aimed)
+
+The Pi stream ran for 70.4 s: 266 LIVE frames at 3.76 fps, with a maximum gap of 0.8 s. The local map updated on every frame.
+
+During this run a stray replay runner from an earlier test also fed the dashboard. That is how two bugs were found and fixed:
+
+- the script's INT trap did not exit;
+- the dashboard accepted two producers. It now returns 409 to the second one and Panel D shows the conflict.
+
+Because of the shared GPU, this run's detector median of 246 ms is pessimistic.
+
+| | Value |
+|---|---|
+| Frames with a detection | 24 / 266 (person ×10, chair ×14); real people and a chair near the robot |
+| Distances | person boxes were cut by the frame top or bottom, giving UNKNOWN (`NO_METHOD_APPLICABLE`) |
+| Side-cut chair | a 0.55–0.65-score chair cut by the left edge got a ~7.9 m known-height estimate. Known-height now refuses any edge-cut box (regression test added) |
+| Corridor | UNKNOWN throughout (mount unmeasured), as designed |
+
+After this run the Pi dropped off Tailscale again (06:55); a teammate was working on it.
+
 ## 4. Monocular depth evaluation (no fine-tuning)
 
 Measured on the recorded Pi frame `D1-b1794091323-000001.png`. In that frame a person fills the view and the box top is cut.
