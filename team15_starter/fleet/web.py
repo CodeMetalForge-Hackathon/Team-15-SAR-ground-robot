@@ -144,7 +144,7 @@ def _u8(a):
 
 
 def snapshot(hub, t, mission_id, origin, mode="live", paused=False, speed=1.0,
-             people=None, sim_drones=None, gw=None, done_at=None, events_tail=80):
+             people=None, sim_drones=None, gw=None, done_at=None, events_tail=50):
     """Everything the page needs, as plain JSON. Positions are local metres;
     the page converts them to latitude/longitude around `origin`."""
     w, g = hub.world, hub.grid
@@ -159,13 +159,14 @@ def snapshot(hub, t, mission_id, origin, mode="live", paused=False, speed=1.0,
         else:
             tx = ty = None
         drones.append(dict(
-            id=d.id, x=round(d.x, 2), y=round(d.y, 2), z=round(d.z, 1), sigma=round(d.sigma, 2),
+            id=d.id, name=hub.names.get(d.id, f"D{d.id}"), role=hub.roles.get(d.id, "search"),
+            x=round(d.x, 2), y=round(d.y, 2), z=round(d.z, 1), sigma=round(d.sigma, 2),
             task="LOST" if d.lost else d.task, state=d.state,
             battery=None if d.battery == 255 else d.battery,
             time_left=None if d.state == 0 else round(hub.time_left(d, t), 0),
             sensors=d.sensors, rssi=d.rssi, tx=tx, ty=ty, cmd=d.cmd,
             confirm=d.confirm_track, seen=round(t - d.last_seen, 1) if d.last_seen > -1e8 else None,
-            trail=[[x, y] for _, x, y in hub.trails.get(d.id, [])[-300:]]))
+            trail=[[x, y] for _, x, y in hub.trails.get(d.id, [])[-150:]]))
     snap = dict(
         mission=mission_id, mode=mode, t=round(t, 1), paused=paused, speed=speed,
         military=hub.cfg.military, signed=bool(hub.key), done_at=done_at, recalled=hub.recalled,
@@ -176,7 +177,9 @@ def snapshot(hub, t, mission_id, origin, mode="live", paused=False, speed=1.0,
         pos=round(100 * hub.pos(), 1),
         drones=drones,
         tracks=[tr.as_dict() for tr in hub.casualties()],
-        events=hub.events[-events_tail:],
+        signals=[a.as_dict() for a in hub.signals],
+        names={str(k): v for k, v in hub.names.items()},
+        events=[e for e in hub.events if not e.get("q")][-events_tail:],
         stats=dict(rx=hub.stats["rx"], tx=hub.stats["tx"], bad=hub.stats["rx_bad"],
                    replay=hub.stats["rx_replay"], rtb=hub.stats["rtb"]),
     )

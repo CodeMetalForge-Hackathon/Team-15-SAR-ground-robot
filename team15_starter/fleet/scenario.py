@@ -13,7 +13,9 @@ from .hub import HubConfig
 from .planner import Grid, GridWorld
 from .simdrones import SimDrone, SimGateway, make_people
 
-DEFAULT_LOADOUT = "thermal,ble;thermal,mmwave;cv,mmwave"
+# 2 fast signal sweepers (BLE/Wi-Fi scanner), 1 thermal hunter, 1 precise finder (camera).
+# No radar: vitals only come from a wearable the person happens to have.
+DEFAULT_LOADOUT = "ble;ble;thermal;cv"
 
 
 def add_mission_args(ap: argparse.ArgumentParser):
@@ -25,7 +27,7 @@ def add_mission_args(ap: argparse.ArgumentParser):
                    help="lat,lon of the homebase (default: Franconia Notch, NH)")
     g.add_argument("--cover", choices=["forest", "open"], default="forest",
                    help="pr: what land with no OpenStreetMap tag counts as")
-    g.add_argument("--drones", type=int, default=3)
+    g.add_argument("--drones", type=int, default=4)
     g.add_argument("--n", type=int, default=24, help="grid is n x n cells")
     g.add_argument("--cell-m", type=float, default=20.0, help="cell size in metres (indoor: 0.5)")
     g.add_argument("--prior", default="multi", help="multi | ring | bimodal | uniform | path/to/heatmap.npy")
@@ -87,7 +89,7 @@ def apply_scenario_defaults(args, argv):
         return args
     given = " ".join(argv)
     for flag, attr, val in (("--people", "people", 1), ("--cell-m", "cell_m", 25.0), ("--endurance", "endurance", 600.0),
-                            ("--loss", "loss", 0.15), ("--loadout", "loadout", "thermal,ble;thermal,mmwave;cv,mmwave")):
+                            ("--loss", "loss", 0.15)):
         if flag not in given and hasattr(args, attr):
             setattr(args, attr, val)
     if "--civilian" not in given:
@@ -115,7 +117,10 @@ def hub_config(args) -> HubConfig:
                      confirm_alt=min(base, 1.0) if indoor else 1.5,
                      military=args.military, exposure=(0.12 if pr else 0.02) if args.military else 0.0,
                      n_sims=args.sims, allocate=not getattr(args, "no_allocate", False),
-                     share_map=not getattr(args, "no_share", False))
+                     share_map=not getattr(args, "no_share", False),
+                     loadout=tuple(tuple(x.split(",")) for x in getattr(args, "loadout", DEFAULT_LOADOUT).split(";")),
+                     observe_alt=min(base, 1.0) if indoor else 12.0,
+                     )
 
 
 def load_allies(path, args=None):
@@ -134,7 +139,9 @@ def load_allies(path, args=None):
 
 
 def _set_status(p, status, rng):
+    from .simdrones import mobility_for
     p.status = status
+    p.mobility = mobility_for(status, rng)
     if status == "ok":
         p.hr, p.br = int(rng.integers(65, 95)), int(rng.integers(12, 19))
     elif status == "injured":
@@ -157,9 +164,10 @@ def build_sim(args, key):
         if v.get("status") in ("ok", "injured", "critical"):
             _set_status(p, v["status"], rng)
     loadout = [s.split(",") for s in args.loadout.split(";")]
+    fast = lambda sens: 1.6 if set(sens) == {"ble"} else 1.0     # sweepers: light, fly fast
     drones = [SimDrone(i + 1, loadout[i % len(loadout)], truth, grid, people,
                        np.random.default_rng(args.seed + 10 + i), key=key,
-                       speed=args.speed, endurance=args.endurance, drift=args.drift,
+                       speed=args.speed * fast(loadout[i % len(loadout)]), endurance=args.endurance, drift=args.drift,
                        launch_at=2.0 * i, charge_s=args.charge, military=args.military,
                        mmwave_alt=2.0 if args.cell_m >= 3 else 1.2)
               for i in range(args.drones)]

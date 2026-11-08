@@ -34,6 +34,13 @@ class Person:
     tag_id: int = 0
     watch: bool = False
     first_detected: Optional[float] = None
+    mobility: str = "moving"        # what a camera would see: moving | not_moving | lying_down
+
+
+def mobility_for(status, rng):
+    """Ground truth for what a camera sees. Injured/critical people mostly don't move."""
+    p = {"ok": [0.8, 0.15, 0.05], "injured": [0.2, 0.3, 0.5], "critical": [0.0, 0.4, 0.6]}[status]
+    return str(rng.choice(["moving", "not_moving", "lying_down"], p=p))
 
 
 def make_people(world, grid, rng, phone_rate=0.5, tags=None, statuses=None):
@@ -55,7 +62,8 @@ def make_people(world, grid, rng, phone_rate=0.5, tags=None, statuses=None):
         if tags is not None:
             tag = tags[k] if k < len(tags) else 0
         people.append(Person(x, y, cell, str(status), hr, br, tag,
-                             tags is None and has_phone and rng.random() < 0.5))
+                             tags is None and has_phone and rng.random() < 0.5,
+                             mobility=mobility_for(str(status), rng)))
     return people
 
 
@@ -95,6 +103,8 @@ class SimDrone:
         self.made = []                           # (det_id, time) for delivery scoring
         self.military = military
         self.failsafe = None
+        self.watching = {}                       # person -> time a hovering finder started watching
+        self.observe_s = 12.0                    # finder: watch this long before calling moving / not
 
     # ---------------------------------------------------------------- radio
     def receive(self, raw, t):
@@ -223,15 +233,18 @@ class SimDrone:
     # ---------------------------------------------------------------- sensing
     def _sense(self, t):
         cell = self.grid.to_cell(*self.true[:2])
-        if cell == self.last_cell and t - self.last_look < 5.0:
-            return []
-        self.last_cell, self.last_look = cell, t
         found = []
+        if "cv" in self.sensors and self.state == 2:
+            found += self._observe(t, cell)            # a hovering finder watches continuously
+        if cell == self.last_cell and t - self.last_look < 5.0:
+            return [self._send(d) for d in found]
+        self.last_cell, self.last_look = cell, t
         for k, p in enumerate(self.people):
             dcell = max(abs(p.cell[0] - cell[0]), abs(p.cell[1] - cell[1]))
             for s in self.sensors:
                 pre = SENSOR_PRESET[s]
-                if t - self.reported.get((k, s), -1e9) < 10.0:
+                again = 6.0 if s == "ble" else 10.0
+                if t - self.reported.get((k, s), -1e9) < again:
                     continue
                 if s == "mmwave":
                     # radar reaches ~1 m sideways and ~1.5 m down. While hovering, a drone
@@ -242,11 +255,15 @@ class SimDrone:
                         reach += 0.35 * self.world.cell_m
                     if self.true[2] > self.mmwave_alt or np.hypot(p.x - self.true[0], p.y - self.true[1]) > reach:
                         continue
+                elif s == "ble":
+                    if not p.tag_id:                    # phone off / no beacon: nothing to hear
+                        continue
+                    rng3 = float(np.hypot(np.hypot(p.x - self.true[0], p.y - self.true[1]), self.true[2]))
+                    if rng3 > pre["range_m"]:
+                        continue
                 elif dcell > fov_cells(s, self.world.cell_m):
                     continue
-                if s == "ble" and not p.tag_id:
-                    continue
-                pod = pre["pod"]
+                pod = pre["pod"] if s != "ble" else 0.85   # if a phone is on, a pass usually hears it
                 vis = getattr(self.world, "vis", None)
                 if vis is not None:
                     pod *= float(sensor_visibility(s, vis[p.cell]))   # trees hide him from cameras
@@ -258,27 +275,53 @@ class SimDrone:
                 found.append(self._detection(p, s, t))
         return [self._send(d) for d in found]
 
-    def _detection(self, p, s, t):
-        noise = self.rng.normal(0, 0.25 * self.world.cell_m, 2)
+    def _observe(self, t, cell):
+        """A finder hovering over someone watches them for observe_s, then reports what it
+        SAW (moving / not moving / lying down). No vitals: a camera can't measure them."""
+        out = []
+        for k, p in enumerate(self.people):
+            near = np.hypot(p.x - self.true[0], p.y - self.true[1]) <= 0.6 * self.world.cell_m
+            if not near or (k, "obs") in self.reported:
+                self.watching.pop(k, None) if not near else None
+                continue
+            vis = getattr(self.world, "vis", None)
+            if vis is not None and self.rng.random() > max(float(vis[p.cell]), 0.5) ** 0.1:
+                continue
+            start = self.watching.setdefault(k, t)
+            if t - start >= self.observe_s:
+                self.reported[(k, "obs")] = t
+                if p.first_detected is None:
+                    p.first_detected = t
+                out.append(self._detection(p, "cv", t, obs=True))
+        return out
+
+    def _detection(self, p, s, t, obs=False):
+        noise = self.rng.normal(0, (0.08 if obs else 0.25) * self.world.cell_m, 2)
         rel = np.array([p.x, p.y]) - self.true[:2]
         x, y = self.est + rel + noise
         status, hr, br, tag, conf = 0, 0, 0, 0, 200
+        rng_field = int(min(255, 10 * float(np.hypot(*rel))))
         if s == "thermal":
             conf = int(self.rng.integers(170, 230))
         elif s == "cv":
             conf = int(self.rng.integers(150, 220))
-            if p.status in ("injured", "critical") and self.rng.random() < 0.6:
-                status = P.STATUS_IDS["injured"]       # visible injury / odd posture
+            if obs:
+                conf, status = 240, P.OBS_IDS[p.mobility]
         elif s == "mmwave":
             conf = 245
             hr = int(np.clip(p.hr + self.rng.normal(0, 3), 1, 255))
             br = int(np.clip(p.br + self.rng.normal(0, 1), 1, 255))
         elif s == "ble":
-            conf, tag = 250, p.tag_id
-            if p.watch:
+            # RSSI -> range is rough: log-normal shadowing, about +-25 %
+            true_r = float(np.hypot(np.hypot(*rel), self.true[2]))
+            est_r = true_r * float(np.exp(self.rng.normal(0, 0.25)))
+            x, y = self.est                              # where the SWEEPER was, not the person
+            rng_field = int(min(255, max(1, round(est_r))))
+            conf, tag = 200, p.tag_id
+            if p.watch:                                  # a smartwatch/beacon broadcasting heart rate
                 hr = int(np.clip(p.hr + self.rng.normal(0, 2), 1, 255))
         det = P.Detection(float(x), float(y), P.SENSOR_IDS[s], conf, status, hr, br,
-                          int(min(255, 10 * float(np.hypot(*rel)))), self.next_det & 0xFFFF, tag)
+                          rng_field, self.next_det & 0xFFFF, tag)
         self.queue[det.det_id] = [det, t]             # first copy goes out now, retransmit until acked
         self.made.append((det.det_id, t))
         self.next_det += 1

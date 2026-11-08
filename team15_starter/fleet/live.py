@@ -24,6 +24,15 @@ def _new_mission(args, key):
     return truth, people, drones, gw, hub
 
 
+def now_status(run):
+    from .terrain import terrain_status
+    from .web import parse_origin
+    try:
+        return terrain_status(parse_origin(run.origin), run.n, run.cell_m, default=run.cover)
+    except Exception:                                  # noqa: BLE001
+        return "none"
+
+
 def run_live_sim(args, key):
     dash = Dashboard(args.web_port).start()
     origin = parse_origin(args.origin)
@@ -36,6 +45,7 @@ def run_live_sim(args, key):
             truth, people, drones, gw, hub = _new_mission(run, key)
             pipe = BytePipeTransport()
             dt, t, next_tick = 0.1, 0.0, 0.0
+            target = 0.0                     # sim time we should have reached (keeps fractions of a step)
             done_at, restart = None, False
             wall = time.monotonic()
             next_pub = 0.0
@@ -62,6 +72,12 @@ def run_live_sim(args, key):
                         run.origin = f"{lat:.6f},{lon:.6f}"
                         origin = (lat, lon)
                         run.n = int(c.get("n", 24))
+                        mix = c.get("drones") or {}
+                        if mix:                            # operator's fleet: sweepers / thermal / finders
+                            parts = (["ble"] * int(mix.get("sweepers", 0)) + ["thermal"] * int(mix.get("thermal", 0))
+                                     + ["cv"] * int(mix.get("finders", 0)))
+                            if parts:
+                                run.loadout, run.drones = ";".join(parts), len(parts)
                         run.cell_m = float(c.get("cell", 25.0))
                         victims = [v for v in (c.get("victims") or []) if "x" in v and "y" in v]
                         run.people = len(victims) if victims else max(1, min(8, int(c.get("count", 1))))
@@ -80,11 +96,21 @@ def run_live_sim(args, key):
                     elif cmd == "restart":
                         restart = True
                         run.seed += 1
+                # real terrain finished downloading in the background: restart this mission on it
+                sc = getattr(hub.world, "scenario", None)
+                if sc is not None and "loading" in sc.source and t < 45 and now_status(run) == "ready":
+                    print("  terrain: real map ready, restarting the mission on it")
+                    run._scenario_cache = None
+                    restart = True
+                    continue
                 now = time.monotonic()
                 budget = 0.0 if paused or t >= run.time else (now - wall) * speed
                 wall = now
-                goal, steps = t + budget, 0
-                while t < goal and steps < 300:               # catch up, but never freeze the page
+                # Step only whole 0.1 s steps that are actually due. (Before, every 20 ms loop
+                # always ran at least one 0.1 s step, so "x1" really ran at ~4-5x.)
+                target += budget
+                steps = 0
+                while t + dt <= target + 1e-9 and steps < 300:   # catch up, but never freeze the page
                     up = {d.id: d.step(t, dt) for d in drones}
                     pipe.rx += gw.uplink(t, up)
                     for rssi, raw in pipe.recv():
@@ -98,15 +124,17 @@ def run_live_sim(args, key):
                     if done_at is None and hub.tracks:
                         matched = match_people(people, hub.tracks, 1.5 * truth.cell_m)
                         if len(matched) == len(people) and all(
-                                tr.confirmed and (tr.assessed or tr.checked) for tr, _ in matched.values()):
+                                tr.confirmed and (tr.observation or tr.assessed or tr.checked) for tr, _ in matched.values()):
                             done_at = t
-                            print(f"  every person found and checked at {t:.1f}s")
+                            print(f"  every person found, seen and checked at {t:.1f}s")
                     t += dt
                     steps += 1
+                if steps >= 300:
+                    target = t                                # can't keep up: drop the backlog, don't spiral
                 if now >= next_pub:
                     dash.publish(snapshot(hub, t, mission_id, origin, mode="sim", paused=paused or t >= run.time,
                                           speed=speed, people=people, sim_drones=drones, gw=gw, done_at=done_at))
-                    next_pub = now + 0.2
+                    next_pub = now + 0.25
                 time.sleep(0.02)
             hub.close()
     except KeyboardInterrupt:
