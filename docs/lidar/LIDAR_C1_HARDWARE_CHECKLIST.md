@@ -1,6 +1,8 @@
 # RPLIDAR C1 hardware checklist (gate for the FIRST physical scan)
 
-**Status: nothing on this checklist has been done.** The LiDAR has not been powered. Every answer must come from a measurement or an inspection, never from a photo or an assumption. Each field maps 1:1 to `checklist.*` in `lidar/configs/c1_pi5.UNVERIFIED.json`, and `lidar.config.check_hardware_gate` refuses to open the serial port until all of them are recorded.
+> **Update, 2026-11-08 (docs audit):** the C1's CP2102N USB-UART adapter (`10c4:ea60`) was plugged into the Pi and enumerated several times between ≈08:19 and 09:12 UTC. The LiDAR itself was **never queried**: no GET_INFO, GET_HEALTH or SCAN was sent. See [LDR-HW-01](../experiments/reports/LDR-HW-01-lidar-usb-enumeration-and-gate.md).
+
+**Status: nothing on this checklist has been done.** The LiDAR had not been powered when this was written. Every answer must come from a measurement or an inspection, never from a photo or an assumption. Each field maps 1:1 to `checklist.*` in `lidar/configs/c1_pi5.UNVERIFIED.json`, and `lidar.config.check_hardware_gate` refuses to open the serial port until all of them are recorded.
 
 | # | Item | How to verify | Config field(s) | Pass |
 |---|---|---|---|---|

@@ -2,6 +2,13 @@
 
 All numbers below were measured on 2026-11-08 between 06:08 and 06:30 ET.
 
+> **Audit corrections (2026-11-08):**
+> - §3 (live run 1) ran on code from before `f482f21`. That code suggested `ROUTE_THROUGH_UNOBSERVED_SPACE` with an unmeasured mount, and its mapping time included an A* search that current code skips.
+> - In §3b, the side-cut chair read 7.91 m once (score 0.65), then 6.76 m in 9 states (score 0.545).
+> - The §7 latency figures are a mid-run snapshot. The full 434-state run gives detector P90 239.7 ms, max 509.3 ms, and depth n = 144.
+>
+> The re-derived figures and their evidence are in [the MAP reports](../experiments/reports/) and [BENCHMARK_RESULTS.md](../experiments/BENCHMARK_RESULTS.md).
+
 - **Mac:** Apple M4 Pro, 24 GB, PyTorch 2.12 on MPS, Python 3.13.
 - **Pi:** Raspberry Pi 5 with IMX708, 1280×720 at 5 fps JPEG over SSH (Tailscale), receiver rotation 180.
 

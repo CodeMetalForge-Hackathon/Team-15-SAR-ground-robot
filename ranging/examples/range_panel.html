@@ -36,7 +36,7 @@
   <p style="font-size:12px;color:var(--muted);margin:12px 0 0">Nearest echo in a 15° forward beam. Not a distance to a person.</p>
 </div>
 <script>
-  // ?url=http://100.97.93.118:8765/range  (service must be started with --cors-origin for this page's origin)
+  // ?url=http://$PI_HOST:8765/range  (service must be started with --cors-origin for this page's origin)
   const URL_ = new URLSearchParams(location.search).get("url") || "http://127.0.0.1:8765/range";
   const color = {CLEAR:"--clear", CAUTION:"--caution", BLOCKED:"--blocked", UNKNOWN:"--unknown"};
   const $ = id => document.getElementById(id);

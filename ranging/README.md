@@ -42,7 +42,7 @@ GPIO is touched only when **all** of these hold:
    - a V2.x revision, with a photo reference
    - wiring done with the power off
    - continuity checked
-   - measured VCC 3.20–3.45 V, and SIG idle ≤ 3.4 V
+   - measured VCC 3.20–3.45 V, and SIG idle ≤ 1.2 V (`SIG_IDLE_MAX_V` in `config.py`; anything above 3.4 V is refused outright as unsafe for a Pi GPIO)
    - the mount measured
    - a VCC header pin that matches the stated voltage
    - a non-reserved GPIO
@@ -116,7 +116,9 @@ On the Pi (Debian 13.7, Python 3.13.5), these were checked:
 - libgpiod 2.2.0 has the API names the driver uses, checked by import only.
 - A read-only line-info query returns `pinctrl-rp1` / `GPIO5` / unused.
 
-No GPIO line has been requested.
+No GPIO line had been requested as of 2026-11-07.
+
+> **Update, 2026-11-08 (docs audit):** two real-hardware diagnostic runs were made on the Pi 5 (≈10:43 and ≈10:50 UTC). Each returned **0/50 VALID, 50/50 NO_ECHO**, with 0 echo edges, verdict `NO_RESPONSE_EVER` and health FAULT. The root cause is **unknown**. See [the Grove doc](../docs/14_GROVE_ULTRASONIC.md) and [the experiment report](../docs/experiments/reports/RNG-HW-01-grove-real-hardware-diagnose.md).
 
 Coverage:
 - **Distances and echoes:** known distances at 0.1 / 0.3 / 0.5 / 1.0 / 1.5 /
