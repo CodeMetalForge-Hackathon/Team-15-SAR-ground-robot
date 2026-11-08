@@ -16,6 +16,8 @@ Chapters: [VIDEO_INDEX.md](VIDEO_INDEX.md). Launch it yourself: [DEMO.md](DEMO.m
 
 [![Dual-robot rescue digital twin: the rover replans around debris](evidence/sim_3d_reroute.jpg)](videos/Team15_Dual_Robot_Rescue_Demo.mp4)
 
+https://youtu.be/TWNLeU3t4rg
+
 In the video, the drone searches with our Monte-Carlo tree-search planner and finds a survivor. It then
 scouts the rover's route, and the rover drives our real navigation stack. Debris falls; the rover stops,
 verifies and holds; the drone observes a detour; the rover replans and reaches the survivor. Qwen
