@@ -1,0 +1,17 @@
+name: qwen-advisory
+on:
+  push:
+    paths: ["qwen_advisory/**", "docs/qwen/**", ".github/workflows/qwen.yml"]
+  pull_request:
+    paths: ["qwen_advisory/**", "docs/qwen/**", ".github/workflows/qwen.yml"]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      # stdlib only; no model, no Ollama, no Pi, no LiDAR hardware (fixtures are SIMULATED)
+      - run: pip install pytest==8.3.4
+      - run: python -B -m pytest -q -p no:cacheprovider qwen_advisory/tests

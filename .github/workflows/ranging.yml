@@ -1,0 +1,21 @@
+name: ranging
+on:
+  push:
+    paths: ["ranging/**", ".github/workflows/ranging.yml"]
+  pull_request:
+    paths: ["ranging/**", ".github/workflows/ranging.yml"]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install pytest==8.3.4
+      # stdlib only; no libgpiod, no Pi, no sensor
+      - run: python -m pytest -q ranging/tests
+      - name: Hardware config without verified wiring is refused
+        run: |
+          if python -m ranging check-config --config ranging/configs/pi5_gpio5.UNVERIFIED.json --hardware; then
+            echo "gate did not refuse"; exit 1; fi

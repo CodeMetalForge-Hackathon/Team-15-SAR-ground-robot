@@ -1,0 +1,30 @@
+# Never commit camera captures or other photos/videos of people.
+*.jpg
+*.jpeg
+*.png
+*.heic
+*.mp4
+*.mov
+evidence/
+__pycache__/
+.pytest_cache/
+.venv/
+
+# Model artifacts, checkpoints and secrets: never commit (weights live on Hugging Face / local backups)
+*.safetensors
+*.gguf
+*.bin
+*.pt
+*.pth
+*.onnx
+*.hef
+lora/out/
+checkpoints/
+models/
+.env
+*.pem
+*_ed25519*
+id_rsa*
+hf_token*
+private/
+evidence_images/
