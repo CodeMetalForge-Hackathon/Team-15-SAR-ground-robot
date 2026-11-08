@@ -1,0 +1,40 @@
+{
+  "camera": {
+    "width": 1280,
+    "height": 720,
+    "fx": 1410.714285714286,
+    "fy": 1410.714285714286,
+    "cx": 639.5,
+    "cy": 359.5,
+    "dist": [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "source": "NOMINAL_DATASHEET",
+    "note": "NOMINAL: IMX708 datasheet f=4.74 mm, 1.4 um pixels, ScalerCrop 3072x1728 measured on the Pi 2026-11-08 06:08 ET for main=1280x720 (sensor mode 1536x864). Not checkerboard-calibrated; distortion assumed 0."
+  },
+  "mount": {
+    "height_m": null,
+    "pitch_deg": null,
+    "height_sigma_m": 0.01,
+    "pitch_sigma_deg": 1.5,
+    "setback_m": 0.0,
+    "lateral_offset_m": 0.0,
+    "measured": false,
+    "measured_by": null,
+    "measured_at": null,
+    "pitch_source": "UNMEASURED"
+  },
+  "calibration_status": "UNCALIBRATED",
+  "calibration_ref": null,
+  "robot_width_m": 0.2,
+  "robot_width_measured": false,
+  "width_margin_m": 0.05,
+  "lookahead_m": 1.5,
+  "stop_distance_m": 0.6,
+  "max_range_m": 4.0,
+  "depth_model_validated": false
+}

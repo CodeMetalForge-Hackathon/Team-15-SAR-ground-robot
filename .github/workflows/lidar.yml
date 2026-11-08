@@ -1,0 +1,27 @@
+name: lidar
+on:
+  push:
+    paths: ["lidar/**", "rover/**", "core/range_view.py", "dashboard/range_source.py", "ranging/**",
+            ".github/workflows/lidar.yml"]
+  pull_request:
+    paths: ["lidar/**", "rover/**", "core/range_view.py", "dashboard/range_source.py", "ranging/**",
+            ".github/workflows/lidar.yml"]
+jobs:
+  lidar-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      # stdlib + networkx (rover.navigator -> planner). No pyserial, no device, no Pi.
+      - run: pip install pytest==8.3.4 networkx==3.4.2
+      - run: python -m pytest -q -p no:cacheprovider lidar/tests
+      - name: Unverified hardware config is refused by the gate
+        run: |
+          if python -m lidar check-config --config lidar/configs/c1_pi5.UNVERIFIED.json --hardware; then
+            echo "gate did not refuse"; exit 1; fi
+      - name: First physical scan is refused without approval
+        run: |
+          if python -m lidar scan-once --config lidar/configs/c1_pi5.UNVERIFIED.json; then
+            echo "scan-once did not refuse"; exit 1; fi

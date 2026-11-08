@@ -1,0 +1,17 @@
+name: perception
+on:
+  push:
+  pull_request:
+jobs:
+  perception-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      # OpenCV 4.x: OpenCV 5 moved HOGDescriptor out of the main package.
+      # torch/torchvision are not installed: the Faster R-CNN test skips, and
+      # no test needs a camera, a Pi or SSH (the Pi sender is faked locally).
+      - run: pip install "opencv-python-headless>=4.8,<5" numpy pytest
+      - run: python -B -m pytest -q -p no:cacheprovider perception/tests

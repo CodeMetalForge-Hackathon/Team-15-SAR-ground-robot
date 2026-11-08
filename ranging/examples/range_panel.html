@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Forward Range Panel</title>
+<style>
+  :root { --bg:#f6f7f9; --card:#fff; --fg:#1b1f24; --muted:#5b6470; --line:#d9dde3;
+          --clear:#1f7a3d; --caution:#a86400; --blocked:#b3261e; --unknown:#5b6470; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#111418; --card:#1a1e24; --fg:#e6e9ee; --muted:#9aa3ae; --line:#2b313a;
+            --clear:#4cc27a; --caution:#e8a33d; --blocked:#ff6b5f; --unknown:#9aa3ae; } }
+  body { margin:0; background:var(--bg); color:var(--fg); font:15px/1.4 system-ui, sans-serif; }
+  .card { max-width:420px; margin:16px; padding:16px; background:var(--card); border:1px solid var(--line); border-radius:10px; }
+  h1 { font-size:13px; font-weight:600; color:var(--muted); margin:0 0 8px; text-transform:uppercase; letter-spacing:.04em; }
+  .status { font-size:32px; font-weight:700; }
+  .range { font-size:22px; font-variant-numeric:tabular-nums; }
+  dl { display:grid; grid-template-columns:auto 1fr; gap:2px 12px; margin:12px 0 0; font-size:13px; }
+  dt { color:var(--muted); } dd { margin:0; font-variant-numeric:tabular-nums; overflow-wrap:anywhere; }
+  .tag { display:inline-block; padding:1px 6px; border-radius:4px; border:1px solid var(--line); font-size:12px; }
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>Forward obstacle range (ultrasonic)</h1>
+  <div class="status" id="status">UNKNOWN</div>
+  <div class="range" id="range">--</div>
+  <dl>
+    <dt>Forward motion</dt><dd id="fwd">not allowed</dd>
+    <dt>Reading</dt><dd id="meas">--</dd>
+    <dt>Age</dt><dd id="age">--</dd>
+    <dt>Health</dt><dd id="health">--</dd>
+    <dt>Source</dt><dd><span class="tag" id="mode">--</span> <span id="prov"></span></dd>
+    <dt>Reason</dt><dd id="reason">--</dd>
+  </dl>
+  <p style="font-size:12px;color:var(--muted);margin:12px 0 0">Nearest echo in a 15° forward beam. Not a distance to a person.</p>
+</div>
+<script>
+  // ?url=http://$PI_HOST:8765/range  (service must be started with --cors-origin for this page's origin)
+  const URL_ = new URLSearchParams(location.search).get("url") || "http://127.0.0.1:8765/range";
+  const color = {CLEAR:"--clear", CAUTION:"--caution", BLOCKED:"--blocked", UNKNOWN:"--unknown"};
+  const $ = id => document.getElementById(id);
+  function show(s) {
+    const st = s.obstacle_status || "UNKNOWN";
+    $("status").textContent = st;
+    $("status").style.color = `var(${color[st] || "--unknown"})`;
+    $("range").textContent = s.range_m == null ? "--" : `${s.range_m.toFixed(2)} m`;
+    $("fwd").textContent = s.forward_motion_allowed ? "allowed" : "not allowed";
+    const l = s.latest || {};
+    $("meas").textContent = l.measurement_status ? `${l.measurement_status} #${l.seq}` : "--";
+    const f = s.freshness || {};
+    $("age").textContent = f.age_s == null ? "--" : `${f.age_s.toFixed(2)} s${f.stale ? " (STALE)" : ""}`;
+    $("health").textContent = (s.health && s.health.state) || "--";
+    const p = s.provenance || {};
+    $("mode").textContent = p.source_mode || "--";
+    $("prov").textContent = p.driver ? `${p.driver} @ ${p.host}` : "";
+    $("reason").textContent = s.error || (s.assessment && s.assessment.reason) || "--";
+  }
+  async function tick() {
+    try {
+      const r = await fetch(URL_, {cache: "no-store", signal: AbortSignal.timeout(800)});
+      const s = await r.json();
+      // Re-check freshness in the browser too (cross-host: wall clock, needs NTP).
+      if (s.obs_time && (Date.now() / 1000 - s.obs_time) > (s.stale_after_s || 0.5) + 0.5) {
+        s.obstacle_status = "UNKNOWN"; s.forward_motion_allowed = false; s.range_m = null;
+        s.error = "stale at browser";
+      }
+      show(s);
+    } catch (e) {
+      show({obstacle_status: "UNKNOWN", forward_motion_allowed: false, error: `range service unreachable: ${e.name}`});
+    }
+  }
+  tick(); setInterval(tick, 250);
+</script>
+</body>
+</html>
