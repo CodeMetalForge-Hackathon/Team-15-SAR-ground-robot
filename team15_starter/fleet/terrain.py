@@ -161,7 +161,7 @@ def fetch_osm(origin, n, cell_m, home, timeout=25):
     data = urllib.parse.urlencode({"data": q}).encode()
     last = None
     import time as _t
-    deadline = _t.monotonic() + 75                     # give up on the network after ~a minute
+    deadline = _t.monotonic() + 30                     # give up on the network after ~30 s
     for url in OVERPASS:
         if _t.monotonic() > deadline:
             break
@@ -193,11 +193,37 @@ def synthetic_terrain(n, cell_m, home, seed):
 _OFFLINE = False    # after one failed fetch, don't make every new mission wait again
 
 
+_FETCHING = {}          # cache path -> "loading" | "failed" | "ready"
+
+
+def _terrain_key(origin, n, cell_m, default):
+    return f"terrain_{origin[0]:.5f}_{origin[1]:.5f}_{n}_{cell_m:g}_{default}.json"
+
+
+def terrain_status(origin, n, cell_m, cache_dir="results", default="forest"):
+    """'ready' (real terrain cached), 'loading' (background download running), 'failed' or 'none'."""
+    path = os.path.join(cache_dir, _terrain_key(origin, n, cell_m, default))
+    if os.path.exists(path):
+        return "ready"
+    return _FETCHING.get(path, "none")
+
+
+def _save_osm(osm, origin, n, cell_m, home, default, path):
+    grid = rasterize_osm(osm, origin, n, cell_m, home, default)
+    source = f"OpenStreetMap ({len(osm.get('elements', []))} features; unmapped land = {default})"
+    os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+    tmp = path + ".tmp"
+    with open(tmp, "w") as f:
+        json.dump({"grid": grid.tolist(), "source": source}, f)
+    os.replace(tmp, path)
+    return grid, source
+
+
 def load_terrain(origin, n, cell_m, home, seed=0, cache_dir="results", default="forest", quiet=False, osm=None):
-    """osm: Overpass JSON the dashboard already downloaded in the browser (preferred)."""
-    global _OFFLINE
-    key = f"terrain_{origin[0]:.5f}_{origin[1]:.5f}_{n}_{cell_m:g}_{default}.json"
-    path = os.path.join(cache_dir, key)
+    """Never blocks on the network. Cached real terrain if we have it; Overpass JSON from the
+    browser if given; otherwise synthetic terrain NOW, and the real map is fetched in the
+    background (next mission at this place uses it -- the live dashboard restarts by itself)."""
+    path = os.path.join(cache_dir, _terrain_key(origin, n, cell_m, default))
     say = (lambda *a: None) if quiet else print
     try:
         with open(path) as f:
@@ -205,25 +231,29 @@ def load_terrain(origin, n, cell_m, home, seed=0, cache_dir="results", default="
         return np.array(d["grid"], dtype=np.int8), d["source"]
     except (OSError, ValueError, KeyError):
         pass
-    if osm is None and _OFFLINE:
-        return synthetic_terrain(n, cell_m, home, seed), "synthetic (offline)"
-    if osm is None:
-        say("  terrain: fetching OpenStreetMap for this area (first run only, up to a minute)...")
-    try:
-        if osm is None:
-            osm = fetch_osm(origin, n, cell_m, home, timeout=40)
-        grid = rasterize_osm(osm, origin, n, cell_m, home, default)
-        source = f"OpenStreetMap ({len(osm.get('elements', []))} features; unmapped land = {default})"
-        mix = ", ".join(f"{100 * float((grid == k).mean()):.0f}% {name}" for k, name in enumerate(CLASSES) if (grid == k).any())
-        say(f"  terrain: {source}: {mix}")
-    except OSError as e:
-        _OFFLINE = True
-        say(f"  terrain: {e}. Using synthetic terrain (it won't match the satellite map).")
-        return synthetic_terrain(n, cell_m, home, seed), "synthetic (offline)"
-    os.makedirs(cache_dir, exist_ok=True)
-    with open(path, "w") as f:
-        json.dump({"grid": grid.tolist(), "source": source}, f)
-    return grid, source
+    if osm is not None:
+        try:
+            grid, source = _save_osm(osm, origin, n, cell_m, home, default, path)
+            say(f"  terrain: {source}")
+            return grid, source
+        except Exception as e:                       # noqa: BLE001
+            say(f"  terrain: couldn't use the browser's map data ({e})")
+    if _FETCHING.get(path) != "loading" and _FETCHING.get(path) != "failed":
+        _FETCHING[path] = "loading"
+        say("  terrain: downloading OpenStreetMap in the background; synthetic terrain until then")
+
+        def work():
+            try:
+                _save_osm(fetch_osm(origin, n, cell_m, home, timeout=15), origin, n, cell_m, home, default, path)
+                _FETCHING[path] = "ready"
+            except Exception as e:                   # noqa: BLE001  (offline, rate-limited...)
+                _FETCHING[path] = "failed"
+                say(f"  terrain: real map unavailable ({type(e).__name__}); staying synthetic")
+        import threading
+        threading.Thread(target=work, daemon=True).start()
+    status = _FETCHING.get(path)
+    return synthetic_terrain(n, cell_m, home, seed), ("synthetic (real map loading...)" if status == "loading"
+                                                     else "synthetic (offline)")
 
 
 # ------------------------------------------------------------------ scenario

@@ -8,8 +8,10 @@ same class runs on hardware, over a pty, and inside the simulator.
 What it does each tick
   1. link health    drones silent > link_timeout are marked LOST (their claim stays)
   2. battery        A* cost-to-home vs. time left -> return-to-base, then LAND
-  3. confirm        an unconfirmed contact pulls the nearest mmWave drone down to HOLD over it
-  4. search         sequential MCTS: each drone plans on a belief its teammates already claimed
+  3. confirm        an unconfirmed contact pulls the nearest FINDER (camera) down to watch it
+                    (or an mmWave drone, if the loadout has one, for vitals)
+  4. search         sequential MCTS: each drone plans on a belief its teammates already claimed;
+                    thermal hunters are pulled toward phone/beacon SIGNAL AREAS from the sweepers
   5. radio          waypoints go out on change, and are re-broadcast (they double as acks)
 """
 from __future__ import annotations
@@ -27,6 +29,29 @@ from .planner import (FleetMCTS, Grid, apply_look, astar, claim_path, dist_field
                       downhill, explain, fov_cells, snap_free, SENSOR_PRESET)
 
 SEVERITY = {"critical": 4, "injured": 3, "unknown": 2, "ok": 1}   # rescue priority (unknown may be bad)
+ROLE_NAMES = {"sweeper": "S", "hunter": "T", "finder": "F", "medic": "M", "search": "D"}
+OBS_URGENCY = {"lying_down": 3.5, "not_moving": 3.2, "moving": 1.5}
+
+
+def role_of(sensors) -> str:
+    s = set(sensors or [])
+    if "cv" in s:
+        return "finder"          # camera: confirms people and watches how they're doing
+    if "thermal" in s:
+        return "hunter"          # thermal: finds heat signatures
+    if "ble" in s:
+        return "sweeper"         # radio: hears phones / beacons from far away
+    if "mmwave" in s:
+        return "medic"
+    return "search"
+
+
+def urgency(t) -> float:
+    """Rescue priority. Vitals (from a wearable) beat camera observations;
+    with neither, 'unknown' sits between 'moving' and 'not moving'."""
+    if t.status in ("critical", "injured") or t.hr or t.br:
+        return float(SEVERITY.get(t.status, 2)) + (0.5 if t.status == "critical" else 0)
+    return OBS_URGENCY.get(t.observation, 2.0)
 WORSE = {"unknown": 0, "ok": 1, "injured": 3, "critical": 4}       # merging evidence: worst wins
 
 
@@ -54,6 +79,10 @@ class HubConfig:
     military: bool = False
     allocate: bool = True           # False = no claiming of teammates' next cells (ablation)
     share_map: bool = True          # False = each drone only knows its own looks (no mesh, ablation)
+    loadout: tuple = ()             # sensors per drone, as planned (roles are known before take-off)
+    observe_alt: float = 12.0       # finder hovers this low to watch a person
+    observe_s: float = 16.0         # ...for this long before giving up (camera needs ~12 s)
+    lead_weight: float = 8.0        # how hard signal areas pull the thermal hunters
 
 
 @dataclass
@@ -114,9 +143,24 @@ class Track:
     br: int = 0
     tag_id: int = 0
     ally: Optional[bool] = None
-    confirmed: bool = False         # it's a real person (2 sensors, a tag, radar, or high conf)
-    assessed: bool = False          # we have their status (vitals from radar/watch, or CV injury call)
-    checked: bool = False           # a drone already hovered over it for vitals
+    confirmed: bool = False         # a person: the camera saw them (or radar, or heat + their phone)
+    assessed: bool = False          # vitals known (wearable or radar)
+    checked: bool = False           # a finder already went to look
+    observation: Optional[str] = None   # camera: moving | not_moving | lying_down
+    obs_by: Optional[int] = None
+    vitals_from: Optional[str] = None   # "wearable" | "radar"
+    signal: Optional[str] = None        # linked signal area id
+    false_alarm: bool = False
+
+    @property
+    def stage(self):
+        if self.false_alarm:
+            return "false_alarm"
+        if self.observation or self.assessed:
+            return "observed"
+        if self.confirmed:
+            return "confirmed"
+        return "candidate"
 
     def as_dict(self):
         return dict(id=self.id, x=round(self.x, 2), y=round(self.y, 2), status=self.status,
@@ -124,7 +168,32 @@ class Track:
                     hr=self.hr, br=self.br,
                     tag_id=hex(self.tag_id) if self.tag_id else None, ally=self.ally,
                     sensors=sorted(self.sensors), seen_by=sorted(self.drones), hits=self.hits,
-                    first_seen=round(self.first_seen, 1), last_seen=round(self.last_seen, 1))
+                    first_seen=round(self.first_seen, 1), last_seen=round(self.last_seen, 1),
+                    stage=self.stage, observation=self.observation, obs_by=self.obs_by,
+                    vitals_from=self.vitals_from, signal=self.signal,
+                    false_alarm=self.false_alarm, urgency=round(urgency(self), 2))
+
+
+@dataclass
+class SignalArea:
+    """A phone/beacon heard by the sweepers. Each sighting = (sweeper x, y, estimated range):
+    a ring. Several rings from different spots narrow it down to an area."""
+    id: str
+    tag_id: int
+    obs: list = field(default_factory=list)       # (x, y, range_m)
+    x: float = 0.0
+    y: float = 0.0
+    radius: float = 0.0
+    hr: int = 0
+    first_seen: float = 0.0
+    last_seen: float = 0.0
+    track: Optional[int] = None
+
+    def as_dict(self):
+        return dict(id=self.id, x=round(self.x, 1), y=round(self.y, 1), radius=round(self.radius, 1),
+                    n=len(self.obs), tag=hex(self.tag_id) if self.tag_id else None, hr=self.hr or None,
+                    first_seen=round(self.first_seen, 1), last_seen=round(self.last_seen, 1), track=self.track,
+                    rings=[[round(x, 1), round(y, 1), round(r, 1)] for x, y, r in self.obs[-6:]])
 
 
 def triage_from_vitals(hr, br):
@@ -153,6 +222,19 @@ class Homebase:
         self.allies = set(allies or [])
         self.drones = {d: DroneState(d, alt=self.cfg.base_alt + (d - 1) * self.cfg.alt_step)
                        for d in range(1, n_drones + 1)}
+        # roles come from the planned loadout (the operator packed the drones), else from telemetry
+        self.roles, self.names = {}, {}
+        counts = {}
+        lo = list(self.cfg.loadout or [])
+        for d in self.drones:
+            r = role_of(lo[(d - 1) % len(lo)]) if lo else "search"
+            counts[r] = counts.get(r, 0) + 1
+            self.roles[d], self.names[d] = r, f"{ROLE_NAMES[r]}{counts[r]}"
+            off = {"sweeper": 4, "hunter": 0, "finder": 2}.get(r, 0)
+            self.drones[d].alt = self.cfg.base_alt + (off + counts[r] - 1) * self.cfg.alt_step
+        self.signals = []
+        self.lead = np.zeros_like(world.belief)
+
         # ablation: without a shared map every drone plans on its own private belief
         self.private = {d: world.belief.copy() for d in self.drones} if not self.cfg.share_map else None
         self.tracks = []
@@ -266,6 +348,9 @@ class Homebase:
     def _ingest(self, d, det: P.Detection, now):
         self.stats["dets"] += 1
         sensor = P.SENSOR_NAMES.get(det.sensor, "unknown")
+        if sensor == "ble" and det.range_dm:
+            self._ingest_signal(d, det, now)
+            return
         conf = det.conf / 255.0
         cell = snap_free(self.world, self.grid.to_cell(det.x, det.y))
         tr = None
@@ -299,25 +384,123 @@ class Homebase:
         if det.tag_id:
             tr.tag_id = det.tag_id
             tr.ally = det.tag_id in self.allies if self.allies else None
-        reported = P.STATUS.get(det.status, "unknown")
+        was_c, was_a, was_s, was_o = tr.confirmed, tr.assessed, tr.status, tr.observation
+        if det.status in P.OBS:                          # a finder watched them: behaviour, not vitals
+            tr.observation, tr.obs_by = P.OBS[det.status], d.id
+            reported = "unknown"
+        else:
+            reported = P.STATUS.get(det.status, "unknown")
+        if (det.hr or det.br) and not tr.vitals_from:
+            tr.vitals_from = "radar" if sensor == "mmwave" else "wearable"
         vit = triage_from_vitals(tr.hr, tr.br)
         tr.status = max([tr.status, reported, vit], key=lambda s: WORSE[s])
-        was_c, was_a, was_s = tr.confirmed, tr.assessed, tr.status
-        tr.confirmed = tr.confirmed or sensor in ("mmwave", "ble") or len(tr.sensors) >= 2 or tr.conf >= 0.95
-        tr.assessed = tr.assessed or bool(tr.hr or tr.br)   # a CV injury call raises priority; vitals settle it
+        # a PERSON = the camera saw them, or radar, or heat where their phone/beacon is
+        tr.confirmed = tr.confirmed or sensor in ("cv", "mmwave") or {"thermal", "ble"} <= tr.sensors
+        tr.assessed = tr.assessed or bool(tr.hr or tr.br)
+        self._link_signals(now)
         explain(self.world, self.mass, cell)
         if self.private is not None:
             explain(self.world, self.private[d.id], cell)
-        changed = new or tr.confirmed != was_c or tr.assessed != was_a or tr.status != was_s
-        ev = "contact_new" if new else ("vitals" if tr.assessed and not was_a else "contact_update")
-        self._event(now, ev, quiet=not changed, drone=d.id, sensor=sensor,
+        changed = new or tr.confirmed != was_c or tr.assessed != was_a or tr.status != was_s \
+            or tr.observation != was_o
+        if new:
+            ev = "contact_new"
+        elif tr.observation and not was_o:
+            ev = "observed"
+        elif tr.assessed and not was_a:
+            ev = "vitals"
+        elif tr.confirmed and not was_c:
+            ev = "confirmed"
+        else:
+            ev = "contact_update"
+        self._event(now, ev, quiet=not changed, drone=d.id, name=self.names.get(d.id), sensor=sensor,
                     track=tr.id, x=round(det.x, 1), y=round(det.y, 1), conf=round(conf, 2),
                     status=tr.status, hr=tr.hr or None, br=tr.br or None,
-                    tag=hex(det.tag_id) if det.tag_id else None,
+                    tag=hex(det.tag_id) if det.tag_id else None, observation=tr.observation,
                     confirmed=tr.confirmed, assessed=tr.assessed)
         if self.cfg.military and det.tag_id and self.allies and det.tag_id not in self.allies:
             self._event(now, "unknown_tag_warning", tag=hex(det.tag_id), track=tr.id)
         self.write_casualties()
+
+    # ------------------------------------------------------------- signals
+    def _ingest_signal(self, d, det, now):
+        """A sweeper heard a phone/beacon: (sweeper position, range) = a ring. Rings from
+        different spots are combined into an area; hunters are pulled toward it."""
+        key = det.tag_id or 0
+        area = next((a for a in self.signals if key and a.tag_id == key), None)
+        if area is None and not key:                   # anonymous signal: join a nearby area
+            area = next((a for a in self.signals if not a.tag_id and
+                         math.hypot(a.x - det.x, a.y - det.y) < a.radius + det.range_dm), None)
+        new = area is None
+        if new:
+            area = SignalArea(f"P{len(self.signals) + 1}", key, first_seen=now)
+            self.signals.append(area)
+        area.obs.append((det.x, det.y, float(det.range_dm)))
+        area.obs = area.obs[-24:]
+        area.last_seen = now
+        if det.hr:
+            area.hr = det.hr
+        old_r = area.radius
+        self._locate(area)
+        self._update_lead()
+        self._link_signals(now)
+        narrowed = not new and area.radius < 0.7 * old_r
+        if new or narrowed:
+            self._event(now, "signal_new" if new else "signal_narrowed", drone=d.id, name=self.names.get(d.id),
+                        area=area.id, x=round(area.x, 1), y=round(area.y, 1), radius=round(area.radius),
+                        tag=hex(key) if key else None, hr=area.hr or None, n=len(area.obs))
+
+    def _locate(self, area):
+        g, w = self.grid, self.world
+        xs = np.array([g.to_xy((i, j)) for i in range(w.n) for j in range(w.n)])
+        ll = np.zeros(len(xs))
+        for x, y, r in area.obs:
+            sig = 0.3 * r + 0.5 * w.cell_m
+            dist = np.hypot(xs[:, 0] - x, xs[:, 1] - y)
+            ll += -0.5 * ((dist - r) / sig) ** 2
+        p = np.exp(ll - ll.max())
+        p /= p.sum()
+        area.x, area.y = float(p @ xs[:, 0]), float(p @ xs[:, 1])
+        var = float(p @ ((xs[:, 0] - area.x) ** 2 + (xs[:, 1] - area.y) ** 2))
+        area.radius = max(w.cell_m, math.sqrt(var) * 1.5)
+
+    def _update_lead(self):
+        self.lead = np.zeros_like(self.world.belief)
+        g = self.grid
+        for a in self.signals:
+            if a.track is not None:
+                continue                                 # already explained by a contact
+            ci, cj = g.to_cell(a.x, a.y)
+            rc = max(1.0, a.radius / self.world.cell_m)
+            ii, jj = np.mgrid[0:self.world.n, 0:self.world.n]
+            self.lead = np.maximum(self.lead, np.exp(-0.5 * ((ii - ci) ** 2 + (jj - cj) ** 2) / rc ** 2))
+        self.lead[self.world.obstacles] = 0.0
+
+    def _link_signals(self, now):
+        for a in self.signals:
+            if a.track is not None or not self.tracks:
+                continue
+            if a.radius > 3 * self.world.cell_m:
+                continue                                 # not narrowed down enough to say whose phone
+            cands = [t for t in self.tracks if not t.false_alarm and
+                     (t.signal is None or (a.tag_id and t.tag_id == a.tag_id))]
+            if not cands:
+                continue
+            tr = min(cands, key=lambda t: math.hypot(t.x - a.x, t.y - a.y))
+            if math.hypot(tr.x - a.x, tr.y - a.y) <= a.radius + 0.5 * self.world.cell_m:
+                a.track, tr.signal = tr.id, a.id
+                tr.sensors.add("ble")
+                if a.tag_id and not tr.tag_id:
+                    tr.tag_id = a.tag_id
+                    tr.ally = a.tag_id in self.allies if self.allies else None
+                if a.hr and not tr.hr:
+                    tr.hr, tr.vitals_from = a.hr, "wearable"
+                    tr.assessed = True
+                    tr.status = max([tr.status, triage_from_vitals(tr.hr, 0)], key=lambda s: WORSE[s])
+                if not tr.confirmed and "thermal" in tr.sensors:
+                    tr.confirmed = True
+                self._update_lead()
+                self._event(now, "signal_linked", area=a.id, track=tr.id, hr=a.hr or None)
 
     # ------------------------------------------------------------------ tick
     def tick(self, now: float) -> list:
@@ -420,25 +603,38 @@ class Homebase:
             nxt_from = d.target if d.target is not None and self._arrived(d, d.target, self._now) else d.cell
             d.target, d.cmd = downhill(self.world, self.home_field, nxt_from), P.CMD_GOTO
 
+    def _can_confirm(self, d):
+        s = d.sensors or []
+        return "cv" in s or "mmwave" in s or (not s and self.roles.get(d.id) == "finder")
+
+    def _needs_look(self, t):
+        """A finder should go and look: not yet seen by a camera / not yet observed."""
+        if t.checked or t.false_alarm:
+            return False
+        return not (t.confirmed and (t.observation or t.assessed))
+
     def _assign_confirms(self, active, now):
-        pending = [t for t in self.tracks if not t.assessed and not t.checked
+        pending = [t for t in self.tracks if self._needs_look(t)
                    and not any(d.confirm_track == t.id for d in self.drones.values())]
-        pending.sort(key=lambda t: (-SEVERITY.get(t.status, 2), -t.conf))
+        pending.sort(key=lambda t: (-urgency(t), -t.conf))
         for tr in pending:
-            cands = [d for d in active if d.task == "search" and "mmwave" in d.sensors]
+            cands = [d for d in active if d.task == "search" and self._can_confirm(d)]
             cands = [d for d in cands if self._feasible(d, tr.cell, now)]
             if not cands:
                 continue
             d = min(cands, key=lambda d: abs(d.cell[0] - tr.cell[0]) + abs(d.cell[1] - tr.cell[1]))
             d.task, d.goal, d.confirm_track, d.target, d.hold_until = "confirm", tr.cell, tr.id, None, None
-            self._event(now, "vitals_check", drone=d.id, track=tr.id, status=tr.status)
+            self._event(now, "look_assigned" if "cv" in (d.sensors or ["cv"]) else "vitals_check",
+                        drone=d.id, name=self.names.get(d.id), track=tr.id, status=tr.status)
 
     def _release_confirm(self, d):
         d.confirm_track, d.goal, d.hold_until, d.z_cmd, d.target_xy = None, None, None, None, None
 
     def _step_confirm(self, d, now):
         tr = next((t for t in self.tracks if t.id == d.confirm_track), None)
-        if tr is None or tr.assessed:
+        finder = "cv" in (d.sensors or [])
+        low_alt = self.cfg.observe_alt if finder else self.cfg.confirm_alt
+        if tr is None or not self._needs_look(tr) or (not finder and tr.assessed):
             if tr is not None:
                 tr.checked = True
             self._release_confirm(d)
@@ -449,12 +645,12 @@ class Homebase:
         if dist <= self.world.cell_m:
             # close: hover over the contact's estimated position, not its cell centre
             d.target, d.target_xy = d.goal, (tr.x, tr.y)
-            d.cmd, d.z_cmd = P.CMD_HOLD, self.cfg.confirm_alt
+            d.cmd, d.z_cmd = P.CMD_HOLD, low_alt
             if d.hold_until is None:
                 d.hold_until = now + 60.0                  # max time to get over it and down
             over = dist <= 0.15 * self.world.cell_m + 0.5
-            low = d.z <= self.cfg.confirm_alt + 0.25
-            hold = self.cfg.hold_s
+            low = d.z <= low_alt + 0.25
+            hold = self.cfg.observe_s if finder else self.cfg.hold_s
             vis = getattr(self.world, "vis", None)
             if vis is not None:
                 hold /= max(float(vis[tr.cell]), 0.4)      # radar through leaves needs a longer look
@@ -462,8 +658,12 @@ class Homebase:
                 d.hold_until = now + hold                  # over it and low: radar gets its look
             if now >= d.hold_until:
                 tr.checked = True
-                self._event(now, "vitals_none", drone=d.id, track=tr.id,
-                            note="hovered, radar saw no vitals (false contact, or no breathing)")
+                if finder:
+                    self._event(now, "look_none", drone=d.id, name=self.names.get(d.id), track=tr.id,
+                                note="camera saw no person here (false heat contact?)")
+                else:
+                    self._event(now, "vitals_none", drone=d.id, track=tr.id,
+                                note="hovered, radar saw no vitals (false contact, or no breathing)")
                 self._release_confirm(d)
                 d.task, d.target = "search", None
             return
@@ -512,7 +712,16 @@ class Homebase:
                 self._step_rtb(d)
                 continue
             plan_on = claimed if self.private is None else self.private[d.id]
+            if self.roles.get(d.id) == "hunter" and self.lead.any():
+                # go where phones were heard: mix the search map with the signal areas
+                pn = plan_on / max(float(plan_on.sum()), 1e-12)
+                ld = self.lead * (~self.world.obstacles)
+                plan_on = 0.4 * pn + 0.6 * ld / max(float(ld.sum()), 1e-12)
             s = float(plan_on.sum())
+            # the thermal hunter gets the full planning budget; sweepers (huge radio footprint)
+            # and the finder (mostly waiting to be called) do fine with a quarter of it
+            self.mcts.n_sims = self.cfg.n_sims if self.roles.get(d.id) in ("hunter", "search") \
+                else max(20, self.cfg.n_sims // 4)
             nxt = self.mcts.next_move(self.world, plan_on / s if s > 0 else plan_on, here, allowed)
             d.target, d.cmd, d.z_cmd, d.target_xy = nxt, P.CMD_GOTO, None, None
             if self.cfg.allocate:
@@ -555,7 +764,7 @@ class Homebase:
         return 1.0 - float(self.mass.sum())
 
     def casualties(self):
-        return sorted(self.tracks, key=lambda t: (-SEVERITY.get(t.status, 2), -t.conf))
+        return sorted([t for t in self.tracks if not t.false_alarm], key=lambda t: (-urgency(t), -t.conf))
 
     def write_casualties(self):
         if not self.log_dir:
@@ -568,11 +777,12 @@ class Homebase:
         for d in self.drones.values():
             bat = "?" if d.battery == 255 else f"{d.battery}%"
             tag = "LOST" if d.lost else d.task
-            parts.append(f"D{d.id} {tag:<7} {bat:>4}")
+            parts.append(f"{self.names.get(d.id, 'D' + str(d.id))} {tag:<7} {bat:>4}")
         conf = sum(t.confirmed for t in self.tracks)
-        vit = sum(t.assessed for t in self.tracks)
+        vit = sum(bool(t.observation or t.assessed) for t in self.tracks)
         return (f"t={now:6.1f}s | " + " | ".join(parts) +
-                f" | contacts {len(self.tracks)} ({conf} real, {vit} with status) | POS {100 * self.pos():4.1f}%")
+                f" | signals {len(self.signals)} | contacts {len(self.tracks)} ({conf} people, {vit} checked) "
+                f"| POS {100 * self.pos():4.1f}%")
 
     def _event(self, now, ev, quiet=False, **kw):
         rec = dict(t=round(now, 2), ev=ev, **kw)

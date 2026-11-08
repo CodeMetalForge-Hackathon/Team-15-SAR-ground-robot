@@ -28,7 +28,9 @@ SENSOR_PRESET = {
     "mmwave": dict(fov=SENSORS["mmwave"]["fov"], pod=SENSORS["mmwave"]["pod"], range_m=1.0),
     "acoustic": dict(fov=SENSORS["acoustic"]["fov"], pod=SENSORS["acoustic"]["pod"]),
     # BLE only sees people carrying a phone/watch/tag, so a silent scan is weak evidence
-    "ble": dict(fov=2, pod=0.45),
+    # range in metres: a high, fast sweeper hears phones/beacons ~120 m away through trees
+    # a silent scan is WEAK evidence (most people's phones are off / dead / out of range)
+    "ble": dict(fov=2, pod=0.12, range_m=120.0),
 }
 
 
@@ -55,17 +57,26 @@ class GridWorld(World):
         elif self.walls:
             super()._add_blocks()
 
+    # Vectorised footprint (the MCTS calls these millions of times: a Python loop over cells
+    # was ~99 % of the homebase's CPU). Footprint = the (2*fov+1)^2 square, clipped to the map.
+    def _win(self, c):
+        i, j = c
+        f = self.fov
+        return slice(max(0, i - f), min(self.n, i + f + 1)), slice(max(0, j - f), min(self.n, j + f + 1))
+
     # cameras can't see through canopy: expected detections are weighted by visibility
     def footprint_mass(self, belief, c):
+        w = self._win(c)
         if self.vis is None:
-            return super().footprint_mass(belief, c)
-        return float(sum(belief[nc] * self.vis[nc] for nc in self._footprint(c)))
+            return float(belief[w].sum())
+        return float((belief[w] * self.vis[w]).sum())
 
     def update_no_detection(self, belief, c):
+        w = self._win(c)
         if self.vis is None:
-            return super().update_no_detection(belief, c)
-        for nc in self._footprint(c):
-            belief[nc] *= (1.0 - self.pod * self.vis[nc])
+            belief[w] *= (1.0 - self.pod)
+        else:
+            belief[w] *= (1.0 - self.pod * self.vis[w])
         s = belief.sum()
         if s > 0:
             belief /= s

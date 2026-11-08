@@ -57,6 +57,13 @@ def mask_to_sensors(mask: int) -> list:
 # person status (DETECTION.status)
 STATUS = {0: "unknown", 1: "ok", 2: "injured", 3: "critical"}
 STATUS_IDS = {v: k for k, v in STATUS.items()}
+# camera OBSERVATIONS (DETECTION.status, sensor "cv" only): what a finder drone SAW after
+# watching a person for a while. Behaviour, not a diagnosis. Codes 4..6 never mean vitals.
+OBS = {4: "moving", 5: "not_moving", 6: "lying_down"}
+OBS_IDS = {v: k for k, v in OBS.items()}
+# BLE/Wi-Fi signal sightings (sensor "ble"): x, y = the SCANNING drone's position and
+# range_dm carries the RSSI-estimated range in whole METRES (0..255), not decimetres.
+# A signal gives a distance ring, never the person's exact position.
 
 # drone state (TELEMETRY.state)
 STATE = {0: "landed", 1: "flying", 2: "holding", 3: "rtb", 4: "link_lost"}

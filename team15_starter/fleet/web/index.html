@@ -144,6 +144,18 @@ button { font: inherit; color: inherit; }
 .home { width: 20px; height: 20px; border: 3.5px solid var(--accent); background: rgba(0,0,0,.35); }
 .hlabel { position: absolute; left: 24px; top: 1px; white-space: nowrap; font-size: 11px; font-weight: 700; color: #fff; background: rgba(0,0,0,.62); padding: 1px 6px; border-radius: 4px; }
 .star { font-size: 22px; line-height: 22px; color: #fff; text-shadow: 0 0 2px #da291c, 0 0 2px #da291c, 0 0 6px #000; }
+.toasts { position: absolute; top: 58px; left: 50%; transform: translateX(-50%); z-index: 660; display: flex; flex-direction: column; gap: 6px; align-items: center; pointer-events: none; }
+.toast { padding: 9px 16px; border-radius: 10px; font-weight: 800; font-size: 15px; color: #fff; background: rgba(15,15,17,.92); border-left: 6px solid #f0701e; box-shadow: 0 6px 24px rgba(0,0,0,.5); animation: tin .3s ease-out; white-space: nowrap; }
+.toast.sig { border-left-color: #22d3ee; } .toast.heat { border-left-color: #fb923c; } .toast.seen { border-left-color: #f8fafc; } .toast.obs { border-left-color: #ef4444; } .toast.ok { border-left-color: #4ade80; }
+@keyframes tin { from { transform: translateY(-10px); opacity: 0; } to { transform: none; opacity: 1; } }
+.cpulse { position: absolute; left: -14px; top: -14px; width: 48px; height: 48px; border-radius: 50%; border: 3px solid #fff; animation: pulse 1.1s ease-out infinite; }
+.siglabel { white-space: nowrap; font-size: 11px; font-weight: 800; color: #062a33; background: rgba(34,211,238,.9); padding: 1px 6px; border-radius: 4px; }
+.ladder { display: flex; gap: 3px; flex-wrap: wrap; margin: 4px 0 2px; }
+.ladder span { font-size: 10px; font-weight: 800; padding: 1px 6px; border-radius: 999px; background: var(--raised); color: var(--faint); }
+.ladder span.on { background: var(--accent-soft); color: var(--text); }
+.ladder span.sig.on { background: rgba(34,211,238,.25); } .ladder span.heat.on { background: rgba(251,146,60,.3); } .ladder span.seen.on { background: rgba(248,250,252,.22); } .ladder span.obs.on { background: rgba(239,68,68,.3); }
+.prio { font-size: 10.5px; font-weight: 800; letter-spacing: .05em; padding: 3px 7px; border-radius: 6px; color: #fff; text-transform: uppercase; height: fit-content; white-space: nowrap; }
+.role { font-size: 10px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; }
 .offline-note { position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%); z-index: 600; color: var(--faint); font-size: 11px; }
 @media (max-width: 1000px) { .main { grid-template-columns: 1fr; grid-template-rows: 60vh auto; } .side { overflow: visible; } }
 </style>
@@ -160,7 +172,7 @@ button { font: inherit; color: inherit; }
       <button class="btn warn" id="b-jam" title="Jam the radio for 30 s">Jam 30 s</button>
       <button class="btn" id="b-recall" title="Send every drone home and land">Recall all</button>
       <button class="btn" id="b-new" title="Same place, new random parts">New mission</button>
-      <button class="btn primary" id="b-setup" title="Pick the place and the victims yourself">Set up mission</button>
+      <button class="btn primary" id="b-setup" title="Change location, area size, victims and drones">Mission &amp; location</button>
       <div class="seg" id="theme"><button data-t="ops">Ops</button><button data-t="field">Field</button></div>
     </div>
   </header>
@@ -169,9 +181,13 @@ button { font: inherit; color: inherit; }
       <div id="map"></div>
       <div class="hud"><div class="clock" id="clock">00:00</div><div class="sub" id="hudsub">waiting for homebase…</div></div>
       <div class="banner" id="banner"></div>
+      <div class="toasts" id="toasts"></div>
       <svg class="north" viewBox="0 0 26 38"><path d="M13 2 L22 26 L13 21 L4 26 Z" fill="#fff" stroke="#000" stroke-width="1"/><text x="13" y="36" text-anchor="middle" font-size="10" font-weight="800" fill="#fff" stroke="#000" stroke-width=".4">N</text></svg>
       <div class="legend">
-        <span><i class="sw" style="background:#3b82f6;border-radius:50%"></i>Drone</span>
+        <span><i class="sw" style="background:#22d3ee;border-radius:50%"></i>Signal sweeper</span>
+        <span><i class="sw" style="background:#fb923c;border-radius:50%"></i>Thermal hunter</span>
+        <span><i class="sw" style="background:#4ade80;border-radius:50%"></i>Finder (camera)</span>
+        <span><i class="sw" style="border:2px dashed #22d3ee;border-radius:50%"></i>Phone heard</span>
         <span><i class="sw" style="background:rgba(var(--searched),.6)"></i>Searched</span>
         <span><i class="sw" style="background:linear-gradient(90deg,#ffd54a,#ff7a1a,#e11d48)"></i>Likely here</span>
         <span><i class="sw" style="border:3px solid #ef4444"></i>Contact</span>
@@ -196,6 +212,12 @@ button { font: inherit; color: inherit; }
         <div class="row2"><input type="text" id="su-q" placeholder="Search a place, or paste lat, lon"><button class="btn" id="su-go">Go</button></div>
         <div class="lab">Search area</div>
         <div class="seg" id="su-span"><button data-v="300">300 m</button><button data-v="600">600 m</button><button data-v="1000">1 km</button><button data-v="1500">1.5 km</button></div>
+        <div class="lab">Drones</div>
+        <div class="row2" style="flex-wrap:wrap;gap:10px">
+          <span class="note" style="margin:0;color:#22d3ee">Sweepers</span><button class="btn" data-dm="sweepers:-1" style="padding:2px 8px">−</button><b id="dm-sweepers">2</b><button class="btn" data-dm="sweepers:1" style="padding:2px 8px">+</button>
+          <span class="note" style="margin:0;color:#fb923c">Thermal</span><button class="btn" data-dm="thermal:-1" style="padding:2px 8px">−</button><b id="dm-thermal">1</b><button class="btn" data-dm="thermal:1" style="padding:2px 8px">+</button>
+          <span class="note" style="margin:0;color:#4ade80">Finders</span><button class="btn" data-dm="finders:-1" style="padding:2px 8px">−</button><b id="dm-finders">1</b><button class="btn" data-dm="finders:1" style="padding:2px 8px">+</button>
+        </div>
         <div class="lab">Mission</div>
         <div class="seg" id="su-mode"><button data-v="mil">Military · hidden soldier</button><button data-v="civ">Civilian · lost hiker</button></div>
         <div class="lab">Click the map to</div>
@@ -218,13 +240,13 @@ button { font: inherit; color: inherit; }
         <div class="stats">
           <div class="stat"><b id="s-pos">0%</b><small>searched (POS)</small></div>
           <div class="stat"><b id="s-con">0</b><small>contacts</small></div>
-          <div class="stat"><b id="s-vit">0</b><small>with vitals</small></div>
+          <div class="stat"><b id="s-vit">0</b><small>seen &amp; checked</small></div>
           <div class="stat"><b id="s-loss">–</b><small>radio loss</small></div>
         </div>
         <div class="bar"><div id="posbar"></div></div>
       </section>
       <section class="card"><h3>Fleet <span id="f-sum"></span></h3><div id="fleet"></div></section>
-      <section class="card"><h3>Casualties <span>priority first</span></h3><div class="cas-list" id="cas"><div class="empty">No one found yet.</div></div></section>
+      <section class="card"><h3>People found <span>most urgent first</span></h3><div class="cas-list" id="cas"><div class="empty">No one found yet.</div></div></section>
       <section class="card"><h3>What the team knows <span>newest first</span></h3><div id="reports"></div><div class="tl" id="tl"></div></section>
     </aside>
   </div>
@@ -234,7 +256,83 @@ button { font: inherit; color: inherit; }
 "use strict";
 const COLORS = ["#3b82f6", "#22c55e", "#facc15", "#e879f9", "#38bdf8", "#fb7185"];
 const STC = { critical: "#ef4444", injured: "#f59e0b", ok: "#22c55e", unknown: "#a1a1aa" };
+const ROLEC = { sweeper: "#22d3ee", hunter: "#fb923c", finder: "#4ade80", medic: "#e879f9" };
+const ROLEN = { sweeper: "Signal sweeper", hunter: "Thermal hunter", finder: "Finder (camera)", medic: "Radar medic", search: "Drone" };
+const OBSC = { lying_down: "#ef4444", not_moving: "#f59e0b", moving: "#22c55e" };
+const OBSW = { lying_down: "lying down", not_moving: "not moving", moving: "moving" };
+const dcol = (d) => ROLEC[d.role] || COLORS[(d.id - 1) % COLORS.length];
+const dname = (id) => (S && S.names && S.names[id]) || `D${id}`;
+function taskWords(d) {
+  if (d.task === "LOST") return "link lost";
+  if (d.task === "rtb") return "returning to charge";
+  if (d.task === "landed" || d.task === "idle") return d.state === 0 ? "charging on the mothership" : "idle";
+  if (d.task === "confirm") return d.role === "finder" ? `watching contact #${d.confirm}` : `vitals check #${d.confirm}`;
+  return { sweeper: "sweeping for phone signals", hunter: "hunting for heat", finder: "patrolling, ready to look", medic: "searching" }[d.role] || d.task;
+}
+function prio(t) {
+  if (t.status === "critical") return ["CRITICAL", "#ef4444"];
+  if (t.status === "injured") return ["INJURED", "#f59e0b"];
+  if (t.observation === "lying_down") return ["LYING DOWN", "#ef4444"];
+  if (t.observation === "not_moving") return ["NOT MOVING", "#f59e0b"];
+  if (t.observation === "moving") return ["MOVING", "#22c55e"];
+  if (t.confirmed) return ["SEEN", "#64748b"];
+  return ["HEAT ONLY", "#78716c"];
+}
+function ladder(t) {
+  const has = (x) => t.sensors.includes(x);
+  return `<div class="ladder"><span class="sig ${t.signal || has("ble") ? "on" : ""}">Signal ${t.signal || has("ble") ? "✓" : "·"}</span>` +
+    `<span class="heat ${has("thermal") ? "on" : ""}">Heat ${has("thermal") ? "✓" : "·"}</span>` +
+    `<span class="seen ${has("cv") ? "on" : ""}">Seen ${has("cv") ? "✓" : "·"}</span>` +
+    `<span class="obs ${t.observation ? "on" : ""}">${t.observation ? "Observed: " + OBSW[t.observation] : "Observed ·"}</span></div>`;
+}
+function vitText(t) {
+  if (t.hr || t.br) return `heart ${t.hr || "?"}${t.br ? " · breath " + t.br : ""} (from ${t.vitals_from || "sensor"})`;
+  return "vitals not available (no wearable)";
+}
+let toastT = null;
+function toasts(s) {
+  const imp = { signal_new: "sig", contact_new: "heat", confirmed: "seen", observed: "obs", signal_linked: "sig", look_none: "ok" };
+  const evs = s.events.filter((e) => imp[e.ev]);
+  if (toastT === null || s.t < toastT) { toastT = evs.length ? evs[evs.length - 1].t : 0; return; }
+  for (const e of evs) {
+    if (e.t <= toastT) continue;
+    toastT = e.t;
+    const N = e.name || dname(e.drone);
+    const dir = (x, y) => `${Math.round(Math.hypot(x, y))} m ${y >= 0 ? "N" : "S"}${x >= 0 ? "E" : "W"} of base`;
+    const txt = {
+      signal_new: `PHONE / BEACON HEARD by ${N} — area ±${e.radius} m${e.hr ? " · wearable HR " + e.hr : ""}`,
+      contact_new: e.sensor === "cv" ? `NEW CONTACT #${e.track} — person seen by ${N}, ${dir(e.x, e.y)}`
+                                    : `NEW CONTACT #${e.track} — heat found by ${N}, ${dir(e.x, e.y)}`,
+      confirmed: `CONTACT #${e.track} CONFIRMED — a person, seen by ${N}`,
+      observed: `CONTACT #${e.track}: ${OBSW[e.observation] ? OBSW[e.observation].toUpperCase() : "observed"} (camera, ${N})`,
+      signal_linked: `Phone signal ${e.area} matches contact #${e.track}${e.hr ? " · HR " + e.hr : ""}`,
+      look_none: `Contact #${e.track}: camera saw no one — false heat contact`,
+    }[e.ev];
+    const el = document.createElement("div");
+    el.className = "toast " + imp[e.ev]; el.innerHTML = txt;
+    const box = $("toasts"); box.prepend(el);
+    while (box.children.length > 3) box.lastChild.remove();
+    setTimeout(() => el.remove(), 6500);
+  }
+}
+const sigLayerHolder = { g: null };
+function updSignals(s) {
+  if (!sigLayerHolder.g) sigLayerHolder.g = L.layerGroup().addTo(map);
+  const key = JSON.stringify((s.signals || []).map((a) => [a.id, Math.round(a.x), Math.round(a.y), Math.round(a.radius), a.track, a.hr]));
+  if (key === sigLayerHolder.key) return;
+  sigLayerHolder.key = key;
+  const g = sigLayerHolder.g; g.clearLayers();
+  for (const a of s.signals || []) {
+    const linked = a.track != null;
+    g.addLayer(L.circle(ll(a.x, a.y), { radius: a.radius, color: "#22d3ee", weight: 2.5, dashArray: "8 6",
+      fillColor: "#22d3ee", fillOpacity: linked ? 0.04 : 0.12, opacity: linked ? 0.45 : 0.95, interactive: false }));
+    g.addLayer(L.marker(ll(a.x, a.y + a.radius), { interactive: false, icon: L.divIcon({ className: "", iconSize: [160, 18], iconAnchor: [80, 18],
+      html: `<div class="siglabel" style="text-align:center;opacity:${linked ? 0.6 : 1}">Phone ${a.id} · ±${Math.round(a.radius)} m${a.hr ? " · HR " + a.hr : ""}${linked ? " → #" + a.track : ""}</div>` }) }));
+  }
+}
 const $ = (id) => document.getElementById(id);
+const _html = {};
+function setHTML(id, h) { if (_html[id] !== h) { _html[id] = h; $(id).innerHTML = h; return true; } return false; }
 const store = { get(k, d) { try { return localStorage.getItem(k) || d; } catch (e) { return d; } },
                 set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} } };
 let S = null, mission = null, origin = [0, 0], indoor = false;
@@ -385,16 +483,16 @@ function drawOverlays(s) {
 
 // ------------------------------------------------------------ markers
 function droneIcon(d) {
-  const c = COLORS[(d.id - 1) % COLORS.length];
+  const c = dcol(d);
   const bat = d.battery == null ? "" : ` · ${d.battery}%`;
   const pulse = d.cmd === 1 ? '<div class="pulse"></div>' : "";
   return L.divIcon({ className: "", iconSize: [26, 26], iconAnchor: [13, 13],
-    html: `${pulse}<div class="dicon" style="background:${c}">${d.id}</div><div class="dlabel">D${d.id} ${d.task}${bat} · ${d.z} m</div>` });
+    html: `${pulse}<div class="dicon" style="background:${c};font-size:10px">${d.name || d.id}</div><div class="dlabel">${d.name || "D" + d.id} · ${taskWords(d)}${bat}</div>` });
 }
 function updDrones(s) {
   for (const d of s.drones) {
     if (d.state === 0 && d.task !== "landed" && !droneMk[d.id]) continue;
-    const p = ll(d.x, d.y), c = COLORS[(d.id - 1) % COLORS.length];
+    const p = ll(d.x, d.y), c = dcol(d);
     if (!droneMk[d.id]) {
       droneMk[d.id] = L.marker(p, { zIndexOffset: 1000 }).addTo(map);
       trail[d.id] = [];
@@ -402,7 +500,9 @@ function updDrones(s) {
       wpLine[d.id] = L.polyline([], { color: c, weight: 1.5, dashArray: "4 5", opacity: 0.9, interactive: false }).addTo(map);
       sigCirc[d.id] = L.circle(p, { radius: 1, color: c, weight: 1, fillOpacity: 0.08, opacity: 0.5, interactive: false }).addTo(map);
     }
-    droneMk[d.id].setLatLng(p).setIcon(droneIcon(d));
+    const dk = `${d.name}|${taskWords(d)}|${d.battery}|${d.cmd}`;
+    droneMk[d.id].setLatLng(p);
+    if (droneMk[d.id]._k !== dk) { droneMk[d.id].setIcon(droneIcon(d)); droneMk[d.id]._k = dk; }
     const tr = (d.trail || []).map(([x, y]) => ll(x, y)).concat([p]);      // history kept by the homebase
     trailLine[d.id].setLatLngs($("t-trail").checked ? tr : []);
     wpLine[d.id].setLatLngs(d.tx == null ? [] : [p, ll(d.tx, d.ty)]);
@@ -413,17 +513,23 @@ function updContacts(s) {
   const seen = new Set();
   for (const t of s.tracks) {
     seen.add(t.id);
-    const col = STC[t.status] || STC.unknown;
+    const [pl, col] = prio(t);
     const fill = t.confirmed ? col : "rgba(0,0,0,.35)";
+    const fresh = s.t - t.first_seen < 10 ? '<div class="cpulse"></div>' : "";
     const icon = L.divIcon({ className: "", iconSize: [20, 20], iconAnchor: [10, 10],
-      html: `<div class="cicon" style="border-color:${col};background:${fill}">${t.id}</div>` });
-    const vit = t.hr || t.br ? `heart ${t.hr || "?"} · breath ${t.br || "?"}` : "no vitals yet";
-    const html = `<b>Contact #${t.id} · ${t.status.toUpperCase()}</b><br>${t.confirmed ? "confirmed" : "unconfirmed"} · conf ${Math.round(100 * t.conf)}%<br>${vit}` +
-      `<br>sensors: ${t.sensors.join(", ")}<br>seen by: ${t.seen_by.map((i) => "D" + i).join(", ")}` +
+      html: `${fresh}<div class="cicon" style="border-color:${col};background:${fill}">${t.id}</div>` });
+    const vit = vitText(t);
+    const html = `<b>Contact #${t.id} · ${pl}</b>${ladder(t)}${t.confirmed ? "a person (camera)" : "heat only, not yet seen"} · conf ${Math.round(100 * t.conf)}%<br>${vit}` +
+      `<br>sensors: ${t.sensors.join(", ")}<br>found by: ${t.seen_by.map((i) => dname(i)).join(", ")}` +
       (t.tag_id ? `<br>ID tag ${t.tag_id}${t.ally === true ? " (ally)" : t.ally === false ? " (UNKNOWN)" : ""}` : "") +
       `<br><span class="mg">${MG(t.x, t.y)}</span><br>(${t.x}, ${t.y}) m from homebase`;
-    if (!conMk[t.id]) conMk[t.id] = L.marker(ll(t.x, t.y), { icon, zIndexOffset: 800 }).bindPopup(html).addTo(map);
-    else conMk[t.id].setLatLng(ll(t.x, t.y)).setIcon(icon).setPopupContent(html);
+    const ik = `${fresh ? 1 : 0}|${col}|${fill}`;
+    if (!conMk[t.id]) { conMk[t.id] = L.marker(ll(t.x, t.y), { icon, zIndexOffset: 800 }).bindPopup(html).addTo(map); conMk[t.id]._ik = ik; conMk[t.id]._ph = html; }
+    else {
+      conMk[t.id].setLatLng(ll(t.x, t.y));
+      if (conMk[t.id]._ik !== ik) { conMk[t.id].setIcon(icon); conMk[t.id]._ik = ik; }
+      if (conMk[t.id]._ph !== html) { conMk[t.id].setPopupContent(html); conMk[t.id]._ph = html; }
+    }
   }
   Object.keys(conMk).forEach((k) => { if (!seen.has(+k)) { map.removeLayer(conMk[k]); delete conMk[k]; } });
 }
@@ -449,7 +555,7 @@ function updPanel(s) {
     (s.radio && s.radio.jam ? chip(`Jammed · ${Math.max(0, Math.round(s.radio.jam_until - s.t))} s`, "bad") : "") +
     (s.paused ? chip("Paused", "on") : "");
   $("clock").textContent = mmss(s.t);
-  const vit = s.tracks.filter((t) => t.hr || t.br).length;
+  const vit = s.tracks.filter((t) => t.observation || t.hr || t.br).length;
   let sub = `POS ${s.pos}% · ${s.tracks.length} contact${s.tracks.length === 1 ? "" : "s"}`;
   if (s.truth) sub += ` · ${s.truth.filter((p) => p.seen).length}/${s.truth.length} hidden people detected`;
   $("hudsub").textContent = sub;
@@ -463,7 +569,7 @@ function updPanel(s) {
   if (s.done_at != null) {
     bn.style.display = "block";
     bn.textContent = s.scenario && s.truth && s.truth.length === 1 ? `Soldier found and assessed at ${mmss(s.done_at)}`
-      : `All ${s.truth ? s.truth.length : ""} found and checked for vitals at ${mmss(s.done_at)}`;
+      : `All ${s.truth ? s.truth.length : ""} people found, seen and checked at ${mmss(s.done_at)}`;
   } else bn.style.display = "none";
   const sc = s.scenario;
   $("brief-card").style.display = sc ? "" : "none";
@@ -480,7 +586,7 @@ function updPanel(s) {
       return `<div class="report"><b class="h">${mmss(r.t)} · Recovery report, contact #${r.track}</b>
         Location <span class="mg">${MG(r.x, r.y)}</span><br>Condition <b>${r.status.toUpperCase()}</b> · ${vit}<br>ID ${id}<br>
         Terrain ${r.terrain}${r.road_m != null ? ` · nearest road ${r.road_m} m` : ""} · nearest hostile zone ${r.threat_m} m<br>
-        ${r.lkp_m} m from last known position · seen by ${r.seen_by.map((i) => "D" + i).join(", ")}</div>`;
+        ${r.lkp_m} m from last known position · seen by ${r.seen_by.map((i) => dname(i)).join(", ")}</div>`;
     }).join("");
   }
   ["b-pause", "b-jam", "b-new", "b-setup"].forEach((id) => { $(id).disabled = live; });
@@ -491,36 +597,44 @@ function updPanel(s) {
 
   const air = s.drones.filter((d) => d.state !== 0).length;
   $("f-sum").textContent = `${air}/${s.drones.length} airborne`;
-  $("fleet").innerHTML = s.drones.map((d) => {
-    const c = COLORS[(d.id - 1) % COLORS.length];
+  setHTML("fleet", s.drones.map((d) => {
+    const c = dcol(d);
     const b = d.battery == null ? null : d.battery;
     const bc = b == null ? "var(--faint)" : b > 50 ? "var(--good)" : b > 25 ? "var(--warn)" : "var(--bad)";
     const sens = (d.sensors || []).join(" · ") || "no sensor report";
     const link = d.seen == null ? "never heard" : d.seen < 3 ? "link ok" : `silent ${d.seen} s`;
-    return `<div class="drone"><div class="dot" style="background:${c}">${d.id}</div>
-      <div><b>D${d.id}</b> <span class="task ${d.task}">${d.task === "confirm" ? "vitals check" : d.task}</span>
+    return `<div class="drone"><div class="dot" style="background:${c};font-size:9.5px">${d.name || d.id}</div>
+      <div><b>${d.name || "D" + d.id}</b> <span class="role" style="color:${c}">${ROLEN[d.role] || ""}</span> <div class="meta" style="color:var(--text)">${taskWords(d)}</div>
       <div class="meta">${sens} · alt ${d.z} m · ±${d.sigma} m · ${link}</div></div>
       <div style="text-align:right">${b == null ? "–" : b + "%"}<span class="batt"><div style="width:${b || 0}%;background:${bc}"></div></span>
-      <div class="meta">${d.time_left == null ? "on pad" : d.time_left + " s left"}</div></div></div>`;
-  }).join("");
+      <div class="meta">${d.time_left == null ? "on pad" : Math.round(d.time_left / 10) * 10 + " s left"}</div></div></div>`;
+  }).join(""));
 
-  $("cas").innerHTML = s.tracks.length ? s.tracks.map((t) => {
-    const vit = t.hr || t.br ? `heart ${t.hr || "?"} · breath ${t.br || "?"}` : "no vitals yet";
-    return `<div class="cas" data-x="${t.x}" data-y="${t.y}"><span class="st ${t.status}">${t.status}</span>
-      <div><b>#${t.id}</b> ${t.confirmed ? "confirmed" : "unconfirmed"} · ${vit}<br>
-      <small><span class="mg">${MG(t.x, t.y)}</span> · ${t.sensors.join(", ")}${t.tag_id ? " · " + (t.ally ? "ALLY " : "") + "tag " + t.tag_id : ""}</small></div></div>`;
-  }).join("") : '<div class="empty">No one found yet.</div>';
-  document.querySelectorAll(".cas").forEach((el) => el.onclick = () => map.flyTo(ll(+el.dataset.x, +el.dataset.y), Math.max(map.getZoom(), indoor ? 21 : 18)));
+  const casChanged = setHTML("cas", s.tracks.length ? s.tracks.map((t) => {
+    const [pl, pc] = prio(t);
+    const dir = `${Math.round(Math.hypot(t.x, t.y))} m ${t.y >= 0 ? "N" : "S"}${t.x >= 0 ? "E" : "W"} of base`;
+    return `<div class="cas" data-x="${t.x}" data-y="${t.y}"><span class="prio" style="background:${pc}">${pl}</span>
+      <div><b>#${t.id}</b> ${t.confirmed ? "person" : "possible person"} · ${dir}${ladder(t)}
+      <small>${vitText(t)}${t.tag_id ? " · " + (t.ally ? "ALLY " : "") + "tag " + t.tag_id : ""}<br><span class="mg">${MG(t.x, t.y)}</span></small></div></div>`;
+  }).join("") : '<div class="empty">No one found yet.</div>');
+  if (casChanged) document.querySelectorAll(".cas").forEach((el) => el.onclick = () => map.flyTo(ll(+el.dataset.x, +el.dataset.y), Math.max(map.getZoom(), indoor ? 21 : 18)));
 
-  $("tl").innerHTML = s.events.filter((e) => !e.q).slice().reverse().map(evHTML).filter(Boolean).join("") ||
-    '<div class="empty">Drones are taking off…</div>';
+  setHTML("tl", s.events.filter((e) => !e.q).slice().reverse().map(evHTML).filter(Boolean).join("") ||
+    '<div class="empty">Drones are taking off…</div>');
 }
 function evHTML(e) {
-  const D = e.drone != null ? `D${e.drone}` : "";
+  const D = e.name || (e.drone != null ? dname(e.drone) : "");
   const T = {
     takeoff: [`${D} took off`, ""],
     landed: [`${D} landed at the homebase (${e.battery}% left)`, "good"],
-    contact_new: [`${D} ${e.sensor}: <b>possible person #${e.track}</b> at (${e.x}, ${e.y}) m`, "accent"],
+    contact_new: [`${D} ${e.sensor === "cv" ? "camera" : e.sensor}: <b>new contact #${e.track}</b> at (${e.x}, ${e.y}) m`, "accent"],
+    signal_new: [`${D} <b>heard a phone/beacon</b> (${e.area}) · area ±${e.radius} m${e.hr ? " · wearable HR " + e.hr : ""}`, "accent"],
+    signal_narrowed: [`${D} narrowed signal ${e.area} to ±${e.radius} m (${e.n} readings)`, ""],
+    signal_linked: [`Signal ${e.area} belongs to contact #${e.track}${e.hr ? " · HR " + e.hr : ""}`, "good"],
+    confirmed: [`${D}: contact #${e.track} <b>confirmed — a person</b>`, "good"],
+    observed: [`${D} watched #${e.track}: <b>${(OBSW[e.observation] || "").toUpperCase()}</b>`, e.observation === "moving" ? "good" : "bad"],
+    look_assigned: [`${D} sent to look at contact #${e.track}`, "accent"],
+    look_none: [`${D}: camera saw no one at #${e.track} (false heat contact)`, "warn"],
     contact_update: [`${D} ${e.sensor} on #${e.track}: ${e.confirmed ? "<b>confirmed</b>" : "update"}${e.status !== "unknown" ? " · " + e.status : ""}${e.tag ? " · tag " + e.tag : ""}`, e.confirmed ? "good" : ""],
     vitals: [`${D} ${e.sensor} on #${e.track}: heart ${e.hr || "?"}, breath ${e.br || "?"} → <b>${(e.status || "").toUpperCase()}</b>`, e.status === "critical" ? "bad" : "good"],
     vitals_check: [`${D} sent down to read vitals on #${e.track}`, "accent"],
@@ -540,6 +654,7 @@ function evHTML(e) {
 
 // ------------------------------------------------------------ mission setup
 const SU = { open: false, tool: "area", span: 600, civ: false, cond: "random", count: 1, center: null,
+             mix: { sweepers: 2, thermal: 1, finders: 1 },
              victims: [], lkp: null, threats: [], layer: null };
 const COND_C = { random: "#ffffff", ok: "#22c55e", injured: "#f59e0b", critical: "#ef4444" };
 function offLL(lat, lon, dx, dy) {   // metres east/north from a lat/lon
@@ -554,6 +669,16 @@ function suGeom() {                   // the homebase sits in the south-west cor
   const origin = offLL(c[0], c[1], -half, -half);
   const sw = offLL(origin[0], origin[1], -cell / 2, -cell / 2), ne = offLL(origin[0], origin[1], SU.span - cell / 2, SU.span - cell / 2);
   return { n, cell, origin, bounds: L.latLngBounds(sw, ne) };
+}
+function markDirty() {
+  SU.dirty = true;
+  $("b-new").textContent = "New mission (apply setup)";
+  $("b-new").classList.add("primary");
+}
+function clearDirty() {
+  SU.dirty = false;
+  $("b-new").textContent = "New mission";
+  $("b-new").classList.remove("primary");
 }
 function suDraw() {
   if (SU.layer) map.removeLayer(SU.layer);
@@ -584,6 +709,7 @@ function suDraw() {
   const segOn = (id, v) => document.querySelectorAll(`#${id} button`).forEach((b) => b.classList.toggle("on", b.dataset.v === String(v)));
   segOn("su-span", SU.span); segOn("su-mode", SU.civ ? "civ" : "mil"); segOn("su-tool", SU.tool); segOn("su-cond", SU.cond);
   $("su-count").textContent = SU.count;
+  for (const k of ["sweepers", "thermal", "finders"]) $("dm-" + k).textContent = SU.mix[k];
   map.getContainer().style.cursor = "crosshair";
 }
 function suOpen() {
@@ -604,6 +730,7 @@ function onSetupClick(e) {
   else if (SU.tool === "lkp") SU.lkp = ll;
   else if (SU.tool === "hostile") { SU.threats.push({ ll, r: 0.2 * SU.span }); $("su-nohost").checked = false; }
   $("su-status").textContent = "";
+  markDirty();
   suDraw();
 }
 async function suSearch() {
@@ -621,7 +748,7 @@ async function suSearch() {
     } catch (e) { /* offline */ }
     if (!ll) { $("su-status").textContent = "Couldn't find that place. Paste coordinates instead, e.g. 44.14, -71.68"; return; }
   }
-  SU.center = ll; SU.tool = "victim";
+  SU.center = ll; SU.tool = "victim"; markDirty();
   map.flyTo(ll, SU.span > 900 ? 15 : 16);
   $("su-status").textContent = "Moved. Now click to place victims, or just press Start mission.";
   suDraw();
@@ -649,15 +776,17 @@ async function suStart() {
   if (!SU.center) return;
   const G = suGeom(), o = G.origin;
   $("su-start").disabled = true;
-  const osm = await fetchTerrain(G);
-  $("su-status").textContent = osm ? `Terrain loaded (${osm.elements.length} features). Starting…` : "OpenStreetMap didn't answer; the homebase will try, then fall back to stand-in terrain. Starting…";
+  // start NOW: the homebase downloads the real terrain in the background and restarts on it when ready
+  const osm = null;
+  $("su-status").textContent = "Starting… (real terrain loads in the background)";
   const xy = (ll) => toLocal(o, ll[0], ll[1]).map((v) => Math.round(v * 10) / 10);
-  const cmd = { cmd: "setup", origin: o, n: G.n, cell: G.cell, civilian: SU.civ, count: SU.count, osm,
+  const cmd = { cmd: "setup", origin: o, n: G.n, cell: G.cell, civilian: SU.civ, count: SU.count, osm, drones: SU.mix,
     victims: SU.victims.map((v) => { const [x, y] = xy(v.ll); return { x, y, status: v.status }; }),
     lkp: SU.lkp ? xy(SU.lkp) : null,
     threats: SU.civ ? [] : SU.threats.length ? SU.threats.map((t) => [...xy(t.ll), t.r]) : ($("su-nohost").checked ? [] : null) };
   await fetch("/control", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(cmd) }).catch(() => {});
   $("su-start").disabled = false;
+  clearDirty();
   setTimeout(suClose, 600);
 }
 $("b-setup").onclick = () => (SU.open ? suClose() : suOpen());
@@ -665,11 +794,16 @@ $("su-close").onclick = suClose;
 $("su-go").onclick = suSearch;
 $("su-q").onkeydown = (e) => { if (e.key === "Enter") suSearch(); };
 $("su-start").onclick = suStart;
-$("su-clear").onclick = () => { SU.victims = []; SU.lkp = null; SU.threats = []; suDraw(); };
-$("su-minus").onclick = () => { SU.count = Math.max(1, SU.count - 1); suDraw(); };
-$("su-plus").onclick = () => { SU.count = Math.min(8, SU.count + 1); suDraw(); };
+$("su-clear").onclick = () => { SU.victims = []; SU.lkp = null; SU.threats = []; markDirty(); suDraw(); };
+$("su-minus").onclick = () => { SU.count = Math.max(1, SU.count - 1); markDirty(); suDraw(); };
+$("su-plus").onclick = () => { SU.count = Math.min(8, SU.count + 1); markDirty(); suDraw(); };
+document.querySelectorAll("[data-dm]").forEach((b) => b.onclick = () => {
+  const [k, v] = b.dataset.dm.split(":"); SU.mix[k] = Math.max(k === "sweepers" ? 0 : 0, Math.min(4, SU.mix[k] + +v));
+  if (SU.mix.sweepers + SU.mix.thermal + SU.mix.finders === 0) SU.mix[k] = 1;
+  markDirty(); suDraw();
+});
 $("su-nohost").onchange = () => { if ($("su-nohost").checked) SU.threats = []; suDraw(); };
-const seg = (id, f) => document.querySelectorAll(`#${id} button`).forEach((b) => b.onclick = () => { f(b.dataset.v); suDraw(); });
+const seg = (id, f) => document.querySelectorAll(`#${id} button`).forEach((b) => b.onclick = () => { f(b.dataset.v); if (id !== "su-tool") markDirty(); suDraw(); });
 seg("su-span", (v) => { SU.span = +v; });
 seg("su-mode", (v) => { SU.civ = v === "civ"; if (SU.civ) SU.threats = []; });
 seg("su-tool", (v) => { SU.tool = v; });
@@ -679,7 +813,9 @@ seg("su-cond", (v) => { SU.cond = v; });
 function post(cmd) { fetch("/control", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(cmd) }).catch(() => {}); }
 $("b-pause").onclick = () => post({ cmd: S && S.paused ? "play" : "pause" });
 $("b-jam").onclick = () => post({ cmd: "jam", secs: 30 });
-$("b-new").onclick = () => post({ cmd: "restart" });
+// "New mission" uses the setup panel's changes if you made any (location, drones, victims...),
+// otherwise it's a fresh random mission at the current place.
+$("b-new").onclick = () => (SU.dirty && SU.center ? suStart() : post({ cmd: "restart" }));
 $("b-recall").onclick = () => post({ cmd: "recall" });
 document.querySelectorAll("#speed button").forEach((b) => b.onclick = () => post({ cmd: "speed", value: +b.dataset.s }));
 function setTheme(t) {
@@ -693,10 +829,10 @@ setTheme(store.get("t15-theme", "ops"));
 
 let lastOverlay = 0;
 function render(s, force) {
-  if (s.mission !== mission) { updTruth.auto = false; buildMission(s); }
+  if (s.mission !== mission) { updTruth.auto = false; toastT = null; sigLayerHolder.key = null; Object.keys(_html).forEach((k) => delete _html[k]); buildMission(s); }
   const now = performance.now();
-  if (force || now - lastOverlay > 400) { drawOverlays(s); lastOverlay = now; }
-  updDrones(s); updContacts(s); updTruth(s); updPanel(s);
+  if (force || now - lastOverlay > 700) { drawOverlays(s); lastOverlay = now; }
+  updDrones(s); updSignals(s); updContacts(s); updTruth(s); updPanel(s); toasts(s);
   const lh = document.querySelector(".legend").offsetHeight;   // keep Leaflet's scale/credits above the legend
   document.querySelectorAll(".mapwrap .leaflet-bottom").forEach((e) => { e.style.bottom = lh + "px"; });
   $("cursor").style.bottom = (lh + 8) + "px";

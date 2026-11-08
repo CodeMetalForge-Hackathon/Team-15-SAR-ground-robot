@@ -85,10 +85,10 @@ def simulate(args, key, log_dir=None, verbose=False, gif=False):
             t_found = t
         matched = match_people(people, hub.tracks, 1.5 * truth.cell_m) if hub.tracks else {}
         done = len(matched) == len(people) and all(
-            tr.confirmed and (tr.assessed or tr.checked) for tr, _ in matched.values())
+            tr.confirmed and (tr.observation or tr.assessed or tr.checked) for tr, _ in matched.values())
         if done and not getattr(args, "keep_going", False):
             say(hub.status_line(t))
-            say(f"  every person is found, confirmed and checked for vitals at t={t:.1f}s")
+            say(f"  every person is found, seen by a camera and checked at t={t:.1f}s")
             break
         t += dt
     hub.close()
@@ -231,7 +231,7 @@ def main():
     ap.add_argument("--quiet", action="store_true", help="hide the event log")
     ap.add_argument("--web", action="store_true", help="live dashboard at http://localhost:WEB_PORT")
     ap.add_argument("--web-port", type=int, default=8080)
-    ap.add_argument("--speed-up", type=float, default=4.0, help="sim --web: start at this many x real time")
+    ap.add_argument("--speed-up", type=float, default=1.0, help="sim --web: start at this many x real time")
     add_mission_args(ap)
     add_sim_args(ap)
     ap.add_argument("--civilian", action="store_true", help="pr scenario: turn military mode off")
