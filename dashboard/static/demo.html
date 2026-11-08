@@ -295,6 +295,7 @@ function renderHost(r, c) {
   const v = r.camera_verdict || {};
   $("c-veto").innerHTML = `<span class="badge ${v.action === "NO_CAMERA_OBJECTION" ? "ok" : v.action === "STOP" ? "bad" : "warn"}">${esc(v.action)}</span>${v.operator ? ` <span class="badge info">${esc(v.operator)}${v.suggestion ? ": " + esc(v.suggestion) : ""}</span>` : ""} <span class="muted">${esc(v.reason)}</span>`;
   const e = r.estop || {}, l = r.safety_latch;
+  if (!(e.tripped || l)) $("c-estop").innerHTML = `<span class="badge ok">CLEAR</span> <span class="muted">supervisor on the ${esc(r.host || "host")}: e-stop not tripped, no latch · physical stop: RoverC power switch</span>`;
   if (e.tripped || l) $("c-estop").innerHTML = `<span class="badge bad">${e.tripped ? "E-STOP LATCHED" : "SAFETY LATCH"}</span> <span class="muted">${esc(e.reason || (l && l.kind + ": " + l.detail))}</span>`;
 }
 
