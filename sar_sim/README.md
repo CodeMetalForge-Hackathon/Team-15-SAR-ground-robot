@@ -53,6 +53,16 @@ python3 -m cfloader flash build/cf2.bin stm32-fw -w radio://0/80/2M/E7E7E7E7E7
 
 To check it worked, connect with the cfclient app. A `t15scan` group should appear under Parameters.
 
+## Test without flying (bench mode)
+
+The drone sits on the table on its USB cable. It needs no Flow deck, and every flight command is refused.
+
+```bash
+python3 -m sar_sim.cf_bridge --bench --uri usb://0
+```
+
+Every 5 s it prints battery, decks and scanner-line counts. With the scanner wired and the drone app flashed, Mabelle's discovery server works too: `python3 -m discovery.server --serial /tmp/t15-scanner-1`.
+
 ## 3. Run it (one terminal each, from the repo root)
 
 ```bash

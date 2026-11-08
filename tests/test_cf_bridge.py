@@ -156,11 +156,37 @@ class BridgeTest(unittest.TestCase):
             link.wait(0.5)
 
     def test_no_position_deck_refuses_to_start(self):
-        WORLD.reset(relay_so=self.so, decks={}, log_rate=4.0)
-        bridge = Bridge([URI], port=0, scanner_dir=None, log=lambda *_: None)
+        WORLD.reset(relay_so=self.so, decks={"bcZRanger2": "1"}, log_rate=4.0)
+        logs = []
+        bridge = Bridge([URI], port=0, scanner_dir=None, log=logs.append)
         with self.assertRaises(RuntimeError) as err:
             bridge.start()
         self.assertIn("positioning deck", str(err.exception))
+        self.assertIn("['bcZRanger2']", str(err.exception))      # says what IS attached
+        self.assertFalse(any("link lost" in m for m in logs), logs)  # closing is not a lost link
+
+    def test_bench_mode_needs_no_deck_and_never_flies(self):
+        WORLD.reset(relay_so=self.so, decks={}, log_rate=4.0, beacon=(0.5, 0.0))
+        self.logs, self.ports = [], tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.ports, True)
+        self.bridge = Bridge(["usb://0"], port=0, scanner_dir=self.ports, log=self.logs.append,
+                             bench=True).start()
+        self.addCleanup(self.bridge.close)
+        c = Client(self.bridge.port)
+        self.addCleanup(c.close)
+        hello = c.call(op="hello")
+        self.assertTrue(hello["bench"])
+        self.assertEqual(hello["drones"][0]["decks"], [])
+        self.wait_for(lambda: c.call(op="state", id=1)["vbat"] is not None, 2, "no battery reading")
+        st = c.call(op="state", id=1)
+        self.assertTrue(st["ok"])
+        self.assertGreater(st["vbat"], 3.9)
+        for msg in (dict(op="takeoff", id=1, h=0.5), dict(op="go_to", id=1, x=0, y=0, z=0.5)):
+            reply = c.call(**msg)
+            self.assertFalse(reply["ok"])
+            self.assertIn("bench mode", reply["error"])
+        self.assertEqual(self.cf.commands, [])                   # nothing reached the motors
+        self.wait_for(lambda: os.path.exists(os.path.join(self.ports, "t15-scanner-1")), 2, "no port")
 
     # ---- safety landings -----------------------------------------------------
     def test_program_crash_lands_the_drone(self):

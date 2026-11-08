@@ -50,6 +50,10 @@ WORLD = World()
 class _Toc:
     def __init__(self, names):
         self.names = set(names)
+        self.toc = {}
+        for n in self.names:
+            group, _, name = n.partition(".")
+            self.toc.setdefault(group, {})[name] = n
 
     def get_element_by_complete_name(self, name):
         return name if name in self.names else None
@@ -130,7 +134,8 @@ class Crazyflie:
     # ---- link -------------------------------------------------------------
     def open_link(self, uri):
         self.uri, self.linked = uri, True
-        values = {f"deck.{k}": v for k, v in WORLD.decks.items()}
+        values = {f"deck.{k}": "0" for k in ("bcFlow2", "bcZRanger2", "bcAI", "bcLighthouse4")}
+        values.update({f"deck.{k}": v for k, v in WORLD.decks.items()})
         values["kalman.resetEstimation"] = "0"
         if WORLD.app:
             values.update({f"t15scan.{k}": str(v) for k, v in SCAN_DEFAULTS.items()})

@@ -15,6 +15,9 @@ It does three jobs.
      disconnects or goes quiet for 2 s, when pose stops arriving, when the
      battery reads below --vbat-min, or on Ctrl-C. The drone app lands it
      too if this bridge goes quiet. Commands outside the fence are refused.
+
+Bench mode (--bench) is for testing on the table, e.g. over the USB cable
+(--uri usb://0). It needs no positioning deck and refuses every flight command.
 """
 from __future__ import annotations
 
@@ -115,7 +118,7 @@ class Slot:
 class Bridge:
     def __init__(self, uris, host="127.0.0.1", port=PORT, scanner_dir="/tmp", fence_xy=1.5,
                  z_min=0.1, z_max=1.5, vbat_min=3.0, takeoff_vbat=3.5, pilot_timeout=2.0,
-                 scanner_params=None, land_s=LAND_S, log=print):
+                 scanner_params=None, land_s=LAND_S, bench=False, log=print):
         self.log = log
         self.slots = {}
         for i, uri in enumerate(uris, start=1):
@@ -126,6 +129,7 @@ class Bridge:
         self.vbat_min, self.takeoff_vbat, self.pilot_timeout = vbat_min, takeoff_vbat, pilot_timeout
         self.scanner_params = scanner_params or {}
         self.land_s = land_s
+        self.bench = bench
         self.sessions = itertools.count(1)
         self.stop_event = threading.Event()
         self.server = None
@@ -133,8 +137,8 @@ class Bridge:
     # ---- lifecycle --------------------------------------------------------
     def start(self):
         for s in self.slots.values():
-            self.log(f"connecting drone {s.id}: {s.uri}")
-            s.drone.connect()
+            self.log(f"connecting drone {s.id}: {s.uri}{' (BENCH MODE: no flying)' if self.bench else ''}")
+            s.drone.connect(require_position=not self.bench)
             if s.drone.has_app:
                 for name, value in self.scanner_params.items():
                     s.drone.set_param(f"t15scan.{name}", value)
@@ -278,13 +282,16 @@ class Bridge:
             if s.pilot == session:
                 s.pilot_seen = now
         if op == "hello":
-            return dict(ok=True, drones=[dict(id=s.id, uri=s.uri, app=s.drone.has_app,
-                                              decks=s.drone.decks,
+            return dict(ok=True, bench=self.bench,
+                        drones=[dict(id=s.id, uri=s.uri, app=s.drone.has_app,
+                                              decks=s.drone.decks, attached=s.drone.attached,
                                               scanner=s.port.path if s.port else None)
                                          for s in self.slots.values()])
         if op == "ping":
             return dict(ok=True)
         s = self._slot(msg)
+        if self.bench and op in ("takeoff", "go_to"):
+            raise RuntimeError("bench mode: flying is turned off (restart the bridge without --bench to fly)")
         with s.lock:
             if op == "state":
                 st = s.drone.state()
@@ -349,11 +356,13 @@ def main(argv=None):
     ap.add_argument("--takeoff-vbat", type=float, default=3.5, help="refuse takeoff below this (V)")
     ap.add_argument("--min-rssi", type=int, help="drone app: drop adverts weaker than this (dBm)")
     ap.add_argument("--adv-hz", type=int, help="drone app: adverts per second per address")
+    ap.add_argument("--bench", action="store_true",
+                    help="table testing: no positioning deck needed, all flight commands refused")
     args = ap.parse_args(argv)
     params = {k: v for k, v in (("minRssi", args.min_rssi), ("advHz", args.adv_hz)) if v is not None}
     bridge = Bridge(args.uri, port=args.port, scanner_dir=args.scanner_dir or None,
                     fence_xy=args.fence, z_max=args.z_max, vbat_min=args.vbat_min,
-                    takeoff_vbat=args.takeoff_vbat, scanner_params=params)
+                    takeoff_vbat=args.takeoff_vbat, scanner_params=params, bench=args.bench)
     try:
         bridge.start()
         while True:
@@ -363,6 +372,8 @@ def main(argv=None):
                 v = "--" if st["vbat"] is None else f"{st['vbat']:.2f} V"
                 pos = "no pose" if st["x"] is None or math.isnan(st["x"]) else \
                     f"({st['x']:+.2f}, {st['y']:+.2f}, {st['z']:.2f}) m"
+                if not s.drone.decks:
+                    pos += " (no position deck: position is not meaningful)"
                 scan = s.drone_stats or {}
                 bridge.log(f"  drone {s.id}: {pos}, {v}, {'flying' if st['flying'] else 'landed'}, "
                            f"scanner lines {scan.get('lines', 0)} dropped {scan.get('dropped', 0)}")

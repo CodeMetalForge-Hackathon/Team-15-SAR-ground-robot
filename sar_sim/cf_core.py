@@ -8,6 +8,8 @@ Install on the Jetson / laptop:  python3 -m pip install cflib
 from __future__ import annotations
 
 import math
+import os
+import tempfile
 import threading
 import time
 from collections import deque
@@ -23,6 +25,9 @@ class CfDrone:
     """Connect, read pose and battery, and fly with the high-level commander."""
 
     def __init__(self, uri, on_app_packet=None, cache=None, log=print):
+        if cache is None:                    # cflib keeps the drone's variable lists here
+            cache = os.path.join(tempfile.gettempdir(), "t15-cflib-cache")
+            os.makedirs(cache, exist_ok=True)
         self.uri, self.on_app_packet, self.cache, self.log = uri, on_app_packet, cache, log
         self.lock = threading.Lock()
         self.x = self.y = self.z = self.yaw = math.nan
@@ -31,13 +36,15 @@ class CfDrone:
         self.t_pose = self.t_bat = -1e9
         self.connected = False
         self.flying = False
-        self.decks: list[str] = []
+        self.decks: list[str] = []          # positioning decks
+        self.attached: list[str] = []       # every deck the drone reports
         self.has_app = False
         self.cf = self.scf = None
         self.logs = []
 
     # ---- connection -------------------------------------------------------
-    def connect(self, settle_s=10.0):
+    def connect(self, settle_s=10.0, require_position=True):
+        """require_position=False is bench mode: no positioning deck needed, never flies."""
         import cflib.crtp
         from cflib.crazyflie import Crazyflie
         from cflib.crazyflie.syncCrazyflie import SyncCrazyflie
@@ -51,18 +58,28 @@ class CfDrone:
         self.cf.disconnected.add_callback(self._lost)
         if hasattr(self.scf, "wait_for_params"):
             self.scf.wait_for_params()
-        self.decks = [d for d in POSITION_DECKS if self._param(f"deck.{d}") == "1"]
-        if not self.decks:
+        attached = self.attached_decks()
+        self.attached = attached
+        self.decks = [d for d in POSITION_DECKS if d in attached]
+        if not self.decks and require_position:
             self.close()
             raise RuntimeError(f"{self.uri}: no positioning deck found (need Flow deck v2, "
-                               "Lighthouse or Loco); refusing to fly without position")
+                               "Lighthouse or Loco); refusing to fly without position. "
+                               f"Decks attached: {attached or 'none'}")
         self.has_app = self.cf.param.toc.get_element_by_complete_name("t15scan.wdMs") is not None
         self.cf.appchannel.packet_received.add_callback(self._app)
         self._start_logs()
-        self._reset_estimator(settle_s)
-        self.log(f"  {self.uri}: connected, decks {self.decks}, "
+        if self.decks:
+            self._reset_estimator(settle_s)
+        self.log(f"  {self.uri}: connected, decks attached {attached or 'none'}, "
                  f"scanner app {'found' if self.has_app else 'NOT found'}")
         return self
+
+    def attached_decks(self):
+        """Names like 'bcFlow2' for every deck the drone reports as attached."""
+        groups = getattr(self.cf.param.toc, "toc", {})
+        names = list(groups.get("deck", {})) or [d for d in POSITION_DECKS]
+        return [n for n in names if self._param(f"deck.{n}") == "1"]
 
     def _param(self, name):
         if self.cf.param.toc.get_element_by_complete_name(name) is None:
@@ -195,6 +212,7 @@ class CfDrone:
             except Exception:
                 pass
         self.logs = []
+        self.connected = False               # we are closing: not a lost link
         if self.scf is not None:
             try:
                 self.scf.close_link()
