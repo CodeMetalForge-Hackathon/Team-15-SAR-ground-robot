@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 import time
 
+from link import protocol as P
 from link.transport import BytePipeTransport
 from .hub import Homebase
 from .scenario import build_sim, build_world, hub_config, load_allies, match_people
@@ -27,7 +28,7 @@ def run_live_sim(args, key):
     dash = Dashboard(args.web_port).start()
     origin = parse_origin(args.origin)
     print(f"\n  dashboard:  http://localhost:{args.web_port}   (Ctrl-C to stop)\n")
-    mission_id, speed, paused = 0, float(args.speed_up), False
+    mission_id, speed, paused, setup_id = 0, float(args.speed_up), False, 0
     run = argparse.Namespace(**vars(args))
     try:
         while True:
@@ -56,6 +57,26 @@ def run_live_sim(args, key):
                         hub.recall(t)
                         for d in drones:
                             d.launch_at = 1e12          # the mothership keeps them on the pad
+                    elif cmd == "setup":                  # operator's own mission from the setup panel
+                        lat, lon = (float(v) for v in c["origin"])
+                        run.origin = f"{lat:.6f},{lon:.6f}"
+                        origin = (lat, lon)
+                        run.n = int(c.get("n", 24))
+                        run.cell_m = float(c.get("cell", 25.0))
+                        victims = [v for v in (c.get("victims") or []) if "x" in v and "y" in v]
+                        run.people = len(victims) if victims else max(1, min(8, int(c.get("count", 1))))
+                        civilian = bool(c.get("civilian", False))
+                        run.military = not civilian
+                        run.key = None if civilian else (run.key or "team15-pr-demo-key")
+                        key = P.load_key(run.key)
+                        setup_id += 1
+                        run.setup = dict(id=setup_id, osm=c.get("osm"), lkp=c.get("lkp"),
+                                         threats=c.get("threats"), civilian=civilian, victims=victims)
+                        run.seed += 1
+                        restart = True
+                        print(f"  setup: {run.people} victim(s) {'placed' if victims else 'random'}, "
+                              f"{'civilian' if civilian else 'military'}, area {run.n * run.cell_m:.0f} m at {run.origin}, "
+                              f"terrain {'from browser' if c.get('osm') else 'to fetch'}")
                     elif cmd == "restart":
                         restart = True
                         run.seed += 1

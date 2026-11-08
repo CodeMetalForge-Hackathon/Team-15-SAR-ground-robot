@@ -61,7 +61,9 @@ def get_scenario(args):
     by the homebase and the simulator. None for the plain grid."""
     if getattr(args, "scenario", None) != "pr":
         return None
-    key = (args.seed, args.origin, args.n, args.cell_m, args.cover, getattr(args, "people", 1))
+    setup = getattr(args, "setup", None) or {}
+    key = (args.seed, args.origin, args.n, args.cell_m, args.cover, getattr(args, "people", 1),
+           setup.get("id"))
     cache = getattr(args, "_scenario_cache", None)
     if cache and cache[0] == key:
         return cache[1]
@@ -69,7 +71,10 @@ def get_scenario(args):
     from .web import parse_origin
     sc = personnel_recovery(parse_origin(args.origin), args.n, args.cell_m, (args.n - 1, 0), args.seed,
                             getattr(args, "people", 1), default_cover=args.cover,
-                            quiet=getattr(args, "quiet_terrain", False))
+                            quiet=getattr(args, "quiet_terrain", False), osm=setup.get("osm"),
+                            lkp=setup.get("lkp"), threats=setup.get("threats"),
+                            civilian=bool(setup.get("civilian", False)))
+    setup.pop("osm", None)            # terrain is cached on disk now; don't keep megabytes around
     args._scenario_cache = (key, sc)
     return sc
 
@@ -128,12 +133,29 @@ def load_allies(path, args=None):
     return out
 
 
+def _set_status(p, status, rng):
+    p.status = status
+    if status == "ok":
+        p.hr, p.br = int(rng.integers(65, 95)), int(rng.integers(12, 19))
+    elif status == "injured":
+        p.hr, p.br = int(rng.integers(118, 135)), int(rng.integers(25, 29))
+    else:
+        p.hr, p.br = int(rng.integers(35, 44)), int(rng.integers(5, 8))
+
+
 def build_sim(args, key):
     truth = build_world(args)
     grid = Grid(truth)
     rng = np.random.default_rng(args.seed + 1)
     sc = get_scenario(args)
+    placed = (getattr(args, "setup", None) or {}).get("victims") or []
+    if placed:                                 # the operator put them on the map
+        truth.people = [grid.to_cell(v["x"], v["y"]) for v in placed]
     people = make_people(truth, grid, rng, tags=sc.tags if sc else None)
+    for p, v in zip(people, placed):
+        p.x, p.y = float(v["x"]), float(v["y"])
+        if v.get("status") in ("ok", "injured", "critical"):
+            _set_status(p, v["status"], rng)
     loadout = [s.split(",") for s in args.loadout.split(";")]
     drones = [SimDrone(i + 1, loadout[i % len(loadout)], truth, grid, people,
                        np.random.default_rng(args.seed + 10 + i), key=key,

@@ -383,6 +383,9 @@ class Homebase:
         into a wall). If a hop takes far too long, give up on that cell for a bit."""
         if d.target is None or d.cmd != P.CMD_GOTO or self._arrived(d, d.target):
             return
+        if d.state == 4 or now - d.pose_t > 3.0:      # it's holding on its own (no link): not stuck
+            d.target_since = now
+            return
         hop = self.world.cell_m / self.cfg.speed_mps
         if now - d.target_since > 4 * hop + 5:
             d.avoid[d.target] = now + 30.0

@@ -32,7 +32,12 @@ COVER = {"open": 0.12, "forest": 1.0, "scrub": 0.75, "water": 0.0, "road": 0.0,
          "trail": 0.05, "building": 0.45, "wetland": 0.3}
 
 OVERPASS = ["https://overpass-api.de/api/interpreter",
-            "https://overpass.kumi.systems/api/interpreter"]
+            "https://overpass.kumi.systems/api/interpreter",
+            "https://overpass.private.coffee/api/interpreter",
+            "https://maps.mail.ru/osm/tools/overpass/api/interpreter"]
+# a lost civilian isn't hiding: trails, open ground and buildings draw them in
+COVER_CIVILIAN = {"open": 0.7, "forest": 0.45, "scrub": 0.4, "water": 0.0, "road": 0.5,
+                  "trail": 1.0, "building": 0.8, "wetland": 0.2}
 R_EARTH = 6378137.0
 
 
@@ -137,21 +142,29 @@ def rasterize_osm(osm, origin, n, cell_m, home, default="forest"):
     return grid
 
 
-def fetch_osm(origin, n, cell_m, home, timeout=25):
+def overpass_query(origin, n, cell_m, home, timeout=25):
     hi, hj = home
     x0, x1 = (-hj - 1) * cell_m, (n - hj) * cell_m
     y0, y1 = (hi - n) * cell_m, (hi + 1) * cell_m
     s, w = xy_to_ll(x0, y0, origin)
     nn, e = xy_to_ll(x1, y1, origin)
     bbox = f"{s:.6f},{w:.6f},{nn:.6f},{e:.6f}"
-    q = (f"[out:json][timeout:{timeout}];("
-         f'way["highway"]({bbox});way["waterway"]({bbox});way["building"]({bbox});'
-         f'way["natural"]({bbox});way["landuse"]({bbox});way["leisure"]({bbox});way["amenity"="parking"]({bbox});'
-         f'relation["type"="multipolygon"]["natural"]({bbox});relation["type"="multipolygon"]["landuse"]({bbox});'
-         f");out geom;")
+    return (f"[out:json][timeout:{timeout}];("
+            f'way["highway"]({bbox});way["waterway"]({bbox});way["building"]({bbox});'
+            f'way["natural"]({bbox});way["landuse"]({bbox});way["leisure"]({bbox});way["amenity"="parking"]({bbox});'
+            f'relation["type"="multipolygon"]["natural"]({bbox});relation["type"="multipolygon"]["landuse"]({bbox});'
+            f");out geom;")
+
+
+def fetch_osm(origin, n, cell_m, home, timeout=25):
+    q = overpass_query(origin, n, cell_m, home, timeout)
     data = urllib.parse.urlencode({"data": q}).encode()
     last = None
+    import time as _t
+    deadline = _t.monotonic() + 75                     # give up on the network after ~a minute
     for url in OVERPASS:
+        if _t.monotonic() > deadline:
+            break
         try:
             req = urllib.request.Request(url, data=data, headers={"User-Agent": "team15-sar-sim/1.0"})
             with urllib.request.urlopen(req, timeout=timeout + 5) as r:
@@ -180,7 +193,8 @@ def synthetic_terrain(n, cell_m, home, seed):
 _OFFLINE = False    # after one failed fetch, don't make every new mission wait again
 
 
-def load_terrain(origin, n, cell_m, home, seed=0, cache_dir="results", default="forest", quiet=False):
+def load_terrain(origin, n, cell_m, home, seed=0, cache_dir="results", default="forest", quiet=False, osm=None):
+    """osm: Overpass JSON the dashboard already downloaded in the browser (preferred)."""
     global _OFFLINE
     key = f"terrain_{origin[0]:.5f}_{origin[1]:.5f}_{n}_{cell_m:g}_{default}.json"
     path = os.path.join(cache_dir, key)
@@ -191,11 +205,13 @@ def load_terrain(origin, n, cell_m, home, seed=0, cache_dir="results", default="
         return np.array(d["grid"], dtype=np.int8), d["source"]
     except (OSError, ValueError, KeyError):
         pass
-    if _OFFLINE:
+    if osm is None and _OFFLINE:
         return synthetic_terrain(n, cell_m, home, seed), "synthetic (offline)"
-    say("  terrain: fetching OpenStreetMap for this area (first run only, ~10 s)...")
+    if osm is None:
+        say("  terrain: fetching OpenStreetMap for this area (first run only, up to a minute)...")
     try:
-        osm = fetch_osm(origin, n, cell_m, home, timeout=15)
+        if osm is None:
+            osm = fetch_osm(origin, n, cell_m, home, timeout=40)
         grid = rasterize_osm(osm, origin, n, cell_m, home, default)
         source = f"OpenStreetMap ({len(osm.get('elements', []))} features; unmapped land = {default})"
         mix = ", ".join(f"{100 * float((grid == k).mean()):.0f}% {name}" for k, name in enumerate(CLASSES) if (grid == k).any())
@@ -280,17 +296,25 @@ ALLY_BEACON = 0x7E5A11ED
 
 
 def personnel_recovery(origin, n, cell_m, home, seed=0, n_people=1, cache_dir="results",
-                       default_cover="forest", quiet=False):
+                       default_cover="forest", quiet=False, osm=None, lkp=None, threats=None,
+                       civilian=False):
+    """lkp / threats: set by the operator in the dashboard, or None for random.
+    threats=[] means no hostiles. civilian=True: a lost hiker, not an evader."""
     rng = np.random.default_rng(seed + 4242)
-    terrain, source = load_terrain(origin, n, cell_m, home, seed, cache_dir, default_cover, quiet)
+    terrain, source = load_terrain(origin, n, cell_m, home, seed, cache_dir, default_cover, quiet, osm)
     px, py = cell_centers(n, cell_m, home)
     span = n * cell_m
-    lkp = (span * rng.uniform(0.45, 0.65), span * rng.uniform(0.45, 0.65))
-    threats = []
-    for corner in rng.permutation([(0.9, 0.25), (0.25, 0.9), (0.9, 0.9)])[:2]:
-        tx = span * float(np.clip(corner[0] + rng.uniform(-0.08, 0.08), 0.05, 1.0))
-        ty = span * float(np.clip(corner[1] + rng.uniform(-0.08, 0.08), 0.05, 1.0))
-        threats.append((tx, ty, span * rng.uniform(0.17, 0.22)))
+    if lkp is None:
+        lkp = (span * rng.uniform(0.45, 0.65), span * rng.uniform(0.45, 0.65))
+    lkp = (float(lkp[0]), float(lkp[1]))
+    if threats is None:
+        threats = []
+        if not civilian:
+            for corner in rng.permutation([(0.9, 0.25), (0.25, 0.9), (0.9, 0.9)])[:2]:
+                tx = span * float(np.clip(corner[0] + rng.uniform(-0.08, 0.08), 0.05, 1.0))
+                ty = span * float(np.clip(corner[1] + rng.uniform(-0.08, 0.08), 0.05, 1.0))
+                threats.append((tx, ty, span * rng.uniform(0.17, 0.22)))
+    threats = [(float(x), float(y), float(r)) for x, y, r in threats]
     threat = np.zeros((n, n))
     nofly = np.zeros((n, n), dtype=bool)
     for tx, ty, r in threats:
@@ -304,22 +328,37 @@ def personnel_recovery(origin, n, cell_m, home, seed=0, n_people=1, cache_dir="r
     d = np.hypot(px - lkp[0], py - lkp[1])
     sigma = 0.25 * span
     ring = (d / sigma ** 2) * np.exp(-d ** 2 / (2 * sigma ** 2)) + 0.15 / sigma
-    cover = np.vectorize(lambda k: COVER[CLASSES[k]])(terrain)
+    table = COVER_CIVILIAN if civilian else COVER
+    cover = np.vectorize(lambda k: table[CLASSES[k]])(terrain)
     road = _dilate(terrain == C["road"], 1)
     water = _dilate(terrain == C["water"], 2)
     prior = ring * cover * np.where(road & (terrain != C["road"]), 0.3, 1.0) \
         * np.where(water & (terrain != C["water"]), 1.35, 1.0) * (1 - 0.95 * threat)
     prior[nofly] = 0
     prior = prior / prior.sum()
+    # people don't always follow the model: keep 15% spread over every place he could be
+    # (LastSeen's "none of these"). Otherwise someone in an unlikely spot is never searched.
+    valid = ~nofly & (terrain != C["water"])
+    prior = 0.85 * prior + 0.15 * valid / valid.sum()
     vis = np.vectorize(lambda k: VISIBILITY[CLASSES[k]])(terrain)
 
-    brief = (f"Isolated soldier, last known position {round(math.hypot(*lkp))} m from the homebase, "
-             f"35 minutes ago. Carries an authenticated beacon (short range, intermittent). "
-             f"Hostile positions reported to the {_bearing(threats[0], (0, 0))} and {_bearing(threats[1], (0, 0))}. "
-             f"Radio is contested: low-emission mode, signed packets. Terrain: {source}.")
-    sc = Scenario("Personnel recovery", brief, tuple(origin), terrain, source, lkp, threats,
-                  prior, vis, threat, nofly, allies={ALLY_BEACON},
-                  tags=[ALLY_BEACON] + [0] * (n_people - 1))
+    who = "person" if n_people == 1 else f"{n_people} people"
+    if civilian:
+        brief = (f"Missing {who}, last seen {round(math.hypot(*lkp))} m from the homebase, 35 minutes ago. "
+                 f"Lost hikers drift to trails, clearings and buildings. Some carry a phone that the drones can hear. "
+                 f"Terrain: {source}.")
+        name, allies, tags = "Civilian search", set(), [0] * n_people
+    else:
+        hostile = ("Hostile positions reported to the " + " and ".join(_bearing(t, (0, 0)) for t in threats) + ". ") \
+            if threats else "No hostiles reported. "
+        brief = (f"Isolated {'soldier' if n_people == 1 else 'crew of ' + str(n_people)}, last known position "
+                 f"{round(math.hypot(*lkp))} m from the homebase, 35 minutes ago. Each carries an authenticated "
+                 f"beacon (short range, intermittent). {hostile}Radio is contested: low-emission mode, signed packets. "
+                 f"Terrain: {source}.")
+        tags = [ALLY_BEACON + k for k in range(n_people)]
+        name, allies = "Personnel recovery", set(tags)
+    sc = Scenario(name, brief, tuple(origin), terrain, source, lkp, threats,
+                  prior, vis, threat, nofly, allies=allies, tags=tags)
     sc._centers = (px, py)
     return sc
 

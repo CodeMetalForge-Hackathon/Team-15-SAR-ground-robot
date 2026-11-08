@@ -105,7 +105,12 @@ for 30 s, and start a new mission.
   are no-fly. He carries an authenticated ally beacon. When he's found you get a
   recovery report with an MGRS grid. Add `--civilian` for civilian mode, or
   `--scenario grid` for the old toy map.
-- Put the search on your venue: `--origin LAT,LON` (the homebase position).
+- **Set up mission** (top right) lets you choose everything yourself. Search a place
+  (or paste `lat, lon`), pick the area size (300 m to 1.5 km), and pick military
+  (hidden soldier) or civilian (lost hiker). Then click the map to add victims with
+  the condition you choose, the last known position, and hostile zones. Anything
+  you don't place is random. Your browser downloads the real terrain for that spot.
+- Put the search on your venue from the command line: `--origin LAT,LON` (the homebase position).
 - Land with no OpenStreetMap tag counts as forest (`--cover open` for farmland areas).
 - Indoor runs (`--cell-m 0.5`) switch to a floor-plan grid automatically.
 - No extra installs. The map library ships in `fleet/web/leaflet/`. Only the
