@@ -19,8 +19,8 @@ SPEC_BEAM_ANGLE_DEG = 15.0
 SPEC_VCC_MIN_V = 3.2
 SPEC_VCC_MAX_V = 5.2
 SPEED_OF_SOUND_MPS = 343.0           # ~20 C dry air; Seeed code uses 29 us/cm (~345 m/s)
-MIN_SAMPLE_INTERVAL_S = 0.06
-SIG_IDLE_MAX_V = 1.2                  # see check_electrical: board pull-down vs Pi boot pull-up          # keep pings apart so a late echo is not read as the next one
+MIN_SAMPLE_INTERVAL_S = 0.06          # keep pings apart so a late echo is not read as the next one
+SIG_IDLE_MAX_V = 1.2                  # see check_electrical: board pull-down vs Pi boot pull-up
 
 # Header lines the driver must never claim on a Pi 5.
 RESERVED_BCM = {
