@@ -61,3 +61,20 @@ JPEG handling, missing Pi camera tooling, real subprocess shutdown, operator-onl
 frame access, the real discovery HTTP bridge, offline Bluetooth behavior and CSP.
 Both JavaScript syntax checks and `git diff --check` pass. Live Pi camera and
 wireless frame-rate/latency tests still require the actual hardware.
+
+## Jetson-frame path visualization
+
+**60 targeted tests passed**, including 11 new tracking tests, the existing
+network/media suites and the rover/drone control suites. Tracking checks cover
+90° frame rotation plus translation, native Jetson-frame positions, missing rover
+localization, invalid/stale/duplicate samples, bounded histories, gap segmentation,
+estimator restart invalidation, pose-file freshness and paused operator alignment.
+An actual HTTP agent-to-paths test confirms position and simulation provenance.
+
+Browser checks used an isolated, explicitly SIMULATED position fixture: XY trails
+for both vehicles, altitude and distance charts, camera/path switching, focus mode,
+frame-alignment form, and JSON download. The exported file was parsed and checked
+for the Jetson origin, meter units, source labels and nonempty position histories.
+The isolated fixture was stopped afterward; the normal local demo has no invented
+live tracks. Live rover localization and measured boot-frame alignments still
+require hardware setup. JavaScript syntax, Python compilation and diff checks pass.

@@ -1,16 +1,24 @@
 <!doctype html>
 <html lang="en">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>T15 · Control</title><link rel="stylesheet" href="/style.css"><script src="/app.js" defer></script><script src="/media.js" defer></script></head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>T15 · Control</title><link rel="stylesheet" href="/style.css"><script src="/app.js" defer></script><script src="/media.js" defer></script><script src="/paths.js" defer></script></head>
 <body>
-<header class="topbar"><strong class="brand">T<span>15</span></strong><span id="connection" class="connection">Offline</span><span id="mode" class="tag">LOCAL</span><span class="top-spacer"></span><button id="focus-toggle" class="quiet" aria-pressed="false">Hide panels</button><button id="fullscreen" class="quiet">Fullscreen</button><button id="pause" disabled>Pause</button><button id="stop" disabled class="danger">Stop + land</button></header>
+<header class="topbar"><strong class="brand">T<span>15</span></strong><span id="connection" class="connection">Offline</span><span id="mode" class="tag">LOCAL</span><div class="view-switch" aria-label="Workspace view"><button id="view-camera" aria-pressed="true">Camera</button><button id="view-paths" aria-pressed="false">Paths</button></div><span class="top-spacer"></span><button id="focus-toggle" class="quiet" aria-pressed="false">Hide panels</button><button id="fullscreen" class="quiet">Fullscreen</button><button id="pause" disabled>Pause</button><button id="stop" disabled class="danger">Stop + land</button></header>
 <main id="workspace">
-  <section class="camera-stage" aria-label="Rover camera">
+  <section id="camera-stage" class="camera-stage" aria-label="Rover camera">
     <img id="camera-frame" alt="Live rover Pi camera" hidden>
     <video id="playback" controls playsinline hidden></video>
     <div id="camera-empty"><svg viewBox="0 0 64 48" width="48" height="36" aria-hidden="true"><rect x="3" y="9" width="42" height="32" rx="6"/><path d="m45 20 15-8v30l-15-8M15 9l4-6h13l4 6"/><circle cx="24" cy="25" r="9"/></svg><span id="camera-status">Pi camera offline</span></div>
     <div class="camera-label"><span id="camera-indicator" class="dot"></span><span id="camera-source">ROVER / PI CAMERA</span><span id="recording-indicator" hidden>● REC</span></div>
     <div id="detections" class="detections"></div>
     <div class="camera-tools"><button id="live-view" hidden>Back to live</button><button id="camera-record" disabled>Record camera</button><button id="open-video">Open video</button><input id="video-file" type="file" accept="video/*" hidden></div>
+  </section>
+  <section id="paths-stage" class="paths-stage panel" aria-label="Vehicle paths" hidden>
+    <div class="section-head"><h2>Jetson origin</h2><button id="export-paths" disabled>Save paths</button></div>
+    <div class="path-legend"><span class="drone-key">● Drone</span><span class="rover-key">◆ Rover</span><span>▣ Jetson · 0, 0, 0 m</span></div>
+    <div id="xy-map" class="xy-map"></div>
+    <div id="track-status" class="track-status"></div>
+    <div class="path-charts"><section><h3>Altitude · m</h3><div id="altitude-chart"></div></section><section><h3>Distance from Jetson · m</h3><div id="distance-chart"></div></section></div>
+    <details class="frame-setup"><summary>Align boot frames</summary><p class="muted">Boot origin relative to Jetson. +X forward · +Y left · +Z up.</p><form id="frame-form"><div class="frame-fields"><label>Device<select id="frame-node"><option value="crazyflie">Drone</option><option value="rover">Rover</option></select></label><label>X · m<input id="frame-x" type="number" step="any" min="-10000" max="10000" value="0" required></label><label>Y · m<input id="frame-y" type="number" step="any" min="-10000" max="10000" value="0" required></label><label>Z · m<input id="frame-z" type="number" step="any" min="-10000" max="10000" value="0" required></label><label>Yaw · °<input id="frame-yaw" type="number" step="any" min="-360" max="360" value="0" required></label></div><button id="apply-frame" class="primary full" disabled>Apply alignment</button></form></details>
   </section>
   <aside class="rail left-rail" aria-label="Robot controls">
     <section id="login" class="panel"><form id="login-form"><label for="token">Operator token</label><input id="token" type="password" autocomplete="off" placeholder="Token" required><button class="primary full" type="submit">Connect</button></form></section>

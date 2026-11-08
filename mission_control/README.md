@@ -75,6 +75,46 @@ its lease; closing it, losing Wi-Fi, or suspending the laptop expires the lease.
 The UI has no continuous-motion button: each rover approval is one bounded
 250 ms motor pulse. Drone moves are absolute boot-frame coordinates in meters.
 
+## Paths relative to the Jetson
+
+Select **Paths** beside Camera for an equal-scale XY trail map, altitude graph,
+and distance-from-origin graph for both vehicles. The Jetson is the fixed mission
+origin `(0,0,0)` with +X forward, +Y left and +Z up, in meters. Its orientation is
+defined at mission setup; this is not automatic tracking of a moving Jetson.
+Colors distinguish drone (orange) and rover (olive/dashed). Hollow markers are
+last-known positions; unavailable or unaligned positions are not invented.
+**Save paths** exports source-labeled histories as JSON. Up to 600 samples per
+vehicle are kept in coordinator memory, sampled at most five times per second.
+Gaps greater than two seconds break trails instead of joining across missing data.
+
+The drone's estimator reports in its boot frame. While paused, take operator
+control, open **Align boot frames**, and enter the measured drone boot origin
+XYZ and heading relative to the Jetson. Yaw is counterclockwise toward +Y.
+Apply alignment to start a new trail. This affects plots only; flight commands
+still use the drone boot frame. Rebooting a robot invalidates its boot alignment.
+Alignment is memory-only and must be repeated after coordinator restart.
+
+The RoverC motor protocol supplies no odometry. For a live rover trail, feed a
+real localization source (for example external tracking or odometry) to the rover
+agent with `--pose-file /tmp/rover-pose.json`. Atomically replace that file with:
+
+```json
+{"position_m":[0.4,-0.2,0.0],"frame":"jetson","sampled_at":1794096000.0}
+```
+
+`sampled_at` must be the actual Unix timestamp for the measurement, no older than
+two seconds; the value above is only a schema example. `frame` can be `jetson`
+(already aligned, so no second transform) or `boot` (requires alignment). The
+pose file is bounded to 4096 bytes. A missing, stale or malformed optional pose
+file hides tracking data without changing motor-control readiness. It can also
+be used on the drone agent with an external localization source.
+
+Without localization, live rover status is **No position**. Live drone status is
+**Needs alignment** until its frame is configured. Simulated vehicle poses are
+explicitly labeled **SIMULATED**. Simulated rover pulses use a simple 5 cm step
+at power 20 and 15° turns, solely to exercise the graphs; these are not calibrated
+motor distances or real odometry. Commands/approvals never create live positions.
+
 ## Physical network
 
 ```text
@@ -278,6 +318,8 @@ only the operator token can read state or invoke operator operations.
 | Endpoint | Request / result |
 | --- | --- |
 | `GET /api/state` | Node health, telemetry, command queue, recent events |
+| `GET /api/tracks` | Jetson-frame path histories, alignment and source/freshness status |
+| `POST /api/frame` | `{session,node,translation_m:[x,y,z],yaw_deg}`; paused operator only |
 | `GET /api/camera/frame` | Authenticated latest JPEG; 503 when absent/stale |
 | `GET /api/bluetooth` | Read-only discovery + verifier snapshots |
 | `POST /api/claim` | `{}` → random control `session` |
