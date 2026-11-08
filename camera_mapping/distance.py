@@ -176,16 +176,17 @@ def fuse(results: List[MethodResult]) -> tuple:
     if len(ok) == 1:
         r = ok[0]
         return r.distance_m, r.sigma_m, r.lateral_m, r.method, None
-    a, b = ok[0], ok[1]
-    gap = abs(a.distance_m - b.distance_m)
-    if gap > 2.0 * math.hypot(a.sigma_m, b.sigma_m):
-        return None, None, None, None, f"INCONSISTENT_METHODS ({a.method} {a.distance_m:.2f} m vs {b.method} {b.distance_m:.2f} m)"
-    wa, wb = 1 / a.sigma_m ** 2, 1 / b.sigma_m ** 2
-    d = (wa * a.distance_m + wb * b.distance_m) / (wa + wb)
-    lats = [(w, r.lateral_m / r.distance_m) for w, r in ((wa, a), (wb, b)) if r.lateral_m is not None]
+    for i, a in enumerate(ok):                     # every pair must agree within 2 sigma
+        for b in ok[i + 1:]:
+            if abs(a.distance_m - b.distance_m) > 2.0 * math.hypot(a.sigma_m, b.sigma_m):
+                return None, None, None, None, (f"INCONSISTENT_METHODS ({a.method} {a.distance_m:.2f} m vs "
+                                                f"{b.method} {b.distance_m:.2f} m)")
+    ws = [1 / r.sigma_m ** 2 for r in ok]
+    d = sum(w * r.distance_m for w, r in zip(ws, ok)) / sum(ws)
+    lats = [(w, r.lateral_m / r.distance_m) for w, r in zip(ws, ok) if r.lateral_m is not None]
     # lateral offset scales with range along the same bearing
     lat = d * sum(w * q for w, q in lats) / sum(w for w, _ in lats) if lats else 0.0
-    return d, math.sqrt(1 / (wa + wb)), lat, f"FUSED({a.method}+{b.method})", None
+    return d, math.sqrt(1 / sum(ws)), lat, "FUSED(" + "+".join(r.method for r in ok) + ")", None
 
 
 def estimate(det: ObjectDetection, cfg: PerceptionConfig, others: Sequence[Sequence[float]] = (),

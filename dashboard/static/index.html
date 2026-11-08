@@ -548,14 +548,18 @@ function drawPanelB(v) {
 }
 function drawPanelC(v, adv) {
   const a = v.assessment || {}, persons = (v.persons || []).filter(p => p.validity !== "TENTATIVE");
+  // advice is shown only if it was built from the current, fresh scene
+  const outdated = adv && (!v.fresh || v.t == null || adv.state_t == null || Math.abs(v.t - adv.state_t) > 5);
+  if (outdated) adv = null;
   const det = (adv && adv.deterministic) || {};
   const q = adv && adv.qwen;
   const ev = ((adv && adv.evidence) || []).map(e => `<li>[${esc(e.id)} · ${e.t ? new Date(e.t * 1000).toLocaleTimeString() : "—"} · ${esc(e.source)}] ${esc(e.text)}</li>`).join("");
   document.getElementById("pc").innerHTML = `
-    <div>${persons.length ? `<span class="badge warn">⚠ Potential person detected (${persons.length}) · UNCONFIRMED</span>` : '<span class="badge neutral">No person in view</span>'}</div>
+    <div>${persons.length ? `<span class="badge warn">⚠ Potential person ${v.fresh ? "detected" : "LAST SEEN (data stale)"} (${persons.length}) · UNCONFIRMED</span>` : '<span class="badge neutral">No person in view</span>'}</div>
     <div style="margin-top:8px">Obstacle assessment: <span class="status-big st-${esc(a.status)}" id="pc-status">${esc(a.status || "UNKNOWN")}</span></div>
     <ul class="evid">${(a.reasons || []).map(r => `<li>${esc(r)}</li>`).join("")}</ul>
-    <div style="margin-top:8px"><b>Proposed action:</b> ${esc(det.recommended_action || "Hold position; waiting for evidence.")}</div>
+    <div style="margin-top:8px"><b>Proposed action:</b> ${esc(det.recommended_action || "Hold position; waiting for current evidence.")}</div>
+    ${outdated ? '<div class="note"><b>Advisory hidden: it refers to an older scene than the one shown.</b></div>' : ""}
     <div class="qwen" id="pc-qwen"><b>${q ? "Qwen (guarded, RAG) — advisory, no authority" : "Deterministic summary"}</b>
 ${esc(q ? (q.explanation || "") : (det.summary || "—"))}${q && q.recommended_action ? `\nQwen recommended action: ${esc(q.recommended_action)}` : ""}${q && q.suggested_next_observation ? `\nNext observation: ${esc(q.suggested_next_observation)}` : ""}</div>
     <div class="note">Qwen status: ${esc(adv ? adv.qwen_status : "no advisory yet")}${adv && adv.age_s != null ? ` · advisory age ${adv.age_s} s` : ""}${q && q.source_references && q.source_references.length ? ` · cites ${esc(q.source_references.join(", "))}` : ""}. Qwen never sends motor commands.</div>
@@ -580,11 +584,29 @@ async function pollPerception() {
     const r = await fetch("/api/perception", { cache: "no-store" });
     if (r.ok) { pState = await r.json(); pAt = performance.now(); }
   } catch (e) {}
-  if (pState && pState.schema) { drawPanelA(pState); drawPanelB(pState); drawPanelC(pState, pAdv); }
+  if (pState && pState.schema) {
+    const v = clientStale(pState);
+    drawPanelA(v); drawPanelB(v); drawPanelC(v, pAdv);
+  }
+}
+// If /api/perception stops answering, never keep showing the last status as current.
+function clientStale(st) {
+  const late = (performance.now() - pAt) / 1000 > P_STALE_S;
+  if (!late) return st;
+  const m = st.map ? Object.assign({}, st.map, { rows: (st.map.rows || []).map(r => "U".repeat(r.length)), footprints: [] }) : st.map;
+  return Object.assign({}, st, { fresh: false, status: "STALE", map: m,
+    assessment: { status: "UNKNOWN", reasons: ["no answer from /api/perception: dashboard data not current"] },
+    route: { status: "STALE_NOT_USABLE", waypoints: [] } });
 }
 async function pollPerceptionSlow() {
   try { const r = await fetch("/api/perception/advisory", { cache: "no-store" }); if (r.ok) { const a = await r.json(); pAdv = a.status === "NO_ADVISORY" ? null : a; } } catch (e) {}
-  try { const r = await fetch("/api/perception/health", { cache: "no-store" }); if (r.ok) drawPanelD(await r.json()); } catch (e) {}
+  try {
+    const r = await fetch("/api/perception/health", { cache: "no-store" });
+    if (!r.ok) throw new Error(r.status);
+    drawPanelD(await r.json());
+  } catch (e) {
+    document.getElementById("pd").innerHTML = '<span class="badge bad">DASHBOARD UNREACHABLE</span> <span class="note">health unknown; all statuses UNKNOWN</span>';
+  }
 }
 pollPerception(); setInterval(pollPerception, 400);
 pollPerceptionSlow(); setInterval(pollPerceptionSlow, 1500);

@@ -61,6 +61,8 @@ When two methods agree within 2σ they are inverse-variance fused. When they dis
   - no route is suggested.
 - **A low rover camera (≈10–15 cm) cuts off standing people's heads** within several metres. The known-height method then refuses, and the feet (ground plane) are the only distance cue for people.
 - The 48.8° FOV sees little beside the robot near the front. Most detours therefore read "through unobserved space".
+- **No robot-motion input.** The demo robot is stationary. `PerceptionPipeline.process(robot_moving=True)` clears the map and the track histories, but `live.py` has no odometry/motion feed yet. Do not run this while the robot drives.
+- With the narrow FOV, an observed-free (solid) detour exists only when the obstacle is off-centre and roughly ≥ 1.2 m away. A centred, near obstacle honestly yields a dashed "observe first" route.
 - The detector covers only COCO classes. Scores are not calibrated probabilities.
 - Qwen is explanation text only. Its output never reaches the map, the assessment or the rover. Motor-command patterns are discarded.
 

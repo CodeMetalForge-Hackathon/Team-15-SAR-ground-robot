@@ -67,7 +67,36 @@ The advisory is asynchronous and never blocks the perception loop.
 
 **LoRA adapter:** the mission adapter (`ckpt-0088`) is not served by `rescue_qwen.service`. That service only has Ollama/OpenAI backends, and the adapter needs the HF/PEFT backend. The Qwen workstream's own readiness report says the adapter must not be used for LiDAR, delivery or motion advice. The demo therefore uses the **base Qwen3.5-2B + RAG + guard**.
 
-## 7. Automated tests
+## 7. Full stack together: resource check (2026-11-08 06:42–06:50 ET, replay of a recorded Pi frame)
+
+The dashboard, the camera runner (Faster R-CNN + Depth-Anything metric every 3rd frame) and the Qwen RAG advisory (Ollama, called about every 8–10 s) all ran at once on the M4 Pro for about 85 s.
+
+| | Value |
+|---|---|
+| Detector latency (n=168) | median 188 ms, P90 227 ms; max 491 ms during Qwen bursts |
+| Mono depth (n=56) | median 126 ms, max 180 ms |
+| Qwen advisory while the detector runs | 5.2–5.7 s, all `QWEN_GUARDED` |
+| Resident memory | runner 1.3 GB, Ollama Qwen 3.3 GB, dashboard < 0.1 GB; system 62 % free |
+| Camera loss | the dashboard shows STALE → UNKNOWN within 2 s, the map is all UNKNOWN and the route is unusable; `scripts/camera_demo.sh` restarted the runner in about 10 s |
+
+There is no resource conflict: Qwen inference on Metal slows the detector by at most about 2× for single frames, and only during generation.
+
+The live Pi path was verified earlier (§3). The Pi dropped off Tailscale at 06:38, so the full stack was re-verified with RECORDED frames.
+
+## 8. Independent review fixes (before merge)
+
+A separate reviewer found these issues; each was fixed and has a regression test:
+
+- **Stale distance after a close approach.** A tracked obstacle that later fills the frame bottom kept its old, farther median distance and could read CLEAR. Now range counts as known only while the current estimate is valid, and the bottom-cut upper bound means BLOCKED.
+- **FREE persisting behind obstacles.** FREE cells behind a new obstacle, or inside an unknown-range wedge, survived up to 1.5 s. They now become UNKNOWN in the same frame.
+- **Stale map still drawn.** Stale views still drew FREE/OCCUPIED cells. The server now blanks them, and the browser also degrades to UNKNOWN when polling fails. Outdated advisories are hidden.
+- **SUPPORTED routes never possible.** Footprint inflation over-covered the unobservable start band.
+- **Advisor thread could die silently.** It now catches errors and type-checks the guard.
+- **Only two methods fused.** All methods are now fused, with pairwise consistency checks.
+- **Lens setback ignored.** It now shifts the lookahead and stop distance to the robot front.
+- **Frame posts could stall the loop.** Posts now time out after 1 s.
+
+## 9. Automated tests
 
 `python3 -B -m pytest -q` passes in full (counts in the PR description). The camera_mapping suites cover:
 

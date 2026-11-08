@@ -301,3 +301,82 @@ def test_corridor_position_matches_assessment_for_unknown_range():
     st = run(PerceptionPipeline(c, source_mode="SYNTHETIC"), 0, 3, lambda k: [tv])
     in_reason = any("in corridor bearing" in r for r in st["assessment"]["reasons"])
     assert in_reason == (st["objects"][0]["corridor_position"] == "IN_CORRIDOR_BEARING")
+
+
+# ---- review regressions (PR #16 review) -------------------------------------------------------
+def test_tracked_obstacle_cut_by_frame_bottom_is_never_clear():
+    c = cfg()
+    c.lookahead_m, c.stop_distance_m = 0.6, 0.3
+    p = PerceptionPipeline(c, source_mode="SYNTHETIC")
+    far = floor_box(c, "chair", 1.5)
+    run(p, 0, 4, lambda k: [far])
+    x, y, w, h = far.bbox
+    near = ObjectDetection("chair", [x - 100, 300, w + 200, 720 - 300], 0.9)   # now fills the bottom
+    st = run(p, 1.0, 3, lambda k: [near])
+    near_rec = [o for o in st["objects"] if o["bbox"][1] + o["bbox"][3] >= 716]
+    assert near_rec and near_rec[0]["distance"]["status"] == "UNKNOWN"
+    assert near_rec[0]["distance"]["upper_bound_m"] is not None
+    assert st["assessment"]["status"] == BLOCKED
+    assert p.map.state[p.map.cell(0.45, 0.0)] != FREE
+
+
+def test_space_behind_new_obstacle_loses_old_free_immediately():
+    c = cfg()
+    p = PerceptionPipeline(c, source_mode="SYNTHETIC")
+    run(p, 0, 3, lambda k: [])                                   # all FREE before
+    st = p.process(1.0, [floor_box(c, "chair", 1.0)])            # first, tentative frame
+    assert st["assessment"]["status"] != CLEAR
+    st = run(p, 1.2, 3, lambda k: [floor_box(c, "chair", 1.0)])  # confirmed
+    lm = p.map
+    fp = lm.footprints[0]
+    behind = (lm.B >= fp.bearing_lo) & (lm.B <= fp.bearing_hi) & (lm.X > fp.x_far)
+    assert behind.any() and not (lm.state[behind] == FREE).any()
+
+
+def test_stale_view_draws_no_free_or_occupied_cells():
+    c = cfg()
+    st = run(PerceptionPipeline(c, source_mode="LIVE-HW"), 0, 3, lambda k: [floor_box(c, "chair", 1.2)])
+    st["rx_time"] = 0.0
+    v = stale_view(st, 10.0)
+    assert all(set(r) == {"U"} for r in v["map"]["rows"]) and v["map"]["footprints"] == []
+
+
+def test_supported_route_found_around_side_obstacle():
+    c = cfg()
+    p = PerceptionPipeline(c, source_mode="SYNTHETIC")
+    st = run(p, 0, 3, lambda k: [floor_box(c, "chair", 1.5, y_m=0.3, w_m=0.4)])
+    assert st["assessment"]["status"] == BLOCKED
+    rt = st["route"]
+    assert rt["mode"] == "SUPPORTED" and rt["status"] == "ALTERNATE_ROUTE_OBSERVED_FREE", rt
+    assert rt["through_unknown_cells"] == 0 and rt["side"] == "RIGHT"
+    for x, y in rt["waypoints"]:
+        assert p.map.state[p.map.cell(x, y)] != OCCUPIED
+
+
+def test_motion_reset_clears_track_histories():
+    c = cfg()
+    p = PerceptionPipeline(c, source_mode="SYNTHETIC")
+    run(p, 0, 3, lambda k: [floor_box(c, "chair", 1.2)])
+    p.process(1.0, [], robot_moving=True)
+    assert all(not t.history for t in p.tracker.tracks.values())
+
+
+def test_three_methods_fuse_only_if_all_agree():
+    from camera_mapping.distance import MethodResult, fuse
+    a = MethodResult("A", ESTIMATED, 2.0, 0.2, 0.0)
+    b = MethodResult("B", ESTIMATED, 2.1, 0.2, 0.0)
+    good = MethodResult("C", ESTIMATED, 2.05, 0.3, None)
+    bad = MethodResult("C", ESTIMATED, 4.0, 0.3, None)
+    assert fuse([a, b, good])[3] == "FUSED(A+B+C)"
+    assert fuse([a, b, bad])[0] is None
+
+
+def test_setback_extends_corridor_from_robot_front():
+    c = cfg()
+    c.mount.setback_m = 0.0
+    c.stop_distance_m, c.lookahead_m = 0.0, 0.5
+    st = run(PerceptionPipeline(c, source_mode="SYNTHETIC"), 0, 3, lambda k: [floor_box(c, "chair", 1.6)])
+    assert st["assessment"]["status"] != BLOCKED
+    c.mount.setback_m = 1.2           # lens far behind the front: same chair is now within lookahead
+    st = run(PerceptionPipeline(c, source_mode="SYNTHETIC"), 0, 3, lambda k: [floor_box(c, "chair", 1.6)])
+    assert st["assessment"]["status"] == BLOCKED

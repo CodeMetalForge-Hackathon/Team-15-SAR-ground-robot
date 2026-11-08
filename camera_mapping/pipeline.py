@@ -57,6 +57,8 @@ class PerceptionPipeline:
             self.cfg.camera = self.cfg.camera.scaled(int(frame_size[0]), int(frame_size[1]))
         if robot_moving:
             self.map.reset()                       # no pose: never shift into a guessed frame
+            for tr in self.tracker.tracks.values():
+                tr.history, tr.pending_jump = [], []
         ests = estimate_all(dets, self.cfg, depth)
         tracks = self.tracker.update(t, dets, ests)
         self.map.update(t, tracks)
@@ -146,6 +148,12 @@ def stale_view(state: Optional[dict], now: float, stale_after_s: float = 2.0) ->
                                  reasons=[f"perception data stale ({age:.1f} s old)"] +
                                  list((state.get("assessment") or {}).get("reasons") or []))
         out["route"] = dict(state.get("route") or {}, status="STALE_NOT_USABLE", waypoints=[])
+        m = dict(state.get("map") or {})
+        if m.get("rows"):                          # nothing stale is drawn as FREE or OCCUPIED
+            m["rows"] = ["U" * len(r) for r in m["rows"]]
+            m["footprints"] = []
+            m["stale"] = True
+        out["map"] = m
     else:
         out["status"] = "LIVE" if state.get("source_mode") == "LIVE-HW" else state.get("source_mode")
     return out

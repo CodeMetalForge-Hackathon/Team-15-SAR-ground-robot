@@ -109,10 +109,13 @@ class Advisor(threading.Thread):
             if st is None:
                 continue
             self.last_run = time.time()
-            adv = advise(st, self.qwen)
-            adv["qwen_url"] = self.qwen_url
-            if self.dashboard:
-                post(self.dashboard + "/api/perception/advisory", adv, timeout=3.0)
+            try:
+                adv = advise(st, self.qwen)
+                adv["qwen_url"] = self.qwen_url
+                if self.dashboard:
+                    post(self.dashboard + "/api/perception/advisory", adv, timeout=3.0)
+            except Exception as e:  # noqa: BLE001 - the advisor must never die silently
+                _log(f"advisor error {type(e).__name__}: {e}")
 
 
 class ReplaySource:
@@ -258,7 +261,7 @@ def main(argv=None) -> int:
             st["latency_ms"]["annotate_ms"] = round((time.perf_counter() - t1) * 1000, 1)
             st["latency_ms"]["total_ms"] = round((time.time() - rx) * 1000 + st["latency_ms"]["capture_to_rx_ms"], 1)
             body = {"state": st, "jpeg_b64": base64.b64encode(jpg.tobytes()).decode() if okj else None}
-            post(a.dashboard + "/api/perception/frame", body)
+            post(a.dashboard + "/api/perception/frame", body, timeout=1.0)
             advisor.offer(st)
             if jl:
                 jl.write(json.dumps(st) + "\n")

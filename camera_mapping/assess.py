@@ -45,7 +45,9 @@ def near_bearing_rad(lm: LocalMap, cfg: PerceptionConfig) -> float:
 
 def assess(lm: LocalMap, tracks, cfg: PerceptionConfig) -> dict:
     half = corridor_half(cfg)
-    look, stop = cfg.lookahead_m, cfg.stop_distance_m
+    # lookahead / stop distance are from the robot's FRONT; map x is from the lens (behind it by setback)
+    sb = max(0.0, cfg.mount.setback_m or 0.0)
+    look, stop = cfg.lookahead_m + sb, cfg.stop_distance_m + sb
     reasons, blocking = [], []
     status = None
 
@@ -104,7 +106,8 @@ def assess(lm: LocalMap, tracks, cfg: PerceptionConfig) -> dict:
         reasons.append("no detected obstacle in the observed corridor")
     return {
         "status": status, "reasons": reasons, "blocking_track_ids": sorted(set(blocking)),
-        "corridor": {"half_width_m": round(half, 3), "lookahead_m": look, "stop_distance_m": stop,
+        "corridor": {"half_width_m": round(half, 3), "lookahead_m": round(look, 3), "stop_distance_m": round(stop, 3),
+                     "measured_from": "lens (lookahead/stop from robot front + setback %.3f m)" % sb,
                      "robot_width_m": cfg.robot_width_m, "robot_width_measured": cfg.robot_width_measured,
                      "blind_zone_m": None if blind is None else round(blind, 3), "coverage_free": coverage},
         "scope": "detector classes only; camera estimate; advisory - never a motion permission",
@@ -189,7 +192,9 @@ def suggest_route(lm: LocalMap, cfg: PerceptionConfig, assessment: dict,
     start = lm.cell(lm.res / 2, 0.0)
     blind_corr = (lm.X < blind) & (np.abs(lm.Y) <= half)
     # SUPPORTED: the whole robot footprint (half-width) must lie on FREE cells
-    not_free = _inflate((lm.state != FREE) & ~blind_corr, inflate)
+    # the blind band is never observable; it must not inflate over the start region
+    # footprint check: centre cell +/- floor(half/res) cells spans exactly 2*half laterally
+    not_free = _inflate((lm.state != FREE) & ~(lm.X < blind), int(math.floor(half / lm.res + 1e-9)))
     for mode, unknown_cost in (("SUPPORTED", math.inf), ("NEEDS_OBSERVATION", 25.0)):
         cost = np.full(lm.state.shape, math.inf)
         cost[lm.state == FREE] = 1.0

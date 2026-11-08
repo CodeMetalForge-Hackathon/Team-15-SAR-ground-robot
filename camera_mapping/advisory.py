@@ -138,7 +138,7 @@ def advise(state: dict, qwen: Optional[Callable[[dict], dict]] = None, question:
             "suggested_next_observation", "uncertainty", "hazards", "missing_evidence", "config", "model_id",
             "inference_latency_ms", "guard", "evidence_freshness")
     out["qwen"] = {k: rec.get(k) for k in keep}
-    g = rec.get("guard") or {}
+    g = rec.get("guard") if isinstance(rec.get("guard"), dict) else {}
     out["qwen_status"] = "QWEN_FELL_BACK_TO_DETERMINISTIC" if g.get("fell_back_to_deterministic") else (
         "DETERMINISTIC_SERVICE" if rec.get("config") == "A_DETERMINISTIC" else "QWEN_GUARDED")
     return out

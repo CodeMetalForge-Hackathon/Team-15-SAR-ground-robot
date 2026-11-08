@@ -86,6 +86,7 @@ class LocalMap:
         return G.nearest_visible_floor(self.cfg.camera, m.height_m, m.pitch_deg)
 
     def reset(self) -> None:
+        """Clear everything (robot moved without a pose). The pipeline also clears track histories."""
         self.state[:] = UNKNOWN
         self.last_obs[:] = -np.inf
         self.footprints = []
@@ -99,7 +100,10 @@ class LocalMap:
         b2 = G.bearing_rad(cam, x + w)
         lo, hi = min(b1, b2), max(b1, b2)
         f = tr.filtered()
-        if f is None:
+        # Range counts as known only while the CURRENT estimate is valid: an object that is now cut
+        # by the frame bottom (or otherwise UNKNOWN) must not keep its old, farther median.
+        current_ok = tr.estimate is not None and tr.estimate.status == ESTIMATED
+        if f is None or not current_ok:
             return Footprint(tr.track_id, tr.label, math.nan, math.nan, 0, 0, 0, math.inf, lo, hi, False)
         d, s, lat = f
         half_w = max(MIN_HALF_WIDTH_M, d * (w / cam.fx) / 2.0)
@@ -116,25 +120,27 @@ class LocalMap:
         else:
             observed &= (self.X >= blind) & (self.R <= self.free_max_m)
         self.footprints = []
+        masked = np.zeros_like(observed)            # cells that must not be FREE this frame
         occ = np.zeros_like(observed)
         sig = np.zeros(self.state.shape, dtype=np.float32)
         for tr in tracks:
             fp = self.footprint(tr)
             wedge = (self.B >= fp.bearing_lo) & (self.B <= fp.bearing_hi)
             if tr.state == "TENTATIVE":
-                observed &= ~wedge                  # unconfirmed: never call its wedge FREE
+                masked |= wedge                     # unconfirmed: never call its wedge FREE
                 continue
             self.footprints.append(fp)
-            if not fp.range_known or (tr.estimate is not None and tr.estimate.status != ESTIMATED
-                                      and not tr.history):
-                observed &= ~wedge                  # something there, range unknown
+            if not fp.range_known:
+                masked |= wedge                     # something there, range unknown
                 continue
             m = ((self.X >= fp.x_near) & (self.X <= fp.x_far) &
                  (np.abs(self.Y - fp.y) <= fp.half_w + 2 * fp.sigma * max(0.2, abs(fp.y) / max(fp.x, 0.1))))
             occ |= m
             sig = np.where(m, np.maximum(sig, fp.sigma), sig)
-            observed &= ~(wedge & (self.X >= fp.x_near))   # shadow behind the face
+            masked |= wedge & (self.X >= fp.x_near)        # shadow behind the face
+        observed &= ~masked
         self.last_obs[observed] = t
+        self.last_obs[masked] = -np.inf             # earlier FREE does not survive behind/inside a detection
         self.state[:] = UNKNOWN
         self.state[(t - self.last_obs) <= self.free_ttl_s] = FREE
         self.state[occ] = OCCUPIED
