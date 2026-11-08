@@ -96,16 +96,27 @@ def build(start: str = "A", obstacles: Optional[list[SimObstacle]] = None, *, gr
     g = graph or load_graph()
     world = SimWorld(g, start, obstacles=obstacles, config=SimConfig(), side_clearance=side_clearance)
     world.heading_feedback = heading_feedback
+    return build_for_world(world, g, auto_approve=auto_approve, approve_motion=approve_motion, limits=limits,
+                           no_echo_policy=no_echo_policy, **nav_kw)
+
+
+def build_for_world(world: SimWorld, nav_graph: TrailGraph, *, nav_cls: type = Navigator, auto_approve: bool = True,
+                    approve_motion: bool = True, limits: MotionLimits = MotionLimits(),
+                    no_echo_policy: NoEchoPolicy = NoEchoPolicy.CLEAR_TO_MAX, **nav_kw) -> Sim:
+    """Wire a SimDriver, e-stop, supervisor, observation log and a Navigator (or subclass) to an existing
+    SimWorld. SIMULATION ONLY: the driver is always SimDriver (physical=False), so the Navigator's
+    simulation-only auto-approval is allowed. ``nav_graph`` may differ from the world's graph (e.g. a
+    knowledge graph holding only corridors observed clear)."""
     driver = SimDriver()
     estop = EmergencyStop()
     sup = SafetySupervisor(driver, lambda: world.t, limits, estop)
     log = ObservationLog(lambda: world.t)
     cfg = NavConfig(robot_width_m=SIM_ROBOT_WIDTH_M, auto_approve=auto_approve,
                     no_echo_policy=no_echo_policy, **nav_kw)
-    nav = Navigator(g, SimIO(world), sup, log, cfg, mode="SIMULATION")
+    nav = nav_cls(nav_graph, SimIO(world), sup, log, cfg, mode="SIMULATION")
     if approve_motion:
         sup.approve_motion("sim-operator")
-    return Sim(g, world, driver, sup, log, nav, estop)
+    return Sim(nav_graph, world, driver, sup, log, nav, estop)
 
 
 # --- scenarios (synthetic distances, deterministic) ----------------------------------------
