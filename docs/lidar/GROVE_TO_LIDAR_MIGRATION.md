@@ -19,8 +19,15 @@ Grove (`ranging/`, `rover/` Grove adapter and their tests) is **untouched** by t
 * **R3:** `MotionLimits.sensor_max_age_s` stays 0.20 s. LiDAR age is measured from **capture start**.
 
 ### Dashboard owner (dashboard-integration-60)
-* **D1:** optional. Show LiDAR CLEAR/CAUTION as display-only text on the Forward obstacle range card, while still never showing "motion allowed". Today they show UNKNOWN because the compat snapshot never allows motion. That is safe.
-* **D2:** a LiDAR provenance rule for a future HARDWARE badge: `sensor_type == "RPLIDAR_C1"` and `source_mode == "HARDWARE_VERIFIED"` and a named calibration sign-off. Until then the badge is always SIMULATED. Fixtures stay SIMULATED whatever they claim.
+* **D1 (revised with the dashboard owner, 2026-11-08):** the card status stays UNKNOWN, following the user's rule that `forward_motion_allowed=false` must never read CLEAR. A separate greyed advisory line may show "LiDAR sector: clear (advisory, motion not authorised)".
+* **D2:** a LiDAR provenance rule for a future HARDWARE badge. It is exact, type-strict and live-only, and it requires:
+  * `sensor_type == "RPLIDAR_C1"`;
+  * `provenance.source_mode == "HARDWARE_VERIFIED"`;
+  * `provenance.driver == "rplidar-c1"`;
+  * `provenance.calibration_verified_by`, a non-blank str;
+  * `provenance.calibration_verified_at`, an ISO-8601 str with timezone.
+
+  These fields are emitted only after a Stage C sign-off. Until then the badge is always SIMULATED, and fixtures stay SIMULATED whatever they claim.
 * **D3:** an optional second card fed by `GET /api/lidar` (`team15.lidar_panel/1`), or embedding `lidar/static/lidar_panel.html`. It must not displace the camera evidence, UNCONFIRMED state, operator approve/reject or the A→G route.
 
 ### Qwen advisory owner (team-15-qwen)
