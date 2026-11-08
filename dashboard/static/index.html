@@ -81,6 +81,23 @@
   .range-card.greyed .range-value, .range-card.greyed .range-status { color: var(--muted); opacity: .6; }
   .range-card.greyed .range-value { text-decoration: line-through; text-decoration-thickness: 1px; }
   .qual { cursor: help; border-bottom: 1px dotted var(--muted); }
+
+  /* Camera perception panels (camera_mapping) */
+  .percep { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 16px;
+            padding: 0 16px 16px; max-width: 1280px; margin: 0 auto; }
+  @media (max-width: 820px) { .percep { grid-template-columns: 1fr; } }
+  .percep h2 .tag { font-weight: 700; color: var(--ink); margin-right: 6px; }
+  .cam img { width: 100%; height: auto; display: block; border-radius: 8px; background: var(--cell); }
+  .objtab { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 10px; }
+  .objtab th, .objtab td { text-align: left; padding: 4px 6px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  .objtab th { color: var(--muted); font-weight: 600; }
+  .unk { color: var(--warn); font-weight: 600; }
+  .status-big { font-size: 24px; font-weight: 800; letter-spacing: .02em; }
+  .st-CLEAR { color: var(--live); } .st-CAUTION { color: var(--warn); }
+  .st-BLOCKED { color: var(--sim); } .st-UNKNOWN { color: var(--muted); }
+  .qwen { white-space: pre-wrap; background: var(--cell); border-radius: 8px; padding: 10px; font-size: 14px; margin-top: 8px; }
+  .evid { font-size: 12px; color: var(--muted); margin: 6px 0 0; padding-left: 16px; }
+  .hgrid { display: grid; grid-template-columns: max-content 1fr; gap: 4px 12px; font-size: 14px; }
 </style>
 </head>
 <body>
@@ -124,6 +141,35 @@
     </section>
   </aside>
 </main>
+
+<div class="percep" id="percep">
+  <section class="panel cam" aria-labelledby="pa-h">
+    <h2 id="pa-h"><span class="tag">A</span>Live camera · detections &amp; estimated distances</h2>
+    <div id="pa-badges"></div>
+    <div id="pa-img"><span class="note">No camera perception yet. Start <code>python3 -B -m camera_mapping.live</code>.</span></div>
+    <div id="pa-objs"></div>
+    <div class="note">Distances are <b>camera estimates</b> (ground-plane / known-height geometry), never range-sensor readings. "UNKNOWN" means the geometry was insufficient.</div>
+  </section>
+  <section class="panel" aria-labelledby="pb-h">
+    <h2 id="pb-h"><span class="tag">B</span>Local map (robot-relative, top-down)</h2>
+    <svg id="pb-map" viewBox="-20 -10 440 430" role="img" aria-label="Robot-relative local obstacle map"></svg>
+    <div class="legend">
+      <span><span class="sw" style="background:#7fd18b"></span>free (no detected obstacle)</span>
+      <span><span class="sw" style="background:#e5534b"></span>occupied (estimate ±2σ)</span>
+      <span><span class="sw" style="background:var(--cell);border:1px solid var(--line)"></span>unknown</span>
+      <span><span class="sw" style="background:var(--route)"></span>suggested route (advisory)</span>
+    </div>
+    <div class="note" id="pb-note"></div>
+  </section>
+  <section class="panel" aria-labelledby="pc-h">
+    <h2 id="pc-h"><span class="tag">C</span>Rescue intelligence</h2>
+    <div id="pc"><span class="note">Waiting for perception…</span></div>
+  </section>
+  <section class="panel" aria-labelledby="pd-h">
+    <h2 id="pd-h"><span class="tag">D</span>System health</h2>
+    <div id="pd"><span class="note">Waiting for /api/perception/health…</span></div>
+  </section>
+</div>
 <script>
 "use strict";
 const CELL = 80, PAD = 10;
@@ -427,6 +473,121 @@ setInterval(poll, 500);
 setInterval(tick, 250);
 pollRange();
 setInterval(pollRange, 250);
+
+// ---- Camera perception panels A-D (camera_mapping). Display only; no motion controls. ----
+let pState = null, pAt = 0, pImgBusy = false;
+const P_STALE_S = 2.0;
+const fmtM = v => v == null ? "—" : `${Number(v).toFixed(2)} m`;
+function modeBadge(m) {
+  if (m === "LIVE-HW") return '<span class="badge live">🟩 LIVE CAMERA</span>';
+  if (m === "RECORDED") return '<span class="badge warn">RECORDED FRAMES</span>';
+  if (m === "SYNTHETIC") return '<span class="badge sim">🟥 SYNTHETIC</span>';
+  return '<span class="badge neutral">NO SOURCE</span>';
+}
+function distCell(o) {
+  const f = o.filtered_distance, d = o.distance || {};
+  if (!f) return `<span class="unk">UNKNOWN</span><br><span class="note">${esc(d.reason || "")}${d.upper_bound_m != null ? ` · nearer than ${fmtM(d.upper_bound_m)}` : ""}</span>`;
+  return `~${fmtM(f.distance_m)} ±${(2 * f.sigma_m).toFixed(2)} m<br><span class="note">${esc(d.method || o.distance_method || "filtered")} · ${esc(d.label || "")}</span>`;
+}
+function drawPanelA(v) {
+  const late = (performance.now() - pAt) / 1000 > P_STALE_S || !v.fresh;
+  document.getElementById("pa-badges").innerHTML = `${modeBadge(v.source_mode)}
+    <span class="badge neutral">${esc(v.calibration_status || "UNCALIBRATED")}</span>
+    ${late ? '<span class="badge bad">STALE</span>' : ""} <span class="note">t=${v.t ? new Date(v.t * 1000).toLocaleTimeString() : "—"}</span>`;
+  if (v.frame_available && !pImgBusy) {
+    pImgBusy = true;
+    const img = new Image();
+    img.onload = () => { const el = document.getElementById("pa-img"); el.innerHTML = ""; img.alt = "annotated camera frame"; el.appendChild(img); pImgBusy = false; };
+    img.onerror = () => { pImgBusy = false; };
+    img.src = "/api/perception/frame.jpg?t=" + Date.now();
+  }
+  const rows = (v.objects || []).map(o => `<tr><td>#${o.track_id}</td><td><b>${esc(o.object_class)}</b><br><span class="note">${esc(o.validity)}</span></td>
+    <td>${Number(o.detection_confidence).toFixed(2)}</td><td>${distCell(o)}</td><td>${esc(o.corridor_position)}</td></tr>`).join("");
+  document.getElementById("pa-objs").innerHTML = rows
+    ? `<table class="objtab"><tr><th>Track</th><th>Class</th><th>Score</th><th>Distance (estimate)</th><th>Corridor</th></tr>${rows}</table>`
+    : '<div class="note">No supported object detected in this frame.</div>';
+}
+function drawPanelB(v) {
+  const svg = document.getElementById("pb-map"), m = v.map;
+  if (!m) { svg.innerHTML = ""; return; }
+  const S = 100, W = m.y_half_m * 2 * S, H = m.x_max_m * S, r = m.res_m * S;
+  const X = y => (m.y_half_m - y) * S, Y = x => H - x * S;
+  let g = `<rect x="0" y="0" width="${W}" height="${H}" fill="var(--cell)"/>`;
+  m.rows.forEach((row, i) => { for (let j = 0; j < row.length; j++) {
+    const c = row[j]; if (c === "U") continue;
+    g += `<rect x="${j * r}" y="${H - (i + 1) * r}" width="${r + .3}" height="${r + .3}" fill="${c === "F" ? "#7fd18b" : "#e5534b"}" opacity="${c === "F" ? .55 : .85}"/>`; } });
+  for (const d of [0.5, 1, 1.5, 2, 3]) {
+    g += `<circle cx="${X(0)}" cy="${Y(0)}" r="${d * S}" fill="none" stroke="var(--trail)" stroke-dasharray="3 4" stroke-width="1"/>`;
+    g += `<text x="${X(0) + 4}" y="${Y(d) + 12}" font-size="11" fill="var(--muted)">${d} m</text>`;
+  }
+  const half = (m.hfov_deg / 2) * Math.PI / 180, L = m.x_max_m * 1.2;
+  g += `<path d="M${X(0)},${Y(0)} L${X(L * Math.tan(half))},${Y(L)} M${X(0)},${Y(0)} L${X(-L * Math.tan(half))},${Y(L)}" stroke="var(--route)" stroke-width="1" opacity=".6"/>`;
+  const a = v.assessment || {}, c = a.corridor || {};
+  if (c.half_width_m) g += `<rect x="${X(c.half_width_m)}" y="${Y(c.lookahead_m)}" width="${2 * c.half_width_m * S}" height="${c.lookahead_m * S}" fill="none" stroke="var(--ink)" stroke-dasharray="6 3" stroke-width="1.5"/>`;
+  if (m.blind_zone_m) g += `<text x="${X(0) + 6}" y="${Y(m.blind_zone_m / 2)}" font-size="10" fill="var(--muted)">blind ${m.blind_zone_m.toFixed(2)} m</text>`;
+  for (const f of m.footprints || []) {
+    if (f.range_known) {
+      g += `<ellipse cx="${X(f.y_m)}" cy="${Y(f.x_m)}" rx="${(f.half_w_m + f.sigma_m) * S}" ry="${2 * f.sigma_m * S + 4}" fill="none" stroke="#e5534b" stroke-dasharray="4 3"/>`;
+      g += `<text x="${X(f.y_m) + 6}" y="${Y(f.x_m) - 6}" font-size="12" font-weight="700" fill="var(--ink)">${esc(f.label)} #${f.track_id} ~${f.x_m.toFixed(2)} m</text>`;
+    } else {
+      const b = (f.bearing_deg[0] + f.bearing_deg[1]) / 2 * Math.PI / 180;
+      g += `<line x1="${X(0)}" y1="${Y(0)}" x2="${X(Math.sin(b) * 3.5)}" y2="${Y(Math.cos(b) * 3.5)}" stroke="var(--warn)" stroke-width="3" stroke-dasharray="2 4"/>`;
+      g += `<text x="${X(Math.sin(b) * 3.2) + 4}" y="${Y(Math.cos(b) * 3.2)}" font-size="11" fill="var(--warn)">${esc(f.label)} #${f.track_id}: range UNKNOWN</text>`;
+    }
+  }
+  const rt = v.route || {};
+  if (rt.waypoints && rt.waypoints.length > 1) {
+    const pts = rt.waypoints.map(p => `${X(p[1])},${Y(p[0])}`).join(" ");
+    g += `<polyline points="${pts}" fill="none" stroke="var(--route)" stroke-width="4" ${rt.mode === "SUPPORTED" || rt.mode === "DIRECT" ? "" : 'stroke-dasharray="8 6"'} opacity=".9"/>`;
+  }
+  g += `<rect x="${X(0) - 10}" y="${Y(0) - 6}" width="20" height="16" rx="3" fill="var(--resp)"/><text x="${X(0) + 14}" y="${Y(0) + 6}" font-size="11" fill="var(--ink)">robot (camera)</text>`;
+  svg.innerHTML = g;
+  document.getElementById("pb-note").innerHTML = `Robot-relative only (no SLAM, no global pose). ${esc(m.free_meaning)}.
+    ${m.free_space_enabled ? "" : "<b>Mount height/pitch unmeasured: free space disabled, the map shows only obstacles and UNKNOWN.</b>"}
+    Route: <b>${esc(rt.status || "—")}</b>${rt.side ? ` (${esc(rt.side)})` : ""} · advisory, not validated for driving.`;
+}
+function drawPanelC(v, adv) {
+  const a = v.assessment || {}, persons = (v.persons || []).filter(p => p.validity !== "TENTATIVE");
+  const det = (adv && adv.deterministic) || {};
+  const q = adv && adv.qwen;
+  const ev = ((adv && adv.evidence) || []).map(e => `<li>[${esc(e.id)} · ${e.t ? new Date(e.t * 1000).toLocaleTimeString() : "—"} · ${esc(e.source)}] ${esc(e.text)}</li>`).join("");
+  document.getElementById("pc").innerHTML = `
+    <div>${persons.length ? `<span class="badge warn">⚠ Potential person detected (${persons.length}) · UNCONFIRMED</span>` : '<span class="badge neutral">No person in view</span>'}</div>
+    <div style="margin-top:8px">Obstacle assessment: <span class="status-big st-${esc(a.status)}" id="pc-status">${esc(a.status || "UNKNOWN")}</span></div>
+    <ul class="evid">${(a.reasons || []).map(r => `<li>${esc(r)}</li>`).join("")}</ul>
+    <div style="margin-top:8px"><b>Proposed action:</b> ${esc(det.recommended_action || "Hold position; waiting for evidence.")}</div>
+    <div class="qwen" id="pc-qwen"><b>${q ? "Qwen (guarded, RAG) — advisory, no authority" : "Deterministic summary"}</b>
+${esc(q ? (q.explanation || "") : (det.summary || "—"))}${q && q.recommended_action ? `\nQwen recommended action: ${esc(q.recommended_action)}` : ""}${q && q.suggested_next_observation ? `\nNext observation: ${esc(q.suggested_next_observation)}` : ""}</div>
+    <div class="note">Qwen status: ${esc(adv ? adv.qwen_status : "no advisory yet")}${adv && adv.age_s != null ? ` · advisory age ${adv.age_s} s` : ""}${q && q.source_references && q.source_references.length ? ` · cites ${esc(q.source_references.join(", "))}` : ""}. Qwen never sends motor commands.</div>
+    ${q ? `<details><summary class="note">Deterministic summary</summary><div class="note">${esc(det.summary || "")}</div></details>` : ""}
+    <details><summary class="note">Evidence given to the advisor (timestamps)</summary><ul class="evid">${ev}</ul></details>`;
+}
+function drawPanelD(h) {
+  const lat = h.perception_latency_ms || {}, rv = h.rover || {};
+  const camCls = h.camera_status === "STREAMING" ? "ok" : "bad";
+  document.getElementById("pd").innerHTML = `<div class="hgrid">
+    <span>Camera</span><span><span class="badge ${camCls}">${esc(h.camera_status)}</span> ${modeBadge(h.source_mode)} ${esc((h.camera && (h.camera.source || h.camera.device)) || "")}${h.camera_error ? ` · ${esc(h.camera_error)}` : ""}</span>
+    <span>Perception latency</span><span>detector ${lat.detector_ms ?? "—"} ms · mapping ${lat.mapping_ms ?? "—"} ms${lat.depth_ms != null ? ` · depth ${lat.depth_ms} ms` : ""} · capture→rx ${lat.capture_to_rx_ms ?? "—"} ms</span>
+    <span>Map freshness</span><span>${h.map_age_s == null ? "no map" : `${h.map_age_s} s old`} ${h.map_fresh ? '<span class="badge ok">FRESH</span>' : '<span class="badge bad">STALE → UNKNOWN</span>'} · frames ${h.frames_received}</span>
+    <span>Calibration</span><span><span class="badge ${h.calibration_status === "CALIBRATED" ? "ok" : "warn"}">${esc(h.calibration_status)}</span> intrinsics ${esc(h.intrinsics_source || "—")} · mount ${h.mount_measured ? "measured" : "<b>UNMEASURED</b>"}</span>
+    <span>Rover controller</span><span><span class="badge ${rv.simulated === false ? "live" : "sim"}">${esc(rv.badge || rv.source || "NONE")}</span> ${esc(rv.status || "NOT_CONNECTED")} ${esc(rv.status_text || rv.note || "")}</span>
+    <span>Source labels</span><span>distances: ${esc(h.labels.distances)} · navigation: <b>${esc(h.labels.navigation)}</b> · detections: ${esc(h.labels.detections)}</span>
+  </div><div class="note">No motor control from this page. Camera navigation stays advisory/simulated until a separate safety review.</div>`;
+}
+let pAdv = null;
+async function pollPerception() {
+  try {
+    const r = await fetch("/api/perception", { cache: "no-store" });
+    if (r.ok) { pState = await r.json(); pAt = performance.now(); }
+  } catch (e) {}
+  if (pState && pState.schema) { drawPanelA(pState); drawPanelB(pState); drawPanelC(pState, pAdv); }
+}
+async function pollPerceptionSlow() {
+  try { const r = await fetch("/api/perception/advisory", { cache: "no-store" }); if (r.ok) { const a = await r.json(); pAdv = a.status === "NO_ADVISORY" ? null : a; } } catch (e) {}
+  try { const r = await fetch("/api/perception/health", { cache: "no-store" }); if (r.ok) drawPanelD(await r.json()); } catch (e) {}
+}
+pollPerception(); setInterval(pollPerception, 400);
+pollPerceptionSlow(); setInterval(pollPerceptionSlow, 1500);
 </script>
 </body>
 </html>
