@@ -52,24 +52,37 @@ class ScannerPort:
         flags = fcntl.fcntl(self.master, fcntl.F_GETFL)
         fcntl.fcntl(self.master, fcntl.F_SETFL, flags | os.O_NONBLOCK)
         self.path, self.dropped, self.lines = path, 0, 0
+        self.pending, self.wlock = b"", threading.Lock()   # unsent tail of a half-written line
         if os.path.islink(path) or os.path.exists(path):
             os.unlink(path)
         os.symlink(os.ttyname(self.slave), path)
 
+    def _write(self, data):
+        try:
+            return os.write(self.master, data)
+        except BlockingIOError:
+            return 0
+
     def write_line(self, line):
-        try:
-            waiting = struct.unpack("i", fcntl.ioctl(self.slave, termios.FIONREAD, b"\0" * 4))[0]
-            if waiting > 2048:                       # nobody is reading: don't keep stale lines
-                termios.tcflush(self.slave, termios.TCIFLUSH)
-            os.write(self.master, line.encode() + b"\n")
-            self.lines += 1
-        except OSError:
-            self.dropped += 1
-        try:
-            while os.read(self.master, 4096):        # the reader never writes; drain just in case
+        """Whole lines only: a line the pty can't take now is finished before any new line.
+        When nobody reads, the pty fills (about 1 KB on a Mac) and new lines are dropped."""
+        data = line.encode() + b"\n"
+        with self.wlock:
+            try:
+                if self.pending:
+                    self.pending = self.pending[self._write(self.pending):]
+                if self.pending:
+                    self.dropped += 1                     # still finishing the last line: skip this one
+                else:
+                    self.pending = data[self._write(data):]
+                    self.lines += 1
+            except OSError:
+                self.dropped += 1
+            try:
+                while os.read(self.master, 4096):         # the reader never writes; drain just in case
+                    pass
+            except OSError:
                 pass
-        except OSError:
-            pass
 
     def close(self):
         try:
