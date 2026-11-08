@@ -30,7 +30,7 @@ Run the tests with `pip install -r requirements.txt && pytest -q`.
 | Fine-tuning | LoRA (r 16, α 32), vision frozen, 15.63 M parameters. SFT on 689 synthetic mission records plus 7 public Co-GLANCE frames |
 | RAG | SQLite FTS5 over 47 verified documents with provenance and an injection quarantine |
 | Tool use | one read-only tool request per step, validated by a deterministic safety gate. Guard and deterministic fallback |
-| Result | **218/230** correct mission steps on a frozen simulated benchmark, **0** unsafe motion requests (base model: 0/230) |
+| Result | **218/230** correct mission steps on a frozen simulated benchmark, **0** unsafe motion requests (base model: 0/230). Measured with RAG context |
 | Limitations | synthetic, in-distribution benchmark; no hardware evaluation; 2 missed sensor-timeout stops; no transfer to the LiDAR or delivery tasks. The LiDAR LoRA pilot was **not promoted** |
 
 ### Model weights / Hugging Face

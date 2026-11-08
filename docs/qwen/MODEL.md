@@ -60,13 +60,15 @@ Pi 5 camera / RPLIDAR C1 / rover status ──► deterministic perception, sect
 | Stops when evidence is sufficient | – | 40 / 40 |
 | Median latency (Mac) | – | 2.27 s per step |
 
+All mission results, on validation and test, were measured **with RAG**: up to 3 retrieved chunks from the team corpus. Accuracy without RAG has not been measured. The RAG corpus and frozen benchmark are kept in the Qwen workspace and are not published.
+
 ## Limitations
 
 - **The benchmark is synthetic and in-distribution:** same simulator and teacher as the training data. There is no hardware evaluation.
 - **2 of the 12 errors are missed `request_stop` after a range-sensor timeout.** The deterministic supervisor, not Qwen, is the stop mechanism.
 - **No transfer to new task families:**
   - LiDAR advisory: 0/60 schema-valid;
-  - supply delivery: 15/77 correct.
+  - supply delivery: 15/77 correct (12/77 with RAG).
 
   The demo therefore uses the deterministic policies, with Qwen text optional.
 - **The LiDAR LoRA pilot (Nov 8) was NOT promoted.**
