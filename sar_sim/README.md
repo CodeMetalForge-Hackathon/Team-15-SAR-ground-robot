@@ -53,6 +53,22 @@ python3 -m cfloader flash build/cf2.bin stm32-fw -w radio://0/80/2M/E7E7E7E7E7
 
 To check it worked, connect with the cfclient app. A `t15scan` group should appear under Parameters.
 
+## Simulation: your planner flying Crazyflies
+
+```bash
+cd team15_starter
+python homebase.py --cf-sim                      # dashboard at http://localhost:8080
+python homebase.py --cf-sim --drones 3 --people 3 --n 10 --seed 4
+```
+
+The homebase planner and dashboard fly simulated Crazyflies through the real bridge and the real driver code. Only the radio layer is simulated, so the takeoff, go-to and landing commands, the fence and the safety landings are the same ones the real drones get.
+
+- **The room:** 2 m x 2 m by default (8 x 8 cells of 25 cm). The drones take off from pads 25 cm apart.
+- **Sensing:** every victim carries a phone, and the drones carry the BLE scanner only. So they find **who** is there, and confirming is the rover's job.
+- **Timing:** it runs in real time. Ctrl-C lands everything.
+
+Test it with `python tests/test_cfsim.py` (about 50 s).
+
 ## Bluetooth (no Crazyradio)
 
 `sar_sim/ble_link.py` lets cflib talk to the drone over Bluetooth, the same way the phone app does. Any `--uri` in these tools can be `ble://Crazyflie`, including the bridge, the lift test and `CfDrone`.

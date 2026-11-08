@@ -223,6 +223,8 @@ def main():
     mode = ap.add_mutually_exclusive_group(required=True)
     mode.add_argument("--sim", action="store_true", help="simulate drones + gateway in-process")
     mode.add_argument("--port", help="serial port of the ESP32-S3 gateway")
+    mode.add_argument("--cf-sim", action="store_true",
+                      help="simulated Crazyflies in a 2 m room, flown through the real bridge (+ dashboard)")
     ap.add_argument("--baud", type=int, default=921600)
     ap.add_argument("--cv-port", type=int, default=5515, help="UDP port for local CV/pose JSON (0 = off)")
     ap.add_argument("--time", type=float, default=900.0, help="sim: stop after this many seconds")
@@ -237,11 +239,19 @@ def main():
     ap.add_argument("--civilian", action="store_true", help="pr scenario: turn military mode off")
     args = ap.parse_args()
     from fleet.scenario import apply_scenario_defaults
+    if args.cf_sim:
+        from fleet.cfsim import apply_cf_sim_defaults
+        apply_cf_sim_defaults(args, sys.argv[1:])
     apply_scenario_defaults(args, sys.argv[1:])
     key = P.load_key(args.key)
     if args.military and not key:
         print("note: --military without --key: packets are NOT signed. Add --key to require signatures.")
-    if args.sim and args.web:
+    if args.cf_sim:
+        from fleet.cfsim import run_cf_sim
+        r = run_cf_sim(args, key)
+        print(f"\nfound {r['found']} of {r['people']} people"
+              + (f" (all by {r['t_all_found']:.0f} s)" if r["t_all_found"] else ""))
+    elif args.sim and args.web:
         from fleet.live import run_live_sim
         run_live_sim(args, key)
     elif args.sim:
