@@ -28,6 +28,9 @@ opens no robot, radio, serial, or camera connections. To select another port use
 
 ## Rover Pi camera and Bluetooth
 
+For a live phone-to-ESP32 link view with blue/red markers, RSSI history, camera
+sharing without vision, and another-device access, see [PHONE_TRACE.md](PHONE_TRACE.md).
+
 The camera occupies the whole screen behind compact controls on the left and
 Bluetooth/recordings on the right. **Hide panels** clears the sidebars;
 **Fullscreen** expands the entire interface, retaining Pause and Stop + land.
@@ -52,7 +55,24 @@ Hardware camera compatibility, frame rate and wireless latency require testing
 on the actual Pi/camera. This preview is not a guaranteed real-time flight feed.
 
 Bluetooth reads the existing discovery service on `http://127.0.0.1:8765`.
-Start that service as documented in [discovery/README.md](../discovery/README.md),
+Alternatively, connect the ESP32 directly to the operator server using
+`--serial /dev/cu.usbmodem2101` (replace with the current USB device). This
+uses a single serial reader and supplies the BLE workspace, phone RSSI history,
+and signed status without a separate discovery server. The same `--keys` or
+`--test-keys`, `--state`, `--scope`, and optional `--sos-state` flags documented
+in [PHONE_TRACE.md](PHONE_TRACE.md) enable verification. Reuse existing replay
+state files; stop their previous receiver process before starting this one.
+For example:
+
+```sh
+.venv/bin/python -m mission_control.server --port 8092 \
+  --serial /dev/cu.usbmodem2101 --test-keys \
+  --state ~/.codex/state/team15/phone-trace-20261108.json \
+  --scope TESTKEY-phone-trace-20261108 \
+  --sos-state ~/.codex/state/team15/phone-trace-20261108.sos-v2.json
+```
+
+To use the separate discovery service, start it as documented in [discovery/README.md](../discovery/README.md),
 on the host holding the USB scanner. It remains the only serial reader. To use
 another host, add `--discovery-url http://SCANNER_HOST:8765` to the coordinator;
 that service must be explicitly reachable on your LAN. The stock discovery CLI
@@ -351,3 +371,131 @@ authentication/role isolation, operator and device loss, duplicate agents,
 expiry, stop behavior and landing-context handling. **Physical router setup,
 Pi/Jetson installation, wireless range, live motors/flight and the external vision
 publisher must still be verified on the team's hardware.**
+
+## Four-view field workspace
+
+The root dashboard now opens a screen-filling overview with four expandable views:
+**Drone simulation**, **BLE signals**, **Camera / computer vision**, and **Operator
+ decisions**. All use the Team-15 SAR Command Ops design. The compact toolbar
+keeps Stop + land available while a view is expanded. Enter the operator/viewer
+token once; it is shared only with same-origin child views and held in tab memory.
+The token is never placed in a URL or persisted. Live video is not recorded;
+training images are saved only by an explicit capture/label action.
+`/control` retains the original coordinator view and `/trace` the phone signal view.
+
+Install the optional simulator/vision packages in the Python environment used to
+run the dashboard (Python 3.13 is verified on this Mac):
+
+```sh
+uv pip install --python .venv/bin/python -r mission_control/vision-requirements.txt
+.venv/bin/python -m mission_control.server --port 8093
+```
+
+The existing `mission_control.trace` command also serves the workspace at `/`.
+Use `--runtime-python /path/to/python` on either server when the detector and
+numpy live in a separate environment. The simulator starts on demand in its own
+loopback-only child process; its controls never dispatch hardware commands. The
+role-based fleet implementation is imported from `GavinPrescott-sim-roles`
+(commit `159c678`) into `team15_starter`.
+
+In Live vision, **Start this camera** requests browser camera access and sends
+JPEG frames to this authenticated local server. **Use host / Pi feed** runs
+inference on the camera feed already provided by `--pi-camera` or an existing
+browser publisher. Selecting the host source explicitly replaces a browser
+publisher and opens the server’s built-in or USB webcam (index 0), unless a Pi
+camera process already owns the feed. Stop vision releases a host webcam opened
+this way.
+The Pi feed must be configured with --pi-camera; no camera frames are fabricated. Browser camera access requires localhost or HTTPS.
+**Stop vision** releases this view's browser camera and stops inference.
+The camera preview is independent of inference: the host camera targets 30 FPS,
+and the browser displays raw frames without waiting for detection. The browser
+interpolates the latest bounding boxes, fades them after 400 ms, and expires them
+after 900 ms. Video FPS and detection FPS are shown separately. This overlay is
+an estimate between computed observations; it does not claim inference on every
+video frame. Duplicate JPEGs are skipped with conditional requests.
+
+Fast mode uses COCO-pretrained SSDLite320 MobileNetV3; Detailed uses the existing
+Faster R-CNN ResNet-50 FPN v2. Both retain person and cellphone categories at score
+≥0.6. Phone boxes are visual candidates and are not associated with BLE identities.
+Fast mode trades small/partial-object recall for speed: in the bench fixtures it
+found 3 rather than 4 people in the street image, while both found 2 people in
+the second image and no people in the dog image. Weights use torchvision's cache.
+The [SSDLite model documentation](https://docs.pytorch.org/vision/stable/models/generated/torchvision.models.detection.ssdlite320_mobilenet_v3_large.html)
+describes the base model. No camera observations create approved robot actions.
+
+### Teach Crazyflie / RoverC
+
+Open Live vision → Teach Crazyflie / RoverC. Freeze an image, draw a tight box
+for every visible selected robot, and save it. Images remain local under
+`~/.local/share/team15/vision-training`, outside Git, with private file permissions.
+Save empty scenes as background examples to reduce false positives. Collect
+at least 20 labeled frames of each robot you want to train, with at least two
+capture sessions after changing the angle/background. A class can be trained
+alone; untrained robot classes remain disabled.
+
+Train robot detector starts a local SSDLite fine-tuning job. Complete capture
+sessions are held out, so adjacent frames from one burst do not appear in both
+training and validation. Activation requires at least five held-out examples per
+selected class and ≥80% precision and recall at IoU 0.5 and score 0.6. A rejected
+candidate is retained for inspection; it does not replace the validated model.
+These thresholds are a small bench acceptance gate, not flight validation.
+
+To run training directly:
+
+```sh
+.venv/bin/python -m perception.train --classes drone --epochs 20 --activate
+```
+
+The active checkpoint is `robots.pt`; candidate weights and `progress.json` stay
+in the same local training folder. Live inference reloads a validated checkpoint
+when its modification time changes. Person/phone detection remains in the base
+model; the custom model adds only the hardware classes that passed validation.
+
+The BLE view uses a full-width 30-second RSSI plot with a tight automatic scale.
+Receiver details open as a drawer instead of occupying a permanent side column.
+Dashboard access, ESP32 scanning and selected-beacon reception remain separate.
+
+The animation follows the supplied demo script, with coordinates in inches:
+Jetson BLE cue → drone takeoff/search/identity log → drone home and handoff →
+rover camera approach → 360° inspection → rover home → operator report.
+The four-minute script plays at 8× by default and can be paused, scrubbed, or
+stepped by stage. Drone flight is limited to two minutes in the scripted timeline,
+with the 2:30 hard-return rule shown; the low-battery case returns earlier.
+
+Cases cover human injured, human safe, no human with a visible phone, no human
+and no phone, an obstructed view, and low battery. Reports use colored condition
+indicators and stop for operator choices: search another spot, swap battery and
+relaunch, or end. Phone-only permits releasing both vehicles; no-phone permits
+only the drone. Those choices change the animation only. Live RSSI is independent;
+map positions, example RSSI, vision, phone check-in and reports are illustrative.
+No robot commands, phone messages or reports are transmitted. Reduced-motion
+preferences start playback paused.
+
+Drag the dividers in Overview to change the width and height of all four views.
+In BLE, drag the divider between the graph and animation. Dividers accept arrow
+keys (Shift for larger changes) and double-click to reset. Percentages are saved
+locally in this browser; no credentials or feed data are stored with them.
+**Reset layout** restores the default splits and panel sizes. Receiver, vision
+and simulator detail panels have a corner resize grip; decision cards can be
+resized vertically. On narrow screens, overview cards resize vertically.
+
+The Mission view opens the scripted animation at full size. **Show graph** adds
+a resizable live RSSI region; **Hide graph** gives that space back to the map.
+The report/notes overlay also has a corner resize grip. Hidden workspace views
+pause their animation timelines. The previous fleet simulator remains at
+`/simulation/` for separate software experiments.
+
+The Decisions view opens an operator exercise with seven synthetic scenarios
+and fourteen decisions drawn from the demo script. A resizable visual sits
+beside the evidence and response options. Answers explain consequences, allow
+retries, and count first-attempt successes separately. Progress stays in this
+tab. Scenario choice, random case, review visual, reset and next-question
+controls are local to the exercise; they send no robot commands or reports.
+**Practice decision** in Mission/BLE selects the matching case. **Live controls**
+opens the existing authenticated control workflow in a separate embedded view.
+
+**How it works** (`/#about`, standalone `/about`) explains the project with
+an interactive system diagram, radio/vision/planning/control filters, device
+inputs and outputs, the mission sequence, technologies, and team roles. It
+distinguishes prototype software, simulated behavior, and the deployment
+roadmap from the CMF brief. This view needs no token and starts no devices.
