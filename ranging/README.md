@@ -153,6 +153,5 @@ Coverage:
    0.3 / 0.5 / 1.0 / 1.5 / 2.0 m.
 5. RoverC-Pro speed, deceleration and control latency are not measured, so the
    stopping distance is still a placeholder.
-6. Navigation (PR #8 at `cba304d`) does not yet use `team15.rover_range_fields/1` or
-   `forward_motion_allowed`, and uses the wall clock. See INTEGRATION.md "Integration status".
+6. ~~Navigation contract~~: **accepted** at PR #8 `09333d3` (INTEGRATION.md "Integration status").
 7. The independent second verifier has not been named yet (HARDWARE_VALIDATION.md).

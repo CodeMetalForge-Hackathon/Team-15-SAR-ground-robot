@@ -92,19 +92,31 @@ class PiRangeIO:                                  # navigator IO.clock()/read_ra
 **this**. It should not parse `latest` (`team15.range_reading/1`) itself: `latest`
 is one raw ping, without the filter, hysteresis, staleness or BLOCKED/UNKNOWN decision.
 
-### Integration status (reviewed PR #8 at `cba304d`, 2026-11-07)
+### Integration status: **ACCEPTED** at PR #8 `09333d3` (read-only review, 2026-11-07)
 
-| Requirement | PR #8 at `cba304d` | Needed |
-|---|---|---|
-| Honor `forward_motion_allowed` | not used | AND it into every forward command |
-| No duplicated filtering/status logic | `from_grove_reading()` maps the raw `latest` ping | use `read_fields()` (`team15.rover_range_fields/1`) |
-| Clock domain | `t = obs_time` (Pi wall clock). The contract says the navigator clock must match | `t` from `read_fields()` is `time.monotonic()` on the Pi. Navigator `clock()` = `time.monotonic` |
-| Cross-host | not handled | `read_fields()` returns ERROR for a snapshot from another host. A remote consumer should use its own receipt time + `freshness`, never a remote monotonic value |
-| Real-hardware no-echo | default `UNKNOWN`; `simrun` uses `CLEAR_TO_MAX` | `CLEAR_TO_MAX` must be impossible when `source_mode == "LIVE-HW"` |
+(PR #8 at `cba304d` was CHANGES REQUIRED: raw `latest` parsing, wall clock, no `forward_motion_allowed`.)
 
-The contract counts as **accepted** when PR #8 imports `ranging.rover_io`
-and gates forward motion on `forward_motion_allowed`, with tests for BLOCKED
-at a large range, UNKNOWN with a valid range, and stale/other-host → no motion.
+| Criterion | Evidence at `09333d3` |
+|---|---|
+| `forward_motion_allowed` enforced | `rover/sensors.py` `assess()`: `forward_allowed=False` never becomes CLEAR. `rover/motion.py:268-271,315-318`: supervisor refuses and stops MOVE_FORWARD unless the assessment is CLEAR **and** `forward_allowed` is not False |
+| BLOCKED / UNKNOWN always stop | `from_rover_fields()` rejects contradictions (allowed + non-CLEAR, allowed + range < threshold, OK + UNKNOWN). Required clearance is raised to `blocked_threshold_m` |
+| Service missing or unavailable → STOP | `rover/pi_io.py`: import failure, reader exception, missing file and unreachable HTTP all give ERROR with t = −inf, which is always stale |
+| No echo on hardware → UNKNOWN | `assess()`: `hardware` NO_ECHO is UNKNOWN under any policy. `hardware` is true unless `source_mode == "SIMULATED"` (fails safe) |
+| Stale / cross-host clock | `expected_clock = time.monotonic@<host>` must match `clock`. A future t (> 50 ms) is a clock fault. An epoch timestamp against monotonic is a clock fault |
+| Interface | consumes `team15.rover_range_fields/1` via `GroveRangeIO.read_fields()` and checks the schema constant. Does not parse `latest` |
+| Regression tests | `rover/tests`: blocked at a large range, unknown with a valid range, stale, old monotonic, other host, other clock domain, hardware no-echo, fault statuses, threshold floor, malformed input, missing and unreachable service, supervisor refusal, stop on bad reading, watchdog/estop with `PiRobotIO` |
+
+Results at `09333d3`:
+- Full PR #8 suite: 266 passed.
+- `rover/tests`: 170 passed.
+- `ranging/tests` in that tree: 118 passed.
+- PR #8 CI: pass.
+- Independent probe (real `ranging.rover_io` output plus adversarial variants through PR #8's `from_rover_fields()` + `assess()`, including a positive control): 20/20.
+
+Non-blocking notes for PR #8:
+1. PR #8 carries PR #7's commits as a merged dependency. Merge #7 first, then update #8, so a later #7 change cannot be shadowed by a stale copy.
+2. `pytest.ini` `testpaths` omits `ranging/tests`. `.github/workflows/ranging.yml` runs them only when `ranging/**` changes. Consider adding `ranging/tests` to `testpaths`.
+3. Defense in depth: the supervisor's `forward_allowed is False` check lets `None` through. Every hardware path sets a bool through `from_rover_fields()`, but for `physical=True` IO, requiring `is True` would close the gap for any future reader.
 
 Required on the navigation side. These are points to agree on; this branch does
 not edit `rover/`:
