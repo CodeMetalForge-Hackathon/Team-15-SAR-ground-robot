@@ -116,6 +116,14 @@ class _Commander:
     def send_stop_setpoint(self):
         if self.cf.linked:
             self.cf.setpoints.append(("stop",))
+            if self.cf.motors:
+                self.cf._trajectory("stop", None, 0)
+
+    def send_position_setpoint(self, x, y, z, yaw):
+        """Streamed absolute position (18-byte packet): the drone flies toward it."""
+        if self.cf.linked:
+            self.cf.setpoints.append(("position", x, y, z, yaw))
+            self.cf._trajectory("go_to" if self.cf.motors else "takeoff", (x, y, z), 0.15)
 
     def send_notify_setpoint_stop(self, remain_valid_milliseconds=0):
         if self.cf.linked:

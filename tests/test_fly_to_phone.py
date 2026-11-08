@@ -12,6 +12,7 @@ from urllib.request import Request, urlopen
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "crazyflie"))
+sys.path.insert(0, str(ROOT / "tests"))
 
 import fly_to_phone as ftp  # noqa: E402
 from mission_control.protocol import NODES  # noqa: E402
@@ -239,3 +240,27 @@ class EndToEndCli(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class SetpointFlightOverBluetooth(unittest.TestCase):
+    """ble:// links can't carry the 24-byte high-level go_to: fly with 18-byte streamed setpoints."""
+
+    def test_flies_out_and_back_without_high_level_commands(self):
+        from test_cf_bridge import use_fake_cflib
+        use_fake_cflib()
+        import cflib.crtp as crtp
+        crtp.CLASSES = getattr(crtp, "CLASSES", [])
+        from cflib.crazyflie import WORLD
+        WORLD.reset()
+        with tempfile.TemporaryDirectory() as d:
+            code = ftp.main(["--live-drone", "--preflight-confirmed", "--uri", "ble://Crazyflie",
+                             "--height-in", "12", "--forward-ft", "2", "--hover-s", "0",
+                             "--report", str(Path(d) / "r.json")])
+        drone = WORLD.drones[-1]
+        pos = [s for s in drone.setpoints if s[0] == "position"]
+        self.assertEqual(code, 0)
+        self.assertEqual(drone.commands, [])                       # no high-level packets at all
+        self.assertAlmostEqual(max(p[1] for p in pos), 2 * 0.3048, places=3)
+        self.assertEqual([s[0] for s in drone.setpoints[-2:]], ["stop", "notify"])
+        self.assertFalse(drone.motors)
+        self.assertFalse(drone.crashed)

@@ -181,6 +181,112 @@ class SimScanner:
         return _summary(cur, [cur["rssi"]] * 8 if cur else [], "SIMULATED ground scanner")
 
 
+# ---------------------------------------------------- streamed-setpoint flight ----
+class SetpointLink:
+    """Fly with streamed position setpoints (18-byte packets) instead of the high-level
+    commander. Some Crazyflie Bluetooth links cannot carry packets over 20 bytes, and the
+    high-level go_to is 24, so it never arrives (sar_sim/ble_link closes the link instead).
+
+    A thread sends the current point of a straight-line trajectory 10 times a second and
+    keeps sending the last point while hovering. If the link drops, the drone's own
+    commander watchdog levels it after 0.5 s and stops the motors after 2 s, rather than
+    hovering out of reach. Landing descends to 3 cm, then sends a stop setpoint.
+    """
+    PERIOD = 0.1
+    LAND_Z = 0.03
+
+    def __init__(self, uri, inner=None):
+        if inner is None:
+            from sar_sim.backends.crazyflie_backend import CrazyflieLink
+            inner = CrazyflieLink(uri, bridge="127.0.0.1:1")     # always the direct link
+        self.inner = inner
+        self.lock, self.stop_event = threading.Lock(), threading.Event()
+        self.seg, self.active, self.flying, self.error = None, False, False, None
+        self.thread = None
+
+    def __enter__(self):
+        self.inner.__enter__()
+        if getattr(self.inner, "drone", None) is None:
+            self.inner.__exit__(None, None, None)
+            raise RuntimeError("setpoint flight needs the direct radio link; stop the bridge first")
+        self.cf = self.inner.drone.cf
+        self.thread = threading.Thread(target=self._stream, daemon=True)
+        self.thread.start()
+        return self
+
+    def __exit__(self, *exc):
+        try:
+            if self.flying and self.inner.drone is not None and self.inner.drone.connected:
+                with self.lock:
+                    p = self._point(time.monotonic())
+                self._move((p[0], p[1], self.LAND_Z), 2.5)
+                self.inner.wait(2.8)
+                with self.lock:
+                    self.active = False
+                try:
+                    self.cf.commander.send_stop_setpoint()
+                    self.cf.commander.send_notify_setpoint_stop()
+                except Exception:
+                    pass
+        finally:
+            with self.lock:
+                self.active = False
+            self.flying = self.inner.flying = False
+            if self.inner.drone is not None:
+                self.inner.drone.flying = False
+            self.stop_event.set()
+            self.inner.__exit__(*exc)
+        return False
+
+    def _point(self, now):
+        if self.seg is None:
+            return (0.0, 0.0, 0.0)
+        t0, a, b, d = self.seg
+        f = min(1.0, max(0.0, (now - t0) / d))
+        return tuple(a[i] + (b[i] - a[i]) * f for i in range(3))
+
+    def _stream(self):
+        while not self.stop_event.wait(self.PERIOD):
+            with self.lock:
+                if not self.active:
+                    continue
+                p = self._point(time.monotonic())
+            try:
+                self.cf.commander.send_position_setpoint(p[0], p[1], p[2], 0.0)
+                self.error = None
+            except Exception as exc:
+                self.error = f"{type(exc).__name__}: {exc}"[:150]
+
+    def _move(self, target, duration):
+        now = time.monotonic()
+        with self.lock:
+            start = self._point(now)
+            self.seg = (now, start, tuple(target), max(duration, 0.05))
+
+    # the CrazyflieLink contract
+    @property
+    def vbat(self):
+        return self.inner.vbat
+
+    def pose(self):
+        return self.inner.pose()
+
+    def wait(self, seconds):
+        self.inner.wait(seconds)
+
+    def takeoff(self, height, duration):
+        x, y = self.inner.pose()[:2]
+        x, y = (x, y) if finite(x, y) else (0.0, 0.0)
+        self.inner.drone._arm(True)
+        with self.lock:
+            self.seg = (time.monotonic(), (x, y, 0.0), (x, y, height), max(duration, 0.05))
+            self.active = True
+        self.flying = self.inner.flying = self.inner.drone.flying = True
+
+    def go_to(self, x, y, z, yaw, duration):
+        self._move((x, y, z), duration)
+
+
 # ------------------------------------------------------------ ground scanner ----
 def _summary(latest, rssis, sensed_by):
     out = dict(sensed_by=sensed_by, detected=latest is not None, samples=len(rssis))
@@ -627,6 +733,8 @@ def build_parser():
     p.add_argument("--preflight-confirmed", action="store_true",
                    help="required with --live-drone: Flow deck on, area clear, drone facing the phone")
     p.add_argument("--uri", default="radio://0/80/2M/E7E7E7E7E7")
+    p.add_argument("--flight-mode", choices=("auto", "setpoint", "high-level"), default="auto",
+                   help="auto: streamed setpoints over ble://, high-level commander otherwise")
     p.add_argument("--height-in", type=float, default=5.0, help="hover height, inches (default 5)")
     p.add_argument("--forward-ft", type=float, default=5.0, help="distance to the phone, feet (default 5)")
     p.add_argument("--speed", type=float, default=0.25, help="horizontal speed, m/s (0.1-0.4)")
@@ -724,8 +832,13 @@ def main(argv=None):
         log(f"note: {args.height_in:.0f} in is inside ground effect; if the hover bounces, try --height-in 12")
 
     if live:
-        from sar_sim.backends.crazyflie_backend import CrazyflieLink
-        link = CrazyflieLink(args.uri)
+        setpoint = args.flight_mode == "setpoint" or (args.flight_mode == "auto" and args.uri.startswith("ble://"))
+        if setpoint:
+            log("flight mode: streamed position setpoints (short packets; works on any Bluetooth link)")
+            link = SetpointLink(args.uri)
+        else:
+            from sar_sim.backends.crazyflie_backend import CrazyflieLink
+            link = CrazyflieLink(args.uri)
     else:
         link = SimLink(speedup=math.inf if args.fast else 1.0)
 
