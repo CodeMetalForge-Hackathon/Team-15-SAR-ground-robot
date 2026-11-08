@@ -20,6 +20,11 @@
     "18_moving_robot_stationary_obstacle": "18_moving_robot_stationary_obstacle.json",
     "20_unsafe_forward_clearance": "20_unsafe_forward_clearance.json",
     "00_clear_room_control": "00_clear_room_control.json",
+    "21_edge_obstacle_left": "21_edge_obstacle_left.json",
+    "22_edge_obstacle_right": "22_edge_obstacle_right.json",
+    "23_pole_just_outside_corridor": "23_pole_just_outside_corridor.json",
+    "24_door_narrower_than_robot": "24_door_narrower_than_robot.json",
+    "25_mirror_across_corridor": "25_mirror_across_corridor.json",
     "dashboard_range_series_approach": "dashboard_range_series_approach.json"
   }
 }

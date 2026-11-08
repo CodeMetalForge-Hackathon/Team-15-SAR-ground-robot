@@ -21,6 +21,8 @@ Talking points:
 
 ## 3. FIRST STATIONARY PHYSICAL SCAN: needs explicit user approval (not done)
 
+**The full, authoritative procedure is LIDAR_C1_STATIONARY_SCAN_PROCEDURE.md** (authorization record, setup, preflight, measurements, abort criteria). The summary below is for orientation only.
+
 1. The rover motor bridge is unpowered or e-stopped, the wheels are off the floor, and the emergency power cutoff is in reach.
 2. On the Pi: `pip install pyserial==3.5`. Copy `c1_pi5.UNVERIFIED.json` to `c1_pi5.json` and fill it from the checklist.
 3. `python3 -m lidar check-config --config c1_pi5.json --hardware` must print `ok: true`.

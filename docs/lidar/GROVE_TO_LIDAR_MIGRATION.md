@@ -27,7 +27,13 @@ Grove (`ranging/`, `rover/` Grove adapter and their tests) is **untouched** by t
   * Always emit `source_mode`, because a missing value is treated as hardware. The LiDAR adapter always emits it.
   * With two sources, the supervisor's `forward_allowed` gate and its staleness latch must keep one latest reading per source. That is a rover change, with tests, in Stage D.
 
-### Which forward region `to_rover_fields` reduces (known gap; must be fixed before Stage D)
+### Forward region: robot-width corridor (IMPLEMENTED 2026-11-08, simulation-tested)
+The rover owner reviewed and tightened the corridor: bumper reference, a 100 % near zone, occlusion windows counted as uncovered and signed off, the lateral-offset transform, and the horizon never shown as max range. `to_rover_fields` now reduces the corridor, not the wedge; see DATA_CONTRACT §2b and §5. Still open for Stage C/D:
+* measure the real `robot_width_m` (gripper included), `sensor_to_front_m`, the offset, the occlusion windows and the fiducial;
+* agree `rover_max_required_clear_m` with the rover owner;
+* Grove and LiDAR should share the bumper reference: Grove `range_m` is sensor-face, which is equivalent only when the setback is 0. The rover owner has this as an open item.
+
+History, the gap as first reported:
 * It reduces **only the FRONT sector**: a ±22.5° wedge with min over valid returns. At range r the wedge's half-width is r·tan 22.5° ≈ 0.41·r, which is just 0.14 m at 0.35 m. **A wedge is not a corridor.** Obstacles at the wheel edges close to the robot fall into FRONT_LEFT/FRONT_RIGHT.
 * `forward_motion_allowed` in `team15.lidar_sectors/1` does also require FRONT_LEFT/FRONT_RIGHT to be not BLOCKED/UNKNOWN, which covers ±67.5°. But `range_m` in the rover fields is the FRONT minimum only.
 * **Required before Stage D (LiDAR owner):** a corridor reduction. Take the minimum x over returns with |y| ≤ robot_width/2 + margin and 0 < x ≤ required clearance, in the robot frame, with the width taken from the rover config. Use the same ±δ basis as `navigator._sweep`. `range_m` must be that corridor minimum, with UNKNOWN when the corridor's angular coverage is insufficient. Rotation scanning stays as it is; using the LiDAR for side views is a separate, later change.

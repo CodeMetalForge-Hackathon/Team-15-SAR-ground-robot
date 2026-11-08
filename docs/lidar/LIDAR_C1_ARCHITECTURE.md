@@ -8,6 +8,8 @@
 | Driver: connect, health, scan, revolution assembly, timeouts, disconnect, cleanup | Implemented; tested against `MockLidarDevice` |
 | C1 answering legacy SCAN at 460800 baud on our unit | **Proposed**: unverified, checked at Stage C |
 | 8-sector processing, freshness, fail-closed assessment | Implemented; simulation-tested |
+| Robot-width forward corridor (bumper-referenced, 100 % near-zone evidence) | Implemented; simulation-tested; design agreed with the rover owner; real dimensions **not measured** |
+| Orientation monitor (body fiducial) | Implemented; simulation-tested; real fiducial **not measured** |
 | Rover adapter (`team15.rover_range_fields/1`) | Implemented. Today's rover **rejects** it (source allowlist) → UNKNOWN |
 | Dashboard compatibility snapshot (`team15.range_snapshot/1`) | Implemented; renders on the existing card, display only |
 | Replay server + polar view (port 8775) | Implemented; SIMULATED only |

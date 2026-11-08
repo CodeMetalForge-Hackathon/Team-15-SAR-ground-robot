@@ -52,9 +52,14 @@ def to_range_snapshot(a: LidarAssessment, *, now_wall: Optional[float] = None,
     now_wall = time.time() if now_wall is None else now_wall
     now_mono_ns = time.monotonic_ns() if now_mono_ns is None else now_mono_ns
     f = a.sector("FRONT")
+    c = a.corridor
     ms = _front_measurement_status(a)
     valid = ms == "VALID"
     status = f.status.value if not a.stale_for_display else "UNKNOWN"
+    # The footprint corridor overrides the FRONT wedge whenever it is more restrictive.
+    rank = {"CLEAR": 0, "CAUTION": 1, "BLOCKED": 2, "UNKNOWN": 3}
+    if c is not None and rank.get(c.status, 3) > rank.get(status, 3):
+        status = c.status
     wall = a.scan_wall
     latest = None
     if a.scan_seq is not None:
@@ -85,7 +90,8 @@ def to_range_snapshot(a: LidarAssessment, *, now_wall: Optional[float] = None,
                        else "BENCH", "source": "rplidar-c1", "driver": "rplidar-c1", "host": socket.gethostname(),
                        "wiring_verified_by": None, "service_boot_id": None},
         "lidar": {"schema": "team15.lidar_sectors/1", "connection": a.connection.value,
-                  "alignment_verified": a.alignment_verified},
+                  "alignment_verified": a.alignment_verified, "orientation_monitor": a.orientation,
+                  "forward_corridor": None if c is None else c.to_dict()},
     }
 
 
@@ -103,28 +109,39 @@ def write_range_snapshot(path: str, snap: dict) -> None:
 
 def to_rover_fields(a: LidarAssessment, now_mono_s: float, this_host: Optional[str] = None,
                     max_range_m: Optional[float] = None) -> dict:
-    """``team15.rover_range_fields/1`` from the FRONT sector. Honest source, so today's rover rejects it."""
+    """``team15.rover_range_fields/1`` from the FOOTPRINT CORRIDOR. Honest source, so today's rover rejects it.
+
+    ``range_m`` is BUMPER-referenced free space along the robot-width corridor (agreed with the rover owner):
+    the nearest corridor obstacle (BLOCKED/CAUTION/CLEAR-with-obstacle), or the verified horizon
+    ``clear_horizon_m`` (= lookahead_m) when the corridor is verified free. Never max_range_m.
+    Corridor UNKNOWN (no evidence, unknown footprint, orientation failure, stale...) -> ERROR.
+    """
     host = this_host or socket.gethostname()
-    f = a.sector("FRONT")
+    c = a.corridor
     same_host = (a.provenance or {}).get("host") in (None, host)
     t = a.scan_mono_ns / 1e9 if (a.scan_mono_ns is not None and same_host) else now_mono_s
-    if a.scan_seq is None or a.stale_for_motion or not same_host:
-        status, rng = "ERROR", None
-    elif f.status in (SectorStatus.CLEAR, SectorStatus.CAUTION, SectorStatus.BLOCKED) and f.min_range_m is not None:
-        status, rng = "OK", float(f.min_range_m)
-    elif f.status is SectorStatus.UNKNOWN and f.min_range_m is None and a.connection.value == "SCANNING":
-        status, rng = "NO_ECHO", None
+    rng = None
+    if a.scan_seq is None or a.stale_for_motion or not same_host or c is None or c.status == "UNKNOWN":
+        status = "ERROR"
+    elif c.status == "BLOCKED":
+        status, rng = "OK", float(c.min_clearance_m if c.min_clearance_m is not None else 0.0)
+    elif c.status in ("CAUTION", "CLEAR") and c.clear_horizon_m is not None:
+        status, rng = "OK", float(c.clear_horizon_m)
     else:
-        status, rng = "ERROR", None
-    allowed = bool(a.forward_motion_allowed) and status == "OK" and f.status in (SectorStatus.CLEAR,
-                                                                                 SectorStatus.CAUTION)
-    ms = {"OK": "VALID", "NO_ECHO": "NO_ECHO"}.get(status, "DRIVER_ERROR")
+        status = "ERROR"
+    obst = "UNKNOWN" if status == "ERROR" else c.status
+    allowed = bool(a.forward_motion_allowed) and status == "OK" and obst in ("CLEAR", "CAUTION")
     return {"schema": ROVER_FIELDS_SCHEMA, "clock": "time.monotonic@" + host, "t": t, "status": status,
             "range_m": rng, "max_range_m": max_range_m or a.thresholds["max_range_m"], "source": ROVER_SOURCE,
             "seq": int(a.scan_seq or 0), "forward_motion_allowed": allowed,
-            "obstacle_status": f.status.value if status != "ERROR" else "UNKNOWN", "measurement_status": ms,
-            "reason": a.reason, "blocked_threshold_m": a.thresholds["blocked_m"], "diagnosis": a.connection.value,
-            "source_mode": "SIMULATED" if a.simulated else a.source_mode}
+            "obstacle_status": obst, "measurement_status": "VALID" if status == "OK" else "DRIVER_ERROR",
+            "reason": (c.reason if c is not None else a.reason), "blocked_threshold_m": a.thresholds["blocked_m"],
+            "diagnosis": a.connection.value,
+            "source_mode": "SIMULATED" if a.simulated else a.source_mode,
+            # additive fields (agreed with the rover owner; ignored by today's from_rover_fields)
+            "range_reference": "FRONT_BUMPER",
+            "clear_horizon_m": None if (c is None or status == "ERROR" or obst == "BLOCKED") else c.clear_horizon_m,
+            "corridor": None if c is None else c.to_dict()}
 
 
 def to_advisory_context(a: LidarAssessment) -> dict:
@@ -142,6 +159,12 @@ def to_advisory_context(a: LidarAssessment) -> dict:
                      "min_range_cm": None if (s.min_range_m is None or not usable) else round(s.min_range_m * 100, 1),
                      "coverage": round(s.coverage, 3)} for s in a.sectors],
         "closest_cm": None if not (usable and a.closest) else round(a.closest["range_m"] * 100, 1),
+        "forward_corridor": None if a.corridor is None else {
+            "status": a.corridor.status if usable else "UNKNOWN",
+            "min_clearance_cm": None if (not usable or a.corridor.min_clearance_m is None)
+            else round(a.corridor.min_clearance_m * 100, 1),
+            "reference": "front bumper, robot-width corridor", "reason": a.corridor.reason},
+        "orientation_monitor": a.orientation,
         "association": "NOT_ESTABLISHED",
         "person_distance_cm": None,
         "localization": "NONE",

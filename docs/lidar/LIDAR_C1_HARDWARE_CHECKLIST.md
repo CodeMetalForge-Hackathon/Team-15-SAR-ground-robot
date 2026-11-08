@@ -17,6 +17,20 @@
 | — | Sign-off | Name + ISO time | `verified_by`, `verified_at` | — |
 | — | GET_INFO model byte | Read during the first approved scan; record it in `expected_model_id` for later runs | `expected_model_id` | recorded |
 
+## Stage C measurements (needed for motion evaluation, NOT for the first stationary scan)
+
+These are measured with a tape, protractor and calipers, **independently of the LiDAR**, by a named person. Until they are recorded, the corridor and the orientation monitor read UNKNOWN or NOT_CONFIGURED, so no motion is possible.
+
+| Item | Config | Note |
+|---|---|---|
+| Overall robot width incl. wheels and gripper | `footprint.robot_width_m` | the same value as rover `NavConfig.robot_width_m` |
+| Sensor centre → front-most point (gripper extended) | `footprint.sensor_to_front_m` | must be ≥ the LiDAR min range, otherwise UNKNOWN (blind zone) |
+| Sensor lateral offset from the centreline (+ left) | `footprint.sensor_lateral_offset_m` | |
+| Sign-off | `footprint.footprint_verified_by/_at` | |
+| Self-occlusion windows (sensor deg) | `mount.self_occlusion_deg`, `occlusion_verified_by/_at` | read from a stationary scan, cross-checked against geometry |
+| Body fiducial (e.g. the mast): robot bearing and range | `mount.fiducial_robot_bearing_deg`, `fiducial_range_m`, `fiducial_measured_by` | pick a bearing ≠ 0°/180° so a CW/CCW error is detectable |
+| Navigator's largest required clearance | `footprint.rover_max_required_clear_m` | from the rover owner |
+
 ## Power risk analysis (includes the earlier Pi dropouts)
 
 * **History:** the Pi dropped off the network at least once on 2026-11-07, cause **unknown**: volatile journal, see Team-15-Robot IMPLEMENTATION_JOURNAL. The suspects were heavy CPU load (the Qwen llama-server benchmark) and USB back-feed through the StickC charging path, which is why the VBUS-blocking adapter is required. A spinning LiDAR is a new constant USB load plus an inrush at motor start.

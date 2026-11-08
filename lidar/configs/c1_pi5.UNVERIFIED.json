@@ -13,7 +13,24 @@
     "alignment_verified_at": null,
     "alignment_method": null,
     "height_above_floor_m": null,
-    "self_occlusion_deg": []
+    "self_occlusion_deg": [],
+    "occlusion_verified_by": null,
+    "occlusion_verified_at": null,
+    "fiducial_robot_bearing_deg": null,
+    "fiducial_range_m": null,
+    "fiducial_tol_deg": 4.0,
+    "fiducial_tol_m": 0.03,
+    "fiducial_measured_by": null
+  },
+  "footprint": {
+    "robot_width_m": null,
+    "width_margin_m": 0.05,
+    "lookahead_m": 1.0,
+    "sensor_to_front_m": null,
+    "sensor_lateral_offset_m": 0.0,
+    "footprint_verified_by": null,
+    "footprint_verified_at": null,
+    "rover_max_required_clear_m": null
   },
   "checklist": {
     "model_label_read": null,

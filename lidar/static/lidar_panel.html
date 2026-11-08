@@ -35,6 +35,7 @@
       <div>Connection: <b id="conn"></b> · scan #<span id="seq"></span> · <span id="age"></span></div>
       <div>Front: <span id="front"></span> · Left: <span id="left"></span> · Right: <span id="right"></span></div>
       <div>Closest surface: <span id="closest"></span></div>
+      <div>Robot-width corridor: <span id="corr"></span> <span class="muted">· orientation monitor <span id="orient"></span></span></div>
       <div>Forward motion: <b id="motion"></b> <span class="muted">(rover safety layer decides; Issue #9)</span></div>
       <div class="muted">Last valid scan: <span id="last"></span></div>
       <table id="sectors" style="margin-top:8px"></table>
@@ -71,6 +72,11 @@ async function tick(){
   const c = v.closest;
   document.getElementById("closest").textContent = c ? `${fmt(c.range_m)} at sensor bearing ${c.sensor_bearing_deg}°` +
       (c.robot_sector ? ` (${c.robot_sector})` : " (robot direction unknown)") + " — not a person distance" : "—";
+  const co = v.corridor || {};
+  const ce = document.getElementById("corr"); ce.className = co.status || "UNKNOWN";
+  ce.textContent = `${co.status || "UNKNOWN"}` + (co.min_clearance_m != null ? ` ${fmt(co.min_clearance_m)} from bumper` :
+      co.clear_horizon_m != null ? ` (verified to ${co.clear_horizon_m} m)` : "") + (co.status === "UNKNOWN" && co.reason ? ` — ${co.reason}` : "");
+  document.getElementById("orient").textContent = v.orientation_monitor || "—";
   document.getElementById("motion").textContent = v.motion_text ?? "not blocked by LiDAR (simulation)";
   document.getElementById("last").textContent = v.last_valid_scan_wall ? new Date(v.last_valid_scan_wall*1000).toISOString().slice(11,23)+"Z" : "—";
   document.getElementById("reason").textContent = v.reason || "";
@@ -86,6 +92,12 @@ async function tick(){
     // ROBOT frame: x forward (up), y left. SENSOR frame drawn the same way, labelled as such.
     const px = -y/MAXM*R, py = -x/MAXM*R;
     if (Math.abs(px) <= R && Math.abs(py) <= R) h += `<circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="1.2" fill="var(--pt)"/>`;
+  }
+  if (v.points_frame === "ROBOT" && co.half_width_m && co.lookahead_m != null) {
+ const tf = (co.diagnosis && co.diagnosis.transform) || {};
+    const F = (tf.sensor_to_front_m || 0)/MAXM*R, off = (tf.sensor_lateral_offset_m || 0)/MAXM*R;
+    const w = co.half_width_m/MAXM*R, l = co.lookahead_m/MAXM*R;   // bumper -> horizon, centred on centreline
+    h += `<rect x="${-w + off}" y="${-(F + l)}" width="${2*w}" height="${l}" fill="${COL(co.status||"UNKNOWN")}" fill-opacity="0.12" stroke="${COL(co.status||"UNKNOWN")}" stroke-dasharray="2 2"/>`;
   }
   h += `<rect x="-5" y="-7" width="10" height="14" fill="none" stroke="var(--fg)"/>`;
   svg.innerHTML = h;

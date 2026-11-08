@@ -56,6 +56,19 @@ class MountConfig:
     height_above_floor_m: Optional[float] = None
     # Sensor-frame angular windows hidden by the robot's own body (camera mast, gripper).
     self_occlusion_deg: list = field(default_factory=list)   # [[start, end], ...] in SENSOR degrees
+    # Orientation monitor: a fixed robot-body feature (e.g. the camera mast) whose ROBOT-frame bearing and
+    # range were measured with a tape/protractor INDEPENDENTLY of the LiDAR. Every scan must show a return
+    # where the configured mount predicts it, so a wrong offset, a CW/CCW sign error or a knocked sensor
+    # is detected (all sectors UNKNOWN). Not configured = no motion (display only).
+    fiducial_robot_bearing_deg: Optional[float] = None
+    fiducial_range_m: Optional[float] = None
+    fiducial_tol_deg: float = 4.0
+    fiducial_tol_m: float = 0.03
+    fiducial_measured_by: Optional[str] = None
+    # Self-occlusion windows hide returns, so they are measured and signed off like the footprint.
+    # Occluded rays are always UNCOVERED (never evidence of free space).
+    occlusion_verified_by: Optional[str] = None
+    occlusion_verified_at: Optional[str] = None
 
     @property
     def sign(self) -> int:
@@ -66,6 +79,23 @@ class MountConfig:
         return (self.forward_offset_deg is not None and math.isfinite(self.forward_offset_deg)
                 and bool(str(self.alignment_verified_by or "").strip())
                 and bool(str(self.alignment_verified_at or "").strip()))
+
+    @property
+    def occlusion_ok(self) -> bool:
+        """No windows, or windows signed off by a named person."""
+        return (not self.self_occlusion_deg) or (bool(str(self.occlusion_verified_by or "").strip())
+                                                 and bool(str(self.occlusion_verified_at or "").strip()))
+
+    @property
+    def fiducial_configured(self) -> bool:
+        return (self.fiducial_robot_bearing_deg is not None and self.fiducial_range_m is not None
+                and bool(str(self.fiducial_measured_by or "").strip()))
+
+    def sensor_angle(self, robot_bearing_deg: float) -> Optional[float]:
+        """Inverse of robot_bearing (sign is +-1, so it is its own inverse)."""
+        if self.forward_offset_deg is None:
+            return None
+        return (self.sign * (robot_bearing_deg - self.forward_offset_deg)) % 360.0
 
     def robot_bearing(self, sensor_angle_deg: float) -> Optional[float]:
         if self.forward_offset_deg is None:
@@ -88,6 +118,56 @@ class MountConfig:
         for w in self.self_occlusion_deg:
             if not (isinstance(w, (list, tuple)) and len(w) == 2):
                 raise LidarConfigError("self_occlusion_deg entries must be [start, end]")
+        if self.fiducial_range_m is not None and not (0.0 < self.fiducial_range_m < 1.0):
+            raise LidarConfigError("fiducial_range_m must be a robot-body distance in (0, 1) m")
+        if not (0 < self.fiducial_tol_deg <= 10 and 0 < self.fiducial_tol_m <= 0.1):
+            raise LidarConfigError("fiducial tolerances out of range")
+        return self
+
+
+@dataclass
+class FootprintConfig:
+    """Robot footprint for forward-corridor clearance. Names mirror rover/navigator.py NavConfig.
+
+    Every dimension is MEASURED on the real chassis (gripper and wheels included) by a named person,
+    independently of the LiDAR. ``robot_width_m`` has no default: unknown dimensions = UNKNOWN corridor.
+    """
+    robot_width_m: Optional[float] = None       # overall width incl. wheels and gripper (NavConfig.robot_width_m)
+    width_margin_m: float = 0.05                # per side (NavConfig.width_margin_m)
+    lookahead_m: float = 1.0                    # corridor length ahead of the bumper (NavConfig.lookahead_m)
+    sensor_to_front_m: Optional[float] = None   # sensor centre -> front-most point of the robot, along forward
+    sensor_lateral_offset_m: float = 0.0        # sensor left (+) of the robot centreline
+    footprint_verified_by: Optional[str] = None
+    footprint_verified_at: Optional[str] = None
+    # Largest required clearance the navigator will ask for (rover owner). lookahead_m must cover it,
+    # otherwise a verified-clear corridor would read as an obstacle at the horizon (false BLOCKED -> reroute).
+    rover_max_required_clear_m: Optional[float] = None
+
+    @property
+    def known(self) -> bool:
+        return (isinstance(self.robot_width_m, (int, float)) and self.robot_width_m > 0
+                and isinstance(self.sensor_to_front_m, (int, float)) and self.sensor_to_front_m >= 0
+                and bool(str(self.footprint_verified_by or "").strip())
+                and bool(str(self.footprint_verified_at or "").strip()))
+
+    @property
+    def half_width_m(self) -> Optional[float]:
+        return None if self.robot_width_m is None else self.robot_width_m / 2 + self.width_margin_m
+
+    def validate(self) -> "FootprintConfig":
+        if self.robot_width_m is not None and not (0.05 <= self.robot_width_m <= 1.0):
+            raise LidarConfigError("robot_width_m implausible (0.05-1.0 m)")
+        if not (0.0 <= self.width_margin_m <= 0.5):
+            raise LidarConfigError("width_margin_m must be 0-0.5 m")
+        if not (0.1 <= self.lookahead_m <= 3.0):
+            raise LidarConfigError("lookahead_m must be 0.1-3.0 m")
+        if self.sensor_to_front_m is not None and not (0.0 <= self.sensor_to_front_m <= 1.0):
+            raise LidarConfigError("sensor_to_front_m must be 0-1.0 m")
+        if not (-0.5 <= self.sensor_lateral_offset_m <= 0.5):
+            raise LidarConfigError("sensor_lateral_offset_m must be within +-0.5 m")
+        if self.rover_max_required_clear_m is not None and self.lookahead_m < self.rover_max_required_clear_m:
+            raise LidarConfigError(f"lookahead_m {self.lookahead_m} < rover_max_required_clear_m "
+                                   f"{self.rover_max_required_clear_m}: a clear corridor would read BLOCKED")
         return self
 
 
@@ -107,6 +187,13 @@ class ProcessingConfig:
     scan_hz_min: float = 7.0         # PLACEHOLDER window around the 10 Hz typical
     scan_hz_max: float = 13.0
     clear_confirm_scans: int = 2     # leaving BLOCKED/UNKNOWN needs this many consecutive CLEAR scans
+    # Clear-space EVIDENCE is stricter than obstacle evidence: a weak return still counts as an obstacle,
+    # but only a return of at least this quality can prove free space (mirror/specular phantoms are weak).
+    clearance_min_quality: int = 20  # PLACEHOLDER: calibrate at stage C
+    corridor_min_coverage: float = 0.90  # fraction of corridor rays with positive free-space evidence
+    corridor_max_gap_deg: float = 2.0    # far zone: a contiguous unobserved span wider than this = UNKNOWN
+    stopping_distance_m: float = 0.18    # PLACEHOLDER (ranging ObstacleConfig defaults: 0.3 m/s, 0.3 s, 0.5 m/s^2)
+    # Near zone = blocked_m + stopping_distance_m ahead of the bumper: 100 % of its rays need evidence.
     max_future_skew_s: float = 0.05
 
     def validate(self) -> "ProcessingConfig":
@@ -127,6 +214,12 @@ class ProcessingConfig:
             raise LidarConfigError("bad scan frequency window")
         if self.clear_confirm_scans < 1:
             raise LidarConfigError("clear_confirm_scans >= 1")
+        if not (self.min_quality <= self.clearance_min_quality <= 63):
+            raise LidarConfigError("need min_quality <= clearance_min_quality <= 63")
+        if not (0.0 <= self.stopping_distance_m <= 1.0):
+            raise LidarConfigError("stopping_distance_m must be 0-1 m")
+        if not (0.5 <= self.corridor_min_coverage <= 1.0 and 0 < self.corridor_max_gap_deg <= 10):
+            raise LidarConfigError("corridor coverage in [0.5, 1], max gap in (0, 10] deg")
         return self
 
 
@@ -208,6 +301,7 @@ class LidarConfig:
     reconnect_backoff_s: tuple = (0.5, 1.0, 2.0, 4.0)
     expected_model_id: Optional[int] = None  # GET_INFO model byte, recorded at stage C; None = refuse hardware
     mount: MountConfig = field(default_factory=MountConfig)
+    footprint: FootprintConfig = field(default_factory=FootprintConfig)
     processing: ProcessingConfig = field(default_factory=ProcessingConfig)
     checklist: HardwareChecklist = field(default_factory=HardwareChecklist)
 
@@ -217,6 +311,7 @@ class LidarConfig:
         if self.baudrate <= 0 or self.read_timeout_s <= 0 or self.scan_timeout_s <= 0:
             raise LidarConfigError("baudrate and timeouts must be positive")
         self.mount.validate()
+        self.footprint.validate()
         self.processing.validate()
         if self.mode == "hardware":
             check_hardware_gate(self.checklist)
@@ -232,7 +327,8 @@ class LidarConfig:
     @classmethod
     def from_dict(cls, d: dict) -> "LidarConfig":
         d = dict(d)
-        sub = {"mount": MountConfig, "processing": ProcessingConfig, "checklist": HardwareChecklist}
+        sub = {"mount": MountConfig, "footprint": FootprintConfig, "processing": ProcessingConfig,
+               "checklist": HardwareChecklist}
         kw = {}
         for k, typ in sub.items():
             sd = d.pop(k, None) or {}

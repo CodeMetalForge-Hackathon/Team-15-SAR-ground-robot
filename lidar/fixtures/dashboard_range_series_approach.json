@@ -61,7 +61,34 @@
    "lidar": {
     "schema": "team15.lidar_sectors/1",
     "connection": "SCANNING",
-    "alignment_verified": true
+    "alignment_verified": true,
+    "orientation_monitor": "OK",
+    "forward_corridor": {
+     "status": "CLEAR",
+     "reference": "FRONT BUMPER (robot frame, centreline)",
+     "min_clearance_m": null,
+     "clear_horizon_m": 1.0,
+     "near_coverage_pct": 100.0,
+     "far_coverage_pct": 100.0,
+     "max_uncovered_gap_deg": 0.0,
+     "near_zone_m": 0.53,
+     "half_width_m": 0.15,
+     "lookahead_m": 1.0,
+     "orientation_monitor": "OK",
+     "reason": "corridor verified free to the 1 m horizon",
+     "obstacle": null,
+     "diagnosis": {
+      "near_rays": 112,
+      "far_rays": 26,
+      "near_uncovered_max_run_deg": 0.0,
+      "corridor_hits": 0,
+      "clearance_min_quality": 20,
+      "transform": {
+       "sensor_to_front_m": 0.1,
+       "sensor_lateral_offset_m": 0.0
+      }
+     }
+    }
    },
    "freshness": {
     "age_s": 0.12,
@@ -128,7 +155,34 @@
    "lidar": {
     "schema": "team15.lidar_sectors/1",
     "connection": "SCANNING",
-    "alignment_verified": true
+    "alignment_verified": true,
+    "orientation_monitor": "OK",
+    "forward_corridor": {
+     "status": "CLEAR",
+     "reference": "FRONT BUMPER (robot frame, centreline)",
+     "min_clearance_m": null,
+     "clear_horizon_m": 1.0,
+     "near_coverage_pct": 100.0,
+     "far_coverage_pct": 100.0,
+     "max_uncovered_gap_deg": 0.0,
+     "near_zone_m": 0.53,
+     "half_width_m": 0.15,
+     "lookahead_m": 1.0,
+     "orientation_monitor": "OK",
+     "reason": "corridor verified free to the 1 m horizon",
+     "obstacle": null,
+     "diagnosis": {
+      "near_rays": 112,
+      "far_rays": 26,
+      "near_uncovered_max_run_deg": 0.0,
+      "corridor_hits": 0,
+      "clearance_min_quality": 20,
+      "transform": {
+       "sensor_to_front_m": 0.1,
+       "sensor_lateral_offset_m": 0.0
+      }
+     }
+    }
    },
    "freshness": {
     "age_s": 0.12,
@@ -145,7 +199,7 @@
    "published_at": "2026-11-09T04:53:21.320+00:00",
    "published_time": 1794200001.32,
    "published_mono_ns": 1320000000,
-   "obstacle_status": "CLEAR",
+   "obstacle_status": "CAUTION",
    "forward_motion_allowed": false,
    "range_m": 0.8432,
    "valid": true,
@@ -170,7 +224,7 @@
     "detail": "nearest 0.84 m, coverage 100%"
    },
    "assessment": {
-    "status": "CLEAR",
+    "status": "CAUTION",
     "forward_motion_allowed": false,
     "reason": "LiDAR FRONT sector (0\u00b122.5\u00b0): nearest 0.84 m, coverage 100%; display only, forward_motion_allowed is never set by this compatibility snapshot",
     "thresholds": {
@@ -195,7 +249,39 @@
    "lidar": {
     "schema": "team15.lidar_sectors/1",
     "connection": "SCANNING",
-    "alignment_verified": true
+    "alignment_verified": true,
+    "orientation_monitor": "OK",
+    "forward_corridor": {
+     "status": "CAUTION",
+     "reference": "FRONT BUMPER (robot frame, centreline)",
+     "min_clearance_m": 0.7386,
+     "clear_horizon_m": 0.7386,
+     "near_coverage_pct": 100.0,
+     "far_coverage_pct": 100.0,
+     "max_uncovered_gap_deg": 0.0,
+     "near_zone_m": 0.53,
+     "half_width_m": 0.15,
+     "lookahead_m": 1.0,
+     "orientation_monitor": "OK",
+     "reason": "obstacle 0.74 m ahead of the bumper (<= 0.75 m)",
+     "obstacle": {
+      "x_from_bumper_m": 0.7386,
+      "y_from_centreline_m": 0.1289,
+      "sensor_bearing_deg": 171.26,
+      "is_person": null
+     },
+     "diagnosis": {
+      "near_rays": 112,
+      "far_rays": 26,
+      "near_uncovered_max_run_deg": 0.0,
+      "corridor_hits": 27,
+      "clearance_min_quality": 20,
+      "transform": {
+       "sensor_to_front_m": 0.1,
+       "sensor_lateral_offset_m": 0.0
+      }
+     }
+    }
    },
    "freshness": {
     "age_s": 0.12,
@@ -262,7 +348,39 @@
    "lidar": {
     "schema": "team15.lidar_sectors/1",
     "connection": "SCANNING",
-    "alignment_verified": true
+    "alignment_verified": true,
+    "orientation_monitor": "OK",
+    "forward_corridor": {
+     "status": "CAUTION",
+     "reference": "FRONT BUMPER (robot frame, centreline)",
+     "min_clearance_m": 0.4387,
+     "clear_horizon_m": 0.4387,
+     "near_coverage_pct": 100.0,
+     "far_coverage_pct": 100.0,
+     "max_uncovered_gap_deg": 0.0,
+     "near_zone_m": 0.53,
+     "half_width_m": 0.15,
+     "lookahead_m": 1.0,
+     "orientation_monitor": "OK",
+     "reason": "obstacle 0.44 m ahead of the bumper (<= 0.75 m)",
+     "obstacle": {
+      "x_from_bumper_m": 0.4387,
+      "y_from_centreline_m": -0.075,
+      "sensor_bearing_deg": 187.93,
+      "is_person": null
+     },
+     "diagnosis": {
+      "near_rays": 112,
+      "far_rays": 26,
+      "near_uncovered_max_run_deg": 0.0,
+      "corridor_hits": 43,
+      "clearance_min_quality": 20,
+      "transform": {
+       "sensor_to_front_m": 0.1,
+       "sensor_lateral_offset_m": 0.0
+      }
+     }
+    }
    },
    "freshness": {
     "age_s": 0.12,
@@ -329,7 +447,29 @@
    "lidar": {
     "schema": "team15.lidar_sectors/1",
     "connection": "SCANNING",
-    "alignment_verified": true
+    "alignment_verified": true,
+    "orientation_monitor": "OK",
+    "forward_corridor": {
+     "status": "BLOCKED",
+     "reference": "FRONT BUMPER (robot frame, centreline)",
+     "min_clearance_m": 0.238,
+     "clear_horizon_m": null,
+     "near_coverage_pct": null,
+     "far_coverage_pct": null,
+     "max_uncovered_gap_deg": null,
+     "near_zone_m": 0.53,
+     "half_width_m": 0.15,
+     "lookahead_m": 1.0,
+     "orientation_monitor": "OK",
+     "reason": "obstacle 0.24 m ahead of the bumper, -0.03 m from centreline (<= 0.35 m)",
+     "obstacle": {
+      "x_from_bumper_m": 0.238,
+      "y_from_centreline_m": -0.0337,
+      "sensor_bearing_deg": 185.69,
+      "is_person": null
+     },
+     "diagnosis": {}
+    }
    },
    "freshness": {
     "age_s": 0.12,
@@ -396,7 +536,29 @@
    "lidar": {
     "schema": "team15.lidar_sectors/1",
     "connection": "SCANNING",
-    "alignment_verified": true
+    "alignment_verified": true,
+    "orientation_monitor": "OK",
+    "forward_corridor": {
+     "status": "BLOCKED",
+     "reference": "FRONT BUMPER (robot frame, centreline)",
+     "min_clearance_m": 0.1388,
+     "clear_horizon_m": null,
+     "near_coverage_pct": null,
+     "far_coverage_pct": null,
+     "max_uncovered_gap_deg": null,
+     "near_zone_m": 0.53,
+     "half_width_m": 0.15,
+     "lookahead_m": 1.0,
+     "orientation_monitor": "OK",
+     "reason": "obstacle 0.14 m ahead of the bumper, +0.13 m from centreline (<= 0.35 m)",
+     "obstacle": {
+      "x_from_bumper_m": 0.1388,
+      "y_from_centreline_m": 0.1275,
+      "sensor_bearing_deg": 151.91,
+      "is_person": null
+     },
+     "diagnosis": {}
+    }
    },
    "freshness": {
     "age_s": 0.12,

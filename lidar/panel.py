@@ -68,6 +68,9 @@ def panel_view(a: LidarAssessment, scan: Optional[Scan], tracks: Optional[dict] 
         "left": {"status": clearance["LEFT"][1], "min_range_m": clearance["LEFT"][0]},
         "right": {"status": clearance["RIGHT"][1], "min_range_m": clearance["RIGHT"][0]},
         "closest": a.closest if usable else None,
+        "corridor": (a.corridor.to_dict() if (usable and a.corridor is not None)
+                     else {"status": "UNKNOWN", "reason": "no usable scan"}),
+        "orientation_monitor": a.orientation,
         "sectors": list(sec.values()),
         "motion_text": "BLOCKED" if (usable and a.forward_status.value == "BLOCKED") else "UNKNOWN"
         if not (usable and a.forward_motion_allowed) else None,

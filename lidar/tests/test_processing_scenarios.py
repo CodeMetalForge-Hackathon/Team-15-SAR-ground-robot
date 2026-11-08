@@ -60,10 +60,11 @@ def test_offset_without_named_verifier_is_not_aligned():
 
 
 def test_quality_threshold_and_range_limits():
-    cfg = sim_config(min_quality=30)
+    cfg = sim_config(min_quality=30, clearance_min_quality=30)
     pts = [(a, 1.0, 20) for a in range(360)]
     scan = make_scan(pts, 1, 1_000_000_000, cfg)
-    assert not scan.valid_samples and scan.status_counts() == {"LOW_QUALITY": 360}
+    assert not scan.valid_samples
+    assert scan.status_counts() == {"LOW_QUALITY": 345, "SELF_OCCLUDED": 15}   # sim mast window 38-52 deg
     with pytest.raises(LidarConfigError):
         sim_config(max_range_m=20.0)
     with pytest.raises(LidarConfigError):
@@ -124,6 +125,14 @@ def test_hardware_unverified_source_never_allows_motion():
         r = a.update(scan, now_mono_ns=now)
     assert r.sector("FRONT").status is S.CLEAR and not r.forward_motion_allowed
     assert "not stage-C verified" in r.reason
+
+
+def test_orientation_not_configured_never_allows_motion():
+    cfg = sim_config()
+    cfg.mount.fiducial_measured_by = None
+    r = run("00_clear_room_control", cfg)[0][-1]
+    assert r.orientation == "NOT_CONFIGURED" and r.sector("FRONT").status is S.CLEAR
+    assert not r.forward_motion_allowed
 
 
 def test_clear_needs_consecutive_confirmation():
@@ -212,15 +221,33 @@ def test_11_partial_scan():
     assert all(s.status in (S.UNKNOWN, S.BLOCKED) for s in r.sectors) and not r.forward_motion_allowed
 
 
-def test_15_incorrect_orientation_is_detectable_and_dangerous():
+def test_15_incorrect_orientation_detected_by_body_fiducial():
     good = run("02_obstacle_ahead")[0][-1]
+    assert good.sector("FRONT").status is S.BLOCKED and good.orientation == "OK"
     cfg = sim_config()
     cfg.mount.forward_offset_deg = 0.0           # "sensor 0 = forward" assumption: WRONG for this mount
     bad = run("15_incorrect_orientation", cfg)[0][-1]
-    assert good.sector("FRONT").status is S.BLOCKED
-    assert bad.sector("FRONT").status is not S.BLOCKED and bad.sector("REAR").status is S.BLOCKED
-    # Hence: no default offset exists, and an unverified offset gives UNKNOWN (test above).
+    assert bad.orientation == "FAILED"
+    assert all(s.status is S.UNKNOWN for s in bad.sectors) and bad.corridor.status == "UNKNOWN"
+    assert not bad.forward_motion_allowed
     assert MountConfig().forward_offset_deg is None
+
+
+def test_15b_without_fiducial_a_wrong_offset_is_dangerous_so_motion_is_refused():
+    cfg = sim_config()
+    cfg.mount.forward_offset_deg = 0.0
+    cfg.mount.fiducial_robot_bearing_deg = None          # monitor not configured
+    bad = run("15_incorrect_orientation", cfg)[0][-1]
+    assert bad.orientation == "NOT_CONFIGURED"
+    assert bad.sector("REAR").status is S.BLOCKED and bad.sector("FRONT").status is not S.BLOCKED  # wrong!
+    assert not bad.forward_motion_allowed and "orientation monitor NOT_CONFIGURED" in bad.reason
+
+
+def test_15c_cw_ccw_sign_error_detected():
+    cfg = sim_config()
+    cfg.mount.sensor_rotation = "CCW"                     # sign error, correct offset
+    r = run("02_obstacle_ahead", cfg)[0][-1]
+    assert r.orientation == "FAILED" and not r.forward_motion_allowed
 
 
 def test_16_unexpected_scan_frequency():
@@ -232,8 +259,8 @@ def test_17_reflective_transparent():
     r = run("17_reflective_transparent")[0][-1]
     assert r.sector("FRONT").status is S.UNKNOWN          # glass: no return -> UNKNOWN, never clear
     assert r.sector("RIGHT").status is S.UNKNOWN          # dark: low quality -> UNKNOWN
-    # A mirror gives phantom far returns: indistinguishable in one scan (documented limitation).
-    assert r.sector("LEFT").status is S.CLEAR
+    # Mirror phantoms are weak (quality < clearance_min_quality): they do not count as clear evidence.
+    assert r.sector("LEFT").status is S.UNKNOWN
     assert not r.forward_motion_allowed
 
 

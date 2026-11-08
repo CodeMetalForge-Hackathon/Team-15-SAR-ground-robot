@@ -12,19 +12,33 @@ import random
 from dataclasses import dataclass, field
 from typing import Callable, Optional
 
-from .config import LidarConfig, MountConfig
+from .config import FootprintConfig, LidarConfig, MountConfig
 from .scan import Scan, ScanCompletion, SourceMode, build_scan
 
 SIM_LABEL = "SIMULATED"
+# Simulated robot body: a 2 cm mast at robot (-0.10, +0.10) m, i.e. robot bearing 135 deg (rear-left),
+# range 0.141 m. It is the orientation fiducial (asymmetric, so a CW/CCW sign error is caught) and lies
+# inside a signed-off self-occlusion window (sensor 45 +- 7 deg for this mount).
+SIM_FIDUCIAL_XY = (-0.10, 0.10)
 SIM_MOUNT = MountConfig(forward_offset_deg=180.0, sensor_rotation="CW",
                         alignment_verified_by="SIMULATION (not a person)", alignment_verified_at="SIMULATED",
-                        alignment_method="synthetic mount: sensor 0 mark faces robot rear")
+                        alignment_method="synthetic mount: sensor 0 mark faces robot rear",
+                        self_occlusion_deg=[[38.0, 52.0]], occlusion_verified_by="SIMULATION (not a person)",
+                        occlusion_verified_at="SIMULATED", fiducial_robot_bearing_deg=135.0,
+                        fiducial_range_m=round(math.hypot(*SIM_FIDUCIAL_XY), 4),
+                        fiducial_measured_by="SIMULATION (not a person)")
+# rover/simrun.py SIM_ROBOT_WIDTH_M = 0.20 (SYNTHETIC placeholder); sensor 0.10 m behind the bumper.
+SIM_FOOTPRINT = FootprintConfig(robot_width_m=0.20, width_margin_m=0.05, lookahead_m=1.0, sensor_to_front_m=0.10,
+                                sensor_lateral_offset_m=0.0, footprint_verified_by="SIMULATION (not a person)",
+                                footprint_verified_at="SIMULATED")
 POINTS_PER_REV = 500        # ~5 kHz sample rate / 10 Hz (datasheet typical, not measured)
 SCAN_PERIOD_NS = 100_000_000
 
 
 def sim_config(**proc) -> LidarConfig:
-    cfg = LidarConfig(mode="simulated", mount=MountConfig(**vars(SIM_MOUNT)))
+    m = dict(vars(SIM_MOUNT))
+    m["self_occlusion_deg"] = [list(w) for w in SIM_MOUNT.self_occlusion_deg]
+    cfg = LidarConfig(mode="simulated", mount=MountConfig(**m), footprint=FootprintConfig(**vars(SIM_FOOTPRINT)))
     for k, v in proc.items():
         setattr(cfg.processing, k, v)
     return cfg.validate()
@@ -71,6 +85,7 @@ class World:
     dropout: float = 0.0                       # fraction of random NO_RETURN samples
     missing_robot_deg: list = field(default_factory=list)   # robot-frame windows with no samples at all
     max_range_m: float = 12.0
+    robot_parts: Optional[list] = None   # None = the simulated mast (fiducial); [] = no body parts
 
 
 def cast(world: World, rng: random.Random, n: int = POINTS_PER_REV, mount: MountConfig = SIM_MOUNT,
@@ -84,7 +99,9 @@ def cast(world: World, rng: random.Random, n: int = POINTS_PER_REV, mount: Mount
             continue
         th = math.radians(robot_a)
         best, kind = None, None
-        for s in world.segments:
+        parts = box(SIM_FIDUCIAL_XY[0], SIM_FIDUCIAL_XY[1], 0.02, 0.02) if world.robot_parts is None \
+            else world.robot_parts
+        for s in list(world.segments) + parts:
             t = _ray_hit(th, s)
             if t is not None and (best is None or t < best):
                 best, kind = t, s.kind
@@ -233,6 +250,39 @@ def s_unsafe_forward(cfg, rng, name):
     return _series([World(segs, max_range_m=8.0)] * 3, cfg, rng, name)
 
 
+def _pole(x, y, r=0.02):
+    return box(x, y, r, r)
+
+
+def s_edge_left(cfg, rng, name):
+    # Centreline clear (nearest FRONT-sector return 0.42 m: CAUTION, old rule would allow), but a pole
+    # 0.30 m ahead of the bumper, 0.14 m left of centre: inside the 0.15 m half-corridor -> BLOCKED.
+    return _series([World(room(3.0, 3.0) + _pole(0.40, 0.14))] * 3, cfg, rng, name)
+
+
+def s_edge_right(cfg, rng, name):
+    return _series([World(room(3.0, 3.0) + _pole(0.40, -0.14))] * 3, cfg, rng, name)
+
+
+def s_pole_outside(cfg, rng, name):
+    # Same distance, 0.22 m left: outside the corridor (no over-blocking).
+    return _series([World(room(3.0, 3.0) + _pole(0.40, 0.22))] * 3, cfg, rng, name)
+
+
+def s_narrow_door(cfg, rng, name):
+    # 0.24 m opening (narrower than the 0.20 m robot + 2 x 0.05 m margin) approached from 0.7 to 0.3 m
+    # ahead of the bumper: the jambs lie inside the corridor -> CAUTION, then BLOCKED before contact.
+    worlds = [World(room(3.0, 2.0) + [Segment(F + 0.10, -2.0, F + 0.10, -0.12), Segment(F + 0.10, 0.12, F + 0.10, 2.0)])
+              for F in (0.70, 0.50, 0.40, 0.30, 0.25)]
+    return _series(worlds, cfg, rng, name)
+
+
+def s_mirror_ahead(cfg, rng, name):
+    # Specular panel across the corridor 0.6 m ahead: weak phantom returns far behind it.
+    segs = room(3.0, 2.0) + [Segment(0.70, -0.5, 0.70, 0.5, "mirror")]
+    return _series([World(segs)] * 3, cfg, rng, name)
+
+
 def s_clear_room(cfg, rng, name):
     """Control case: fully covered room, nothing close. The only case that should read CLEAR."""
     return _series([World(room(3.0, 3.0))] * 3, cfg, rng, name)
@@ -260,6 +310,11 @@ SCENARIOS: dict[str, Callable] = {
     # 19 corrupted packets is byte-level (MockLidarDevice corrupt=...).
     "20_unsafe_forward_clearance": s_unsafe_forward,
     "00_clear_room_control": s_clear_room,
+    "21_edge_obstacle_left": s_edge_left,
+    "22_edge_obstacle_right": s_edge_right,
+    "23_pole_just_outside_corridor": s_pole_outside,
+    "24_door_narrower_than_robot": s_narrow_door,
+    "25_mirror_across_corridor": s_mirror_ahead,
 }
 BYTE_LEVEL_SCENARIOS = {"13_serial_disconnect", "14_device_timeout", "19_corrupted_packets"}
 

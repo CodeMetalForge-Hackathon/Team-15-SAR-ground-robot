@@ -18,6 +18,9 @@ Then the downgrades, applied to every sector. CLEAR or CAUTION becomes UNKNOWN w
   * the scan is older than ``display_max_age_s`` (STALE), or the timestamp is in the future;
   * the connection is not SCANNING, or the device health is not GOOD.
 
+In addition, the footprint corridor (lidar/footprint.py) must be CLEAR or CAUTION, and the orientation
+monitor must be OK. Weak returns (< clearance_min_quality) never count as clear-space evidence.
+
 ``forward_motion_allowed`` is True only if ALL of the following hold:
   * the scan is fresh (no older than 0.20 s, measured from the capture START);
   * FRONT is CLEAR or CAUTION;
@@ -41,6 +44,7 @@ from enum import Enum
 from typing import Optional
 
 from .config import LidarConfig
+from .footprint import ORIENTATION_FAILED, ORIENTATION_OK, CorridorResult, assess_corridor
 from .scan import Scan, ScanCompletion, SourceMode
 
 SCHEMA = "team15.lidar_sectors/1"
@@ -99,7 +103,7 @@ def analyze_sectors(scan: Scan, cfg: LidarConfig) -> list[SectorResult]:
     bins_per_sector = int(round(SECTOR_WIDTH_DEG / p.bin_deg))
     acc = {name: {"bins": set(), "min": None, "brg": None, "n": 0} for name, _ in SECTORS}
     for s in scan.samples:
-        if not s.valid:
+        if not s.valid or m.occluded(s.angle_deg):    # re-apply the CURRENT signed-off windows
             continue
         rb = m.robot_bearing(s.angle_deg)
         if rb is None:
@@ -107,7 +111,8 @@ def analyze_sectors(scan: Scan, cfg: LidarConfig) -> list[SectorResult]:
         name = sector_of(rb)
         a = acc[name]
         a["n"] += 1
-        a["bins"].add(int(((rb + SECTOR_WIDTH_DEG / 2) % 360.0) // p.bin_deg))
+        if s.quality >= p.clearance_min_quality:   # weak returns are obstacles, never clear-space evidence
+            a["bins"].add(int(((rb + SECTOR_WIDTH_DEG / 2) % 360.0) // p.bin_deg))
         if a["min"] is None or s.distance_m < a["min"]:
             a["min"], a["brg"] = s.distance_m, rb
     out = []
@@ -155,6 +160,8 @@ class LidarAssessment:
     scan_mono_ns: Optional[int] = None
     provenance: dict = field(default_factory=dict)
     mount: dict = field(default_factory=dict)
+    corridor: Optional[CorridorResult] = None
+    orientation: str = "NOT_CONFIGURED"
 
     def sector(self, name: str) -> SectorResult:
         return next(s for s in self.sectors if s.name == name)
@@ -176,6 +183,8 @@ class LidarAssessment:
             "reason": self.reason, "scan_seq": self.scan_seq,
             "scan_capture_start_wall": self.scan_wall, "scan_capture_start_mono_ns": self.scan_mono_ns,
             "mount": dict(self.mount),
+            "forward_corridor": None if self.corridor is None else self.corridor.to_dict(),
+            "orientation_monitor": self.orientation,
             "scan_age_s": None if self.scan_age_s is None else round(self.scan_age_s, 4),
             "stale_for_motion": self.stale_for_motion, "stale_for_display": self.stale_for_display,
             "completion": self.completion,
@@ -278,11 +287,18 @@ class LidarAssessor:
                        "note": "nearest reflecting surface; not associated with any camera detection"}
         any_blocked = bool(vs) and not stale_display and min(s.distance_m for s in vs) <= p.blocked_m
 
-        if cfg.mount.aligned:
+        corridor = assess_corridor(scan, cfg)
+        orientation = corridor.orientation
+        if cfg.mount.aligned and orientation != ORIENTATION_FAILED:
             sectors = analyze_sectors(scan, cfg)
+        elif cfg.mount.aligned:
+            sectors = _unknown_sectors(corridor.reason)
+            reasons.append("orientation monitor FAILED")
         else:
             sectors = _unknown_sectors("sensor-to-robot alignment not verified: forward direction unknown")
             reasons.append("alignment not verified")
+        if orientation != ORIENTATION_OK:
+            reasons.append(f"orientation monitor {orientation}")
 
         degrade = []
         if clock_fault:
@@ -295,6 +311,10 @@ class LidarAssessor:
             degrade.append(f"connection {connection.value}")
         if health is not None and health.get("status") != "GOOD":
             degrade.append(f"device health {health.get('status')}")
+        if degrade and corridor.status in ("CLEAR", "CAUTION") or \
+                ((clock_fault or stale_display) and corridor.status == "BLOCKED"):
+            corridor = CorridorResult("UNKNOWN", None, None, None, None, None, corridor.near_zone_m,
+                                      corridor.half_width_m, corridor.lookahead_m, orientation, "; ".join(degrade))
         for s in sectors:
             if degrade and s.status in (SectorStatus.CLEAR, SectorStatus.CAUTION):
                 s.status, s.reason = SectorStatus.UNKNOWN, "; ".join(degrade)
@@ -320,7 +340,10 @@ class LidarAssessor:
         if not geom_ok:
             reasons.append(f"forward sectors FRONT={front.status.value} FRONT_LEFT={fl.status.value} "
                            f"FRONT_RIGHT={fr.status.value}")
-        candidate = (geom_ok and not stale_motion and rate is not None and p.scan_hz_min <= rate <= p.scan_hz_max
+        corridor_ok = corridor.status in ("CLEAR", "CAUTION")
+        if not corridor_ok:
+            reasons.append(f"forward corridor {corridor.status}: {corridor.reason}")
+        candidate = (geom_ok and corridor_ok and orientation == ORIENTATION_OK and not stale_motion and rate is not None and p.scan_hz_min <= rate <= p.scan_hz_max
                      and scan.source_mode is SourceMode.SIMULATED and connection is Connection.SCANNING
                      and cfg.mount.aligned and scan.completion is ScanCompletion.COMPLETE)
         if candidate:
@@ -342,4 +365,4 @@ class LidarAssessor:
             completion=scan.completion.value, valid_coverage=scan.valid_coverage,
             source_mode=scan.source_mode.value, closest=closest, any_return_within_blocked=any_blocked,
             scan_wall=scan.capture_start_wall, scan_mono_ns=scan.capture_start_mono_ns,
-            provenance=dict(scan.provenance), **base)
+            provenance=dict(scan.provenance), corridor=corridor, orientation=orientation, **base)

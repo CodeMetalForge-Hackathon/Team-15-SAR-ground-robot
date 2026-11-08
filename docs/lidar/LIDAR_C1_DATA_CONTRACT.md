@@ -47,6 +47,39 @@ There are eight 45° sectors centred on 0/45/…/315 (robot frame, CCW+): `FRONT
 
 Other fields: `scan_seq`, `scan_capture_start_wall`, `scan_capture_start_mono_ns` (the source scan's capture time), `mount` (`sensor_rotation`, `sign`, `forward_offset_deg`, `alignment_verified`), `connection` (`GATE_LOCKED | DISCONNECTED | CONNECTING | SCANNING | TIMEOUT | HEALTH_ERROR`), `stale_for_motion`, `stale_for_display`, `closest` (`range_m`, `sensor_bearing_deg`, `robot_bearing_deg`/`robot_sector` only if aligned, `is_person: null`), `last_valid_scan_wall`, `thresholds`, `range_semantics`, `person_distance_m: null`, `motion_authority: "NONE …"`.
 
+## 2b. Footprint corridor and orientation monitor (added 2026-11-08, agreed with the rover owner)
+
+`team15.lidar_sectors/1` now also carries `forward_corridor` and `orientation_monitor`. Code: `lidar/footprint.py`.
+
+**Transform.** Returns go from the SENSOR frame into the ROBOT frame, then are measured from the **front bumper**:
+* `x_b = x − sensor_to_front_m`
+* `y_c = y + sensor_lateral_offset_m`
+
+The corridor is `0 < x_b ≤ lookahead_m` and `|y_c| ≤ robot_width_m/2 + width_margin_m`. The names mirror `rover/navigator.py NavConfig`: `robot_width_m` has no default, `width_margin_m` defaults to 0.05 and `lookahead_m` to 1.0.
+
+| Rule | Result |
+|---|---|
+| footprint not measured (`robot_width_m`, `sensor_to_front_m`, `footprint_verified_by/_at`) | UNKNOWN |
+| alignment unverified; orientation monitor FAILED; occlusion windows not signed off | UNKNOWN |
+| `sensor_to_front_m` < min range (blind zone at the bumper) | UNKNOWN |
+| valid return inside the robot's own footprint ahead of the sensor | BLOCKED |
+| valid return (any quality ≥ `min_quality`) in the corridor with `x_b ≤ blocked_m` | BLOCKED |
+| **near zone** (`x_b ≤ blocked_m + stopping_distance_m`, i.e. 0.35 + 0.18 m, placeholders): any of its 1° rays lacks evidence | UNKNOWN (100 % required) |
+| **far zone**: coverage < 90 %, or a contiguous uncovered run > 2° | UNKNOWN |
+| nearest corridor obstacle ≤ `caution_m` | CAUTION |
+| otherwise | CLEAR, `clear_horizon_m = lookahead_m` |
+
+**Evidence** for a ray means a valid return with quality ≥ `clearance_min_quality` (20, a placeholder) at or beyond the ray's exit from the zone, with a 1 cm tolerance used for coverage only. An observed obstacle inside the corridor also counts. Misses, weak returns, returns short of the corridor, and rays in self-occlusion windows are **uncovered**, never clear. The current occlusion windows are re-applied at assessment time.
+
+**`forward_corridor` fields:**
+* `status`, `reference` ("FRONT BUMPER …"), `min_clearance_m`, `clear_horizon_m`
+* `near_coverage_pct`, `far_coverage_pct`, `max_uncovered_gap_deg`, `near_zone_m`, `half_width_m`, `lookahead_m`
+* `orientation_monitor`, `reason`
+* `obstacle` (`x_from_bumper_m`, `y_from_centreline_m`, `sensor_bearing_deg`, `is_person: null`)
+* `diagnosis` (ray counts, transform)
+
+**Orientation monitor.** Configure it with `mount.fiducial_robot_bearing_deg`, `fiducial_range_m` and `fiducial_measured_by`. This is a robot-body feature, such as the camera mast, measured with a tape and protractor independently of the LiDAR. Every scan must contain a return within ±`fiducial_tol_deg`/±`fiducial_tol_m` of the sensor angle that the configured mount predicts. If it doesn't, the state is `FAILED` and every sector and the corridor read UNKNOWN. That catches a wrong offset, a CW/CCW sign error (when the fiducial bearing is not 0° or 180°), and a knocked or rotated sensor. `NOT_CONFIGURED` still displays, but never allows motion. The smallest rotation it detects is about `fiducial_tol_deg` plus the fiducial's own angular half-width.
+
 ## 3. Timing (0.20 s motion / 0.5 s display)
 
 | Term | Value | Basis |
@@ -67,7 +100,11 @@ A scan rate below 5 Hz can never satisfy the 0.20 s limit, so it fails closed (U
 * LiDAR BLOCKED shows BLOCKED. LiDAR CLEAR/CAUTION shows **UNKNOWN** ("forward motion not allowed by ranging"). That is safe, but less informative; interface request D1 in GROVE_TO_LIDAR_MIGRATION.md covers it;
 * `write_range_snapshot` refuses Grove's `/dev/shm/team15_range.json`.
 
-## 5. `team15.rover_range_fields/1` (rover adapter)
+## 5. `team15.rover_range_fields/1` (rover adapter), now corridor-based
+
+`range_m` is **bumper-referenced free space along the robot-width corridor**: the nearest corridor obstacle, or the verified horizon (`clear_horizon_m = lookahead_m`) when the corridor is free. It is never `max_range_m`. Additive fields: `range_reference: "FRONT_BUMPER"`, `clear_horizon_m`, `corridor`. Corridor UNKNOWN → `ERROR`. `source_mode` is always emitted. `footprint.rover_max_required_clear_m` makes a config with `lookahead_m` below the navigator's largest required clearance fail validation, because that would read a clear corridor as BLOCKED.
+
+Earlier, FRONT-sector-based text in this section is superseded:
 
 `adapters.to_rover_fields` fills the existing interface honestly, with `source: "rplidar-c1"`. `rover/sensors.py:from_rover_fields` accepts only `grove-ultrasonic`, so **today it returns ERROR (t = −inf), which `assess` turns into UNKNOWN: no motion.** A test pins this. With the source allowlisted (Stage D, rover owner, after Issue #9), the fields are internally consistent (tested). Mapping: FRONT CLEAR/CAUTION/BLOCKED with a range → `OK`; FRONT UNKNOWN with no returns → `NO_ECHO`; stale, disconnected or other → `ERROR`.
 
