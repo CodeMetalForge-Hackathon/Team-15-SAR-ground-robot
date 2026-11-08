@@ -6,6 +6,7 @@ import threading
 import time
 
 from .protocol import NODES, LEASE_S, STALE_S, APPROVAL_S, DELIVERY_S, validate_action
+from .tracking import Tracks
 
 
 class Conflict(ValueError):
@@ -21,6 +22,7 @@ class Coordinator:
         self.revision = 0
         self.nodes = {n: dict(last=None, boot=None, mode=None, telemetry={}, safety=None) for n in NODES}
         self.commands, self.events = deque(maxlen=150), deque(maxlen=100)
+        self.tracking = Tracks(clock)
 
     def event(self, message):
         self.events.appendleft(dict(time=time.strftime('%H:%M:%S', time.gmtime()), message=message))
@@ -80,6 +82,11 @@ class Coordinator:
                         self.ready(name)
                 self.paused, self.reason = False, 'Operator control active'
                 self.event('Operator enabled proposals; each action still needs approval')
+            elif operation == 'frame':
+                if not self.paused:
+                    raise Conflict('Pause before changing coordinate alignment')
+                self.tracking.align(data.get('node'), data.get('translation_m'), data.get('yaw_deg'))
+                self.event('Jetson frame aligned for ' + data['node'])
             elif operation == 'propose':
                 if self.paused:
                     raise Conflict('Resume operator control first')
@@ -128,6 +135,7 @@ class Coordinator:
                     raise Conflict('Another agent owns this device; stop it before replacing it')
                 self.halt(name + ' connected/restarted')
             node.update(last=now, boot=boot, mode=mode, telemetry=copy.deepcopy(telemetry))
+            self.tracking.observe(name, node)
             if not self.paused and (telemetry.get('agent_error') or telemetry.get('ready') is not True):
                 self.halt(name + ' reported a device/network error or is not ready')
             result = data.get('result')

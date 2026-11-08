@@ -12,6 +12,7 @@ class Simulator:
     def __init__(self, node):
         self.node, self.airborne = node, False
         self.position, self.last = [0, 0, 0], 'idle'
+        self.heading = 0.0
 
     def execute(self, action, params):
         if action not in ('stop', 'land'):
@@ -26,6 +27,14 @@ class Simulator:
             self.position = [params[k] for k in ('x', 'y', 'z')]
         elif action == 'land':
             self.airborne, self.position[2] = False, 0
+        elif action == 'pulse':
+            direction, step = params['direction'], 0.05 * params['power'] / 20
+            if direction in ('z', 'c'):
+                self.heading += math.radians(15 if direction == 'z' else -15)
+            else:
+                dx, dy = {'w':(step, 0), 's':(-step, 0), 'a':(0, step), 'd':(0, -step)}[direction]
+                self.position[0] += math.cos(self.heading)*dx - math.sin(self.heading)*dy
+                self.position[1] += math.sin(self.heading)*dx + math.cos(self.heading)*dy
         self.last = action
         return 'SIMULATED action only; no hardware connected'
 
@@ -37,7 +46,8 @@ class Simulator:
 
     def telemetry(self):
         return dict(ready=True, last_action=self.last, airborne=self.airborne,
-                    position_m=list(self.position), source='SIMULATED', detections=[])
+                    position_m=list(self.position), position_frame='jetson', position_source='SIMULATED',
+                    source='SIMULATED', detections=[])
 
     def close(self):
         self.safe()
@@ -185,6 +195,7 @@ class Crazyflie:
             return dict(ready=False, airborne=False, last_action=self.last, source='LIVE')
         pose, voltage = self.link.pose(), self.link.vbat
         return dict(ready=True, airborne=self.airborne, position_m=list(pose[:3]),
+                    position_frame='boot', position_source='onboard estimator',
                     battery_v=voltage, last_action=self.last, source='LIVE', busy=time.monotonic() < self.busy)
 
     def close(self):

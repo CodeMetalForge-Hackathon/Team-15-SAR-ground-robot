@@ -43,11 +43,15 @@ def make_server(state, credentials, host='127.0.0.1', port=8080, camera=None, bl
             return hmac.compare_digest(auth.encode(), ('Bearer ' + credentials[role]).encode())
 
         def do_GET(self):
-            if self.path in ('/api/state', '/api/bluetooth', '/api/camera/frame'):
+            if self.path in ('/api/state', '/api/bluetooth', '/api/camera/frame', '/api/tracks'):
                 if not self.authorized('operator'):
                     return self.respond(401, dict(error='Operator token required'))
                 if self.path == '/api/state':
                     return self.respond(200, state.snapshot())
+                if self.path == '/api/tracks':
+                    with state.lock:
+                        data = dict(instance=state.instance, **state.tracking.snapshot())
+                    return self.respond(200, data)
                 if self.path == '/api/bluetooth':
                     return self.respond(200, bluetooth.snapshot())
                 frame = camera.snapshot()
@@ -57,7 +61,8 @@ def make_server(state, credentials, host='127.0.0.1', port=8080, camera=None, bl
                     {'X-Camera-Sequence':frame['sequence'], 'X-Camera-Source':frame['source']})
             files = {'/': ('index.html', 'text/html'), '/app.js': ('app.js', 'text/javascript'),
                      '/style.css': ('style.css', 'text/css'), '/media.js':('media.js', 'text/javascript'),
-                     '/fonts/RobotoSlab.ttf': ('fonts/RobotoSlab.ttf', 'font/ttf')}
+                     '/fonts/RobotoSlab.ttf': ('fonts/RobotoSlab.ttf', 'font/ttf'),
+                     '/paths.js': ('paths.js', 'text/javascript')}
             if self.path not in files:
                 return self.respond(404, dict(error='Not found'))
             name, kind = files[self.path]

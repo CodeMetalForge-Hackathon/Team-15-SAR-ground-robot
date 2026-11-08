@@ -10,6 +10,7 @@ from urllib.parse import urlsplit
 
 from .adapters import Simulator, Rover, Crazyflie, Jetson
 from .protocol import DEFAULT_CREDENTIALS, NODES
+from .tracking import PoseFile
 
 
 def load_token(file, role):
@@ -23,7 +24,7 @@ def load_token(file, role):
 
 
 class Agent:
-    def __init__(self, node, token, url, adapter, mode='SIMULATED'):
+    def __init__(self, node, token, url, adapter, mode='SIMULATED', pose_file=None):
         parsed = urlsplit(url)
         if parsed.scheme not in ('http', 'https') or not parsed.hostname or parsed.username or parsed.query or parsed.fragment or parsed.path not in ('', '/'):
             raise ValueError('Coordinator URL must be http(s)://HOST:PORT')
@@ -33,6 +34,7 @@ class Agent:
         self.instance, self.revision, self.deadline = None, None, 0
         self.result, self.error, self.was_active = None, '', False
         self.seen = set()
+        self.pose_file = PoseFile(pose_file) if pose_file else None
 
     def safe(self):
         self.deadline, self.was_active = 0, False
@@ -45,6 +47,8 @@ class Agent:
             if self.was_active and started >= self.deadline:
                 self.safe()
             telemetry = self.adapter.telemetry()
+            if self.pose_file:
+                telemetry.update(self.pose_file.read())
             telemetry['agent_error'] = self.error
             if self.error:
                 telemetry['ready'] = False
@@ -112,6 +116,7 @@ def main(argv=None):
     parser.add_argument('--uri', default='radio://0/80/2M/E7E7E7E7E7')
     parser.add_argument('--preflight-confirmed', action='store_true', help='Positioning deck, origin, clear area, battery and radio verified')
     parser.add_argument('--telemetry-file', type=Path)
+    parser.add_argument('--pose-file', type=Path, help='Optional timestamped localization JSON for path tracking')
     args = parser.parse_args(argv)
     try:
         token = load_token(args.credentials, args.node)
@@ -127,7 +132,7 @@ def main(argv=None):
             adapter = Crazyflie(args.backend_module, args.uri)
         else:
             adapter = Jetson(args.telemetry_file)
-        agent = Agent(args.node, token, args.coordinator, adapter, 'LIVE' if args.live else 'SIMULATED')
+        agent = Agent(args.node, token, args.coordinator, adapter, 'LIVE' if args.live else 'SIMULATED', args.pose_file)
     except (OSError, ValueError, KeyError, ImportError) as exc:
         parser.error(str(exc))
     print(f'{agent.mode} {args.node} agent → {args.coordinator}; no movement on connection', flush=True)
