@@ -19,7 +19,7 @@ const THEMES = {
   urban: { name: 'Urban earthquake', sky: 0x1a222c, fog: 0x2a2f33, fogD: 0.010, sun: 0xffe2b8, sunI: 2.6, hemiS: 0x9fb4c8, hemiG: 0x3a3127, hemiI: 0.75,
     ground: ['#55575a', '#626467', '#4a4b4d'], corridor: '#8a847c', wall: 0x9b9184, wallH: [1.3, 3.0], fill: false, rubble: 0x7f756a },
   warehouse: { name: 'Industrial warehouse', sky: 0x161b22, fog: 0x1f252c, fogD: 0.012, sun: 0xdfe8ff, sunI: 1.6, hemiS: 0xcad6e6, hemiG: 0x2a2d31, hemiI: 1.0,
-    ground: ['#6a6d70', '#75787a', '#5f6264'], corridor: '#8d9093', wall: 0x2f6db5, wallH: [2.6, 3.0], fill: true, rack: true, rubble: 0x8a6a3a },
+    ground: ['#6a6d70', '#75787a', '#5f6264'], corridor: '#8d9093', wall: 0x3a5878, wallH: [2.6, 3.0], fill: true, rack: true, rubble: 0x8a6a3a },
   corridors: { name: 'Collapsed indoor corridors', sky: 0x12161c, fog: 0x1a1e24, fogD: 0.018, sun: 0xe6ecff, sunI: 1.2, hemiS: 0xb8c4d4, hemiG: 0x24272b, hemiI: 0.8,
     ground: ['#6d7176', '#777b80', '#63676c'], corridor: '#9aa0a6', wall: 0xc9ccc8, wallH: [2.2, 2.4], fill: false, rubble: 0x9a958c },
   outdoor: { name: 'Outdoor search field', sky: 0x2a3a4a, fog: 0x4a5a60, fogD: 0.007, sun: 0xfff1d6, sunI: 3.0, hemiS: 0xbcd6ee, hemiG: 0x3d4a2a, hemiI: 0.9,
@@ -342,7 +342,7 @@ export class RescueScene {
   }
 
   _racksDetail(cells, rnd) {
-    const n = cells.length; const boxes = new THREE.InstancedMesh(new THREE.BoxGeometry(0.7, 0.6, 0.7), new THREE.MeshStandardMaterial({ color: 0xb98b4e, roughness: 0.9 }), n * 2);
+    const n = cells.length; const boxes = new THREE.InstancedMesh(new THREE.BoxGeometry(0.55, 0.45, 0.55), new THREE.MeshStandardMaterial({ color: 0xa8824f, roughness: 0.9 }), n * 2);
     const d = new THREE.Object3D(); let k = 0;
     for (const [i, j] of cells) { if (j % 3 === 1) continue; for (const h of [1.2, 2.9]) { if (rnd() < 0.55) { d.position.copy(toV(j + 0.5, i + 0.5, h)); d.rotation.set(0, rnd() * 0.3, 0); d.scale.setScalar(0.8 + rnd() * 0.3); d.updateMatrix(); boxes.setMatrixAt(k++, d.matrix); } } }
     boxes.count = k; boxes.castShadow = true; this.world.add(boxes);
