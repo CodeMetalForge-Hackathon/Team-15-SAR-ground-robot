@@ -45,7 +45,8 @@ ROOM_ASSOC_M = 4.0
 OPERATOR = "sim-operator"
 ROUTABLE = ("CLEAR", "TRAVERSED", "PROBE_APPROVED")
 AGENT_TIMEOUT_S = 10.0
-REFRESH_MARGIN_S = 30.0        # with freshness, also re-observe corridors that will go STALE this soon
+REFRESH_MARGIN_S = 30.0
+MAX_RESUMES = 3                # incidental sightings acknowledged per target before an operator is needed        # with freshness, also re-observe corridors that will go STALE this soon
 MAX_DETOUR_TASKS = 3
 SCOUT_TIMEOUT_S = 150.0
 MODES = ("coordinated", "independent", "static_route")
@@ -99,6 +100,7 @@ class Coordinator:
         self._approach_scouted: set = set()
         rover.nav.on_need_sensing = self._rover_needs_sensing if mode == "coordinated" else None
         rover.nav.stale_edges = self.stale_edges
+        rover.nav.no_replan = mode == "static_route"
         if mode == "independent":
             for a, b, _m in full.edges():
                 rover.know_edge(a, b)
@@ -359,8 +361,6 @@ class Coordinator:
     # --- decisions ------------------------------------------------------------------------------
     def _dispatch(self, cid: str, dest: str, kind: str, route) -> None:
         nav = self.rover.nav
-        if self.mode == "static_route":
-            self.rover.freeze({edge_key(a, b) for a, b in zip(route.path, route.path[1:])})
         nav.start(dest)
         self.active = cid
         self.targets[cid] = {"cand_id": cid, "dest": dest, "status": kind, "t_assigned": round(self.clock(), 2),
@@ -459,12 +459,28 @@ class Coordinator:
                     self.phase = "ROVER_REROUTED" if nav.reroutes else "ROVER_EN_ROUTE"
                     self.phase_detail = f"to {tgt['dest']} ({tgt['status']} {self.active})"
                 return
-            pend = [q for q in nav.operator_requests if q["state"] == "PENDING"]
+            # only requests raised for THIS dispatch count (earlier HUMAN_REVIEW requests stay pending for a human)
+            pend = [q for q in nav.operator_requests if q["state"] == "PENDING" and q["t"] >= tgt["t_assigned"] - 1e-6]
             kind = pend[-1]["kind"] if pend else None
+            room = self.rooms.get(tgt["dest"])
+            seen_edge = None
+            if kind == "HUMAN_REVIEW" and pend[-1].get("obs_id"):
+                seen_edge = rv.log.get(pend[-1]["obs_id"]).edge
+            on_target = room is not None and seen_edge == edge_key(room.node, room.room_id)
             if tgt["status"] == "STAGING" and (nav.state == State.ARRIVED or kind == "HUMAN_REVIEW"):
                 tgt["status"] = "STAGED"
                 self.active = None
-            elif kind == "HUMAN_REVIEW":
+            elif kind == "HUMAN_REVIEW" and not on_target and tgt.get("resumes", 0) < MAX_RESUMES:
+                # a person seen on ANOTHER corridor: keep it for human review, acknowledge as the sim operator
+                # (SIMULATION only) and let the Navigator continue to its own target
+                q = pend[-1]
+                tgt["resumes"] = tgt.get("resumes", 0) + 1
+                self.msg("COORD", "OPERATOR", "SIGHTING", f"person seen on {seen_edge}, not on {tgt['dest']}'s doorway; "
+                         f"kept for human review [{q.get('obs_id')}]; GND-1 continues to {tgt['dest']}", [q.get("obs_id")])
+                nav.respond(q["id"], True, OPERATOR)
+                nav.resume(OPERATOR)
+                return
+            elif kind == "HUMAN_REVIEW" and on_target:
                 tgt["status"] = "AT_STANDOFF"
                 tgt["t_reached"] = round(t, 2)
                 tgt["evidence"] = pend[-1].get("obs_id")

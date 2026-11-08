@@ -113,6 +113,8 @@ class AerialScout:
                                walls=False, scenario=_Overhead(prior, vis))
         self.sector_mask = prior >= 1.0
         self.mass = self.world.belief.copy()            # un-normalised: 1 - mass.sum() = cumulative PoS
+        # mass the camera can actually observe (overhead visibility): the search ends when THIS is exhausted
+        self.obs0 = float((self.world.belief * vis)[self.sector_mask].sum())
         self.mcts = ExplainedMCTS(self.world, n_sims=n_sims, horizon=horizon)
         self.baseline = Lawnmower(self.world) if planner == "lawnmower" else Greedy() if planner == "greedy" else None
         self.failed = False
@@ -155,6 +157,12 @@ class AerialScout:
     # --- tasks from the coordinator --------------------------------------------------------------
     def assign(self, task: dict) -> None:
         self.tasks.append(task)
+
+    def pos_observable(self) -> float:
+        """Cumulative PoS over the part of the sector the camera can see (vis-weighted)."""
+        if self.obs0 <= 0:
+            return 1.0
+        return float(1.0 - (self.mass * self.vis)[self.sector_mask].sum() / self.obs0)
 
     def pos_of_sector(self) -> float:
         m0 = self.world.belief[self.sector_mask].sum()
@@ -332,10 +340,12 @@ class AerialScout:
             self.mode, self.target, self.why = "HOLD", self.cell, "sector search complete; holding for tasks"
             return
         pos = self.pos_of_sector()
-        if pos >= SEARCH_DONE_POS:
+        pos_obs = self.pos_observable()
+        if pos_obs >= SEARCH_DONE_POS:
             self.search_complete = True
-            self._obs(t, "search_complete", status="COMPLETE", confidence=round(pos, 3),
-                      detail=f"cumulative probability of success over the sector {pos:.2f}")
+            self._obs(t, "search_complete", status="COMPLETE", confidence=round(pos_obs, 3),
+                      detail=f"cumulative PoS {pos_obs:.2f} over the observable sector ({pos:.2f} incl. areas the "
+                             f"camera cannot see)")
             return self._decide(t)
         belief = self.mass / self.mass.sum() if self.mass.sum() > 0 else self.mass
         if self.baseline is not None:
@@ -355,7 +365,7 @@ class AerialScout:
         best_q = max((q for _n, q in qs.values()), default=0.0)
         if best_q <= 1e-6 or move == self.cell:
             hot, score = self._hotspot()
-            if hot is None:
+            if hot is None or score < 1e-9:
                 self.search_complete = True
                 return self._decide(t)
             self.target = self._step_toward(hot)
@@ -419,6 +429,7 @@ class AerialScout:
                 "speed_mps": SPEED_MPS, "sensor": SENSOR, "fov_cells": FOV, "pod": POD,
                 "footprint_m": (2 * FOV + 1) * CELL_M, "looks": self.looks,
                 "distance_m": round(self.distance_m, 1), "sector_pos": round(self.pos_of_sector(), 3),
+                "observable_pos": round(self.pos_observable(), 3),
                 "search_complete": self.search_complete,
                 "task": None if self.task is None else {k: v for k, v in self.task.items()},
                 "queued_tasks": len(self.tasks),

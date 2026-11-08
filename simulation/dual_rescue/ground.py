@@ -26,7 +26,7 @@ from __future__ import annotations
 from typing import Callable, Optional
 
 from planner.graph import TrailGraph
-from planner.route import OK, compute_route
+from planner.route import NO_KNOWN_ROUTE, OK, RouteResult, compute_route
 from rover.navigator import Navigator, SafetyStop, State
 from rover.observations import canonical_edge
 from rover.sim import SimConfig, SimObstacle, SimWorld
@@ -47,8 +47,12 @@ class CoopNavigator(Navigator):
     sensing_wait_s: float = SENSING_WAIT_S
     waiting_for_sensing: Optional[dict] = None
 
+    no_replan: bool = False             # benchmark baseline "static_route": shortest path, never replanned
+
     def _plan(self, start: str):
         """Navigator._plan, plus: corridors whose observation is STALE are excluded from NEW routes."""
+        if self.no_replan and getattr(self, "_obstacle_edge", None) is not None:
+            return RouteResult(NO_KNOWN_ROUTE, reason="baseline static_route: replanning disabled")
         stale = self.stale_edges() if self.stale_edges is not None else []
         return compute_route(start, self.dest, blocked=list(self.log.blocked_edges()) + list(stale), graph=self.g)
 
@@ -112,7 +116,6 @@ class GroundRover:
         self.link_lost = False
         self.path: list[tuple[float, float, float]] = [(0.0, *xy[start])]
         self.probe_edges: set[str] = set()
-        self.frozen: Optional[set] = None
         # safety accounting (benchmark): read from the simulator, never used for decisions
         self.collisions: list[dict] = []
         self.unknown_entries: list[dict] = []
@@ -120,18 +123,8 @@ class GroundRover:
         self._last_edge = self.world.edge
 
     # --- knowledge ----------------------------------------------------------------------------
-    def freeze(self, allowed: set) -> None:
-        """static_route baseline: from now on only these corridors may be known."""
-        self.frozen = set(allowed)
-        for a in list(self.nav_graph.adjacency):
-            for b in list(self.nav_graph.adjacency[a]):
-                if edge_key(a, b) not in self.frozen:
-                    del self.nav_graph.adjacency[a][b]
-
     def know_edge(self, a: str, b: str) -> bool:
         if b in self.nav_graph.adjacency[a]:
-            return False
-        if self.frozen is not None and edge_key(a, b) not in self.frozen:
             return False
         m = self.full.neighbors(a)[b]
         self.nav_graph.adjacency[a][b] = m

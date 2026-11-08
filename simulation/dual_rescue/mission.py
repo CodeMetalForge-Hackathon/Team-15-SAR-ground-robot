@@ -348,6 +348,8 @@ class Mission:
             outcome = "UNREACHABLE_REPORTED"
         elif not located_all and c.complete and not reached:
             outcome = "SURVIVOR_NOT_FOUND"
+        elif c.complete and not reached and not any(v.get("status") == "LIKELY" for v in c.candidates.values()):
+            outcome = "CANDIDATE_UNCONFIRMED"
         elif reached:
             outcome = "PARTIAL"
         else:
@@ -357,6 +359,7 @@ class Mission:
         f = self.sc.faults
         justified = all(
             (s not in located and (s in undetectable or self.drone.failed or c.complete)) or
+            (s in located and outcome == "CANDIDATE_UNCONFIRMED" and (self.drone.failed or c.drone_lost)) or
             (s in located and not reach[s]) or
             (s in located and not reach_obs[s] and outcome == "INSUFFICIENT_INFORMATION") or
             (outcome == "SAFE_STOP_FAULT" and bool(self.sc.comm_loss)) or
