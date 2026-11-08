@@ -113,6 +113,7 @@
         <dt>Rover host</dt><dd id="c-host">—</dd>
         <dt>Commanded motion</dt><dd id="c-cmd">—</dd>
         <dt>Camera veto</dt><dd id="c-veto">—</dd>
+        <dt>Controller</dt><dd id="c-ctl">—</dd>
         <dt>Wheel test</dt><dd id="c-wheel">—</dd>
         <dt>Camera</dt><dd id="c-cam">—</dd>
       </dl>
@@ -121,6 +122,10 @@
     <section class="panel" aria-labelledby="ai-h">
       <h2 id="ai-h">Navigation recommendation <span id="nav-badge" class="badge warn">—</span></h2>
       <div class="adv" id="nav-text">Rover host not running: no recommendation computed.</div>
+      <h2 style="margin-top:10px">Qwen proposal <span id="q-badge" class="badge warn">NONE</span></h2>
+      <div class="adv" id="q-text">No Qwen proposal yet.</div>
+      <h2 style="margin-top:10px">Supervisor decisions (Pi)</h2>
+      <ul class="tl" id="dec" style="max-height:200px"><li><time>—</time><span class="muted">none</span></li></ul>
       <h2 style="margin-top:10px">Rescue advisory <span id="ai-badge" class="badge warn">NONE</span></h2>
       <div class="adv" id="ai-text">No advisory yet.</div>
       <div class="note">Recommendations are advisory (authority NONE). Motion only happens when an operator requests it and the deterministic supervisor accepts it.</div>
@@ -259,11 +264,29 @@ function renderNav(r) {
     + (c ? `\nCandidate paths: ${c}` : "") + `\nComputed from the frame ${v.age_s ?? "?"} s old · source ${v.source_mode || "?"}`;
 }
 
+function renderQwen(r) {
+  const q = r && r.qwen;
+  if (!q || !q.action) { badge($("q-badge"), "NONE", "warn"); $("q-text").textContent = "No Qwen proposal yet."; }
+  else {
+    badge($("q-badge"), `${q.action} · ${q.label || "?"}${q.fallback ? " · FALLBACK" : ""}`, q.action === "STOP" ? "bad" : "info");
+    $("q-text").textContent = `${q.explanation || ""}\nModel: ${q.model_id || "?"}${q.adapter_sha256 ? "\nAdapter SHA-256: " + q.adapter_sha256.slice(0, 16) + "…" : ""} · ${q.latency_ms ?? "?"} ms\nAdvisory only: sent to the Pi as origin=qwen; motion from Qwen is refused, STOP is accepted.`;
+  }
+  const d = (r && r.decisions) || [];
+  if (d.length) $("dec").innerHTML = d.slice().reverse().map((x) => `<li><time>${hms(x.t)}</time><span><span class="badge ${x.accepted ? "ok" : "bad"}">${x.accepted ? "ACCEPTED" : "REFUSED"}</span> <b>${esc(x.cmd)}</b> <span class="muted">from ${esc(x.origin)}: ${esc(x.reason)}</span></span></li>`).join("");
+  const k = r && r.controller;
+  $("c-ctl").innerHTML = k ? `<span class="badge ${r.physical ? "ok" : "warn"}">${esc(k.kind)}</span> state <b>${esc(k.state)}</b>${k.motor_registers ? ` · motor registers [${k.motor_registers.join(", ")}]` : ""} · watchdog trips ${esc(k.watchdog_trips)}${r.link ? ` · Mac link ${esc(r.link)}` : ""}` : "—";
+}
+
 function renderHost(r, c) {
-  renderNav(r);
+  renderNav(r); renderQwen(r);
   if (!r || r.status === "NOT_RUNNING") {
     $("c-host").innerHTML = `<span class="badge warn">NOT RUNNING</span> <span class="muted">${esc((r && r.text) || "")}</span>`;
     $("c-cmd").textContent = c ? c.command_state : "—"; $("c-veto").textContent = "—"; return;
+  }
+  if (r.usb) {   // controller USB is on the Pi: report the Pi's view instead of the Mac probe
+    badge($("usb-badge"), r.usb.present ? "DETECTED ON PI" : "NOT ON PI", r.usb.present ? "ok" : "bad");
+    $("c-usb").innerHTML = `Pi ${r.usb.present ? "sees" : "does NOT see"} <code>${esc(r.usb.path)}</code> · port ${r.usb.opened_by_host ? "opened by the Pi host" : "NOT opened (mock motors)"}`;
+    $("c-port").textContent = r.usb.path;
   }
   const lab = r.physical ? "ok" : "warn";
   $("c-host").innerHTML = `<span class="badge ${lab}">${esc(r.label)}</span> <span class="badge ${r.status === "LIVE" ? "info" : "bad"}">${esc(r.status)} ${r.age_s}s</span> <span class="muted">driver ${esc(r.driver)} · autonomy ${esc(r.autonomy)}</span>`;

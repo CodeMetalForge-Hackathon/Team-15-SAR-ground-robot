@@ -1,0 +1,5 @@
+# Team-15: keep ModemManager away from the RoverC-Pro StickC bridge ONLY.
+# Matches the tty of one USB device: FTDI 0403:6001, USB serial 7D520E63EE ("Hades2001 / M5stack").
+# Every other tty keeps ModemManager's default behaviour (80-mm-candidate.rules sets ID_MM_CANDIDATE=1).
+# NOT INSTALLED. Install only with approval (see docs/rover/PI_BRIDGE_RUNBOOK.md section 3).
+ACTION=="add|change|move|bind", SUBSYSTEM=="tty", SUBSYSTEMS=="usb", ATTRS{idVendor}=="0403", ATTRS{idProduct}=="6001", ATTRS{serial}=="7D520E63EE", ENV{ID_MM_DEVICE_IGNORE}="1"

@@ -58,7 +58,7 @@ def mock_stack(clock: Callable[[], float]):
 
 class PiHost:
     def __init__(self, driver, transport, fw=None, clock: Callable[[], float] = time.monotonic,
-                 wall: Callable[[], float] = time.time, mac_timeout_s: float = 0.5):
+                 wall: Callable[[], float] = time.time, mac_timeout_s: float = 0.5, usb_path: Optional[str] = None):
         self.physical = bool(getattr(driver, "physical", True))
         self.mock_sensors = not self.physical
         self.fw, self.tr, self.clock, self.wall = fw, transport, clock, wall
@@ -70,6 +70,7 @@ class PiHost:
         self.link_ok = False
         self.lock = threading.RLock()
         self.decisions: list[dict] = []
+        self.usb_path = usb_path
 
     # --- authenticated inputs from the Mac ----------------------------------------------------------
     def on_mac(self) -> None:
@@ -160,6 +161,10 @@ class PiHost:
                 a = self.tr.last_ack
                 s["controller"] = {"kind": "StickC bridge", "state": a.state if a else "NO_ACK",
                                    "watchdog_trips": a.wd_trips if a else None, "health": self.tr.health()}
+            if self.usb_path:            # read-only presence check (os.path.exists): the port is never opened here
+                import os
+                s["usb"] = {"path": self.usb_path, "present": os.path.exists(self.usb_path),
+                            "opened_by_host": not self.mock_sensors}
             s["decisions"] = self.decisions[-20:]
             return s
 
@@ -227,6 +232,8 @@ def main(argv=None) -> int:  # pragma: no cover - process wiring; logic tested t
     p.add_argument("--usb-serial")
     p.add_argument("--verification")
     p.add_argument("--hz", type=float, default=20.0)
+    p.add_argument("--watch-usb", default="/dev/serial/by-id/usb-Hades2001_M5stack_7D520E63EE-if00-port0",
+                   help="by-id path whose PRESENCE is reported (never opened in --mock-motors mode)")
     a = p.parse_args(argv)
     if a.bind in ("0.0.0.0", "::"):
         p.error("bind to the Tailscale IP or localhost only")
@@ -244,7 +251,7 @@ def main(argv=None) -> int:  # pragma: no cover - process wiring; logic tested t
         except HardwareNotVerified as e:
             print(f"REFUSED: {e}", file=sys.stderr)
             return 3
-    host = PiHost(drv, tr, fw)
+    host = PiHost(drv, tr, fw, usb_path=a.watch_usb or a.serial)
     srv = ThreadingHTTPServer((a.bind, a.port), make_handler(host, link.Verifier(key)))
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     print(f"pi_host: {'MOCK MOTORS (firmware model)' if a.mock_motors else 'HARDWARE'} on http://{a.bind}:{a.port}",

@@ -150,7 +150,9 @@ class Session:
     def demo20(self):
         self.log("PHASE", note="0-5 s: controller link, STOP state, camera availability")
         self.cmd("STOP")
-        self.snapshot("after STOP")
+        s = self.snapshot("after STOP")
+        if s.get("safety_latch"):            # e.g. COMMS_LOST from an earlier silent link: a named operator clears it
+            self.cmd("RESET_LATCH")
         self.camera_check()
         self.cmd("APPROVE")
         th = threading.Thread(target=self.ask_qwen)      # Qwen + LoRA takes ~10 s on MPS: start it early
@@ -180,6 +182,8 @@ class Session:
 
     def faults(self):
         self.cmd("STOP")
+        if self.snapshot("start").get("safety_latch"):
+            self.cmd("RESET_LATCH")
         self.cmd("APPROVE")
         self.log("PHASE", note="stale camera while turning")
         self.cmd("TURN_LEFT", speed=0.15, duration_s=1.0)
