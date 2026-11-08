@@ -57,6 +57,26 @@ class BleLinkTest(unittest.TestCase):
         return False
 
     # ---- the byte formats ------------------------------------------------------
+    def test_known_firmware_skips_the_check(self):
+        os.environ["T15_BLE_FW"] = "2024.2"
+        self.addCleanup(os.environ.pop, "T15_BLE_FW", None)
+        drv, _ = self.connect(mode="2024.2")
+        self.assertEqual(drv.rx.dialect, ble_link.FW2024_2)
+
+    def test_silent_firmware_check_fails_clearly_instead_of_guessing(self):
+        old_probe, ble_link.PROBE_S = ble_link.PROBE_S, 0.05
+        self.addCleanup(setattr, ble_link, "PROBE_S", old_probe)
+        orig = bleak.FakeDrone._got
+
+        def no_echo(drone, pk):
+            if not (pk[0] >> 4 == 15 and pk[0] & 3 == 0):
+                orig(drone, pk)
+        bleak.FakeDrone._got = no_echo
+        self.addCleanup(setattr, bleak.FakeDrone, "_got", orig)
+        with self.assertRaises(Exception) as err:
+            self.connect(mode="2024.2")
+        self.assertIn("firmware check", str(err.exception))
+
     def test_reassembler_reads_the_firmwares_own_test_vectors(self):
         r = ble_link.Reassembler()
         self.assertEqual(r.feed(bytes([0x80, 0xF3])), b"\xf3")             # testBuildsSingleBytePacket

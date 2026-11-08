@@ -37,6 +37,7 @@ firmware turns Bluetooth off until restarted. Needs: pip install bleak
 from __future__ import annotations
 
 import asyncio
+import os
 import logging
 import queue
 import threading
@@ -52,6 +53,7 @@ NULL = b"\xff"                      # CRTP port 15, channel 3: ignored by the dr
 ECHO_HEADER = 0xFC                  # CRTP port 15, channel 0 (link echo), legacy bits set
 NAME_PREFIX = "Crazyflie"
 SCAN_S = 4.0
+PROBE_S = 3.0                       # wait for each firmware-check echo
 POLL_S = 0.004                      # pause after an idle poll
 COALESCE = {(3, 0)}                 # thrust setpoints: only the newest one matters...
 
@@ -350,25 +352,41 @@ class BleDriver:
         log.info("Bluetooth link up to %s (radio firmware %s, long packets %s)",
                  target, self.rx.dialect, self.long_mode)
 
+    def _set_2024_2(self):
+        self.rx.dialect, self.long_mode, self.lossy = FW2024_2, "full", True
+        log.warning("Drone radio firmware 2024.2: long Bluetooth answers are damaged by the "
+                    "firmware and will be dropped. Short ones work. A firmware update fixes it.")
+
     async def _detect_firmware(self):
-        """Short echo: is the length byte 'length - 1' (most firmware) or 'length' (2024.2)?"""
+        """Short echo: is the length byte 'length - 1' (most firmware) or 'length' (2024.2)?
+
+        T15_BLE_FW=2024.2 (or =new) skips the check for a drone whose firmware is known.
+        If the drone never answers the check, connecting fails: guessing the wrong
+        firmware garbles every answer and the connection hangs."""
+        forced = os.environ.get("T15_BLE_FW", "").strip().lower()
+        if forced == FW2024_2:
+            self._set_2024_2()
+            return
+        if forced == "new":
+            self.long_mode = await self._detect_long_mode()
+            return
         probe = bytes([ECHO_HEADER]) + b"t15ok"     # 6 bytes
-        for _ in range(2):
+        for _ in range(5):
             self.probe = asyncio.get_running_loop().create_future()
             self._push(probe, None)
             try:
-                frag = await asyncio.wait_for(self.probe, 3.0)
+                frag = await asyncio.wait_for(self.probe, PROBE_S)
             except asyncio.TimeoutError:
                 continue
             finally:
                 self.probe = None
             if frag[0] & 0x1F == len(probe):
-                self.rx.dialect, self.long_mode, self.lossy = FW2024_2, "full", True
-                log.warning("Drone radio firmware 2024.2: long Bluetooth answers are damaged by the "
-                            "firmware and will be dropped. Short ones work. A firmware update fixes it.")
+                self._set_2024_2()
                 return
-            break
-        self.long_mode = await self._detect_long_mode()
+            self.long_mode = await self._detect_long_mode()
+            return
+        raise ConnectionError("The drone did not answer the Bluetooth firmware check. Turn the drone off "
+                              "and on and retry, or set T15_BLE_FW=2024.2 if you know its firmware.")
 
     async def _write_raw(self, raw):
         writes = uplink_writes(raw, self.pid, self.long_mode)

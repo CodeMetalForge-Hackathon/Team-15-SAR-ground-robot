@@ -48,6 +48,7 @@ TILT_CUT = 35.0
 MIN_VBAT = 3.7
 RATE_HZ = 50
 TAIL_S = 2.5
+CONNECT_TIMEOUT_S = 60.0
 
 
 def profile(hover, height_m, forward_m, pitch_deg, reverse=False):
@@ -227,7 +228,25 @@ def connect_and_fly(hop, uri):
         log("connecting over Bluetooth (15-30 s)")
     cf = Crazyflie(rw_cache=cache)
     scf = SyncCrazyflie(uri, cf=cf)
-    scf.open_link()
+    opened, failed = threading.Event(), []
+
+    def opener():
+        try:
+            scf.open_link()
+            opened.set()
+        except Exception as exc:
+            failed.append(exc)
+            opened.set()
+    threading.Thread(target=opener, daemon=True).start()
+    if not opened.wait(CONNECT_TIMEOUT_S):
+        try:
+            scf.close_link()
+        except Exception:
+            pass
+        raise RuntimeError(f"connecting did not finish in {CONNECT_TIMEOUT_S:.0f} s. Turn the drone off and on, "
+                           "keep it still, and retry (if it repeats: connect once over USB with cf_lift)")
+    if failed:
+        raise failed[0]
     got = {}
     try:
         toc = getattr(cf.log.toc, "toc", {})

@@ -32,6 +32,8 @@ SCAN_URL="http://127.0.0.1:8765"
 STATE="$HOME/t15-demo-state.json"
 SCOPE="TESTKEY-demo"
 STARTED=()
+# Our drone's radio firmware is 2024.2: skip the Bluetooth firmware guess (T15_BLE_FW=new to re-detect).
+export T15_BLE_FW="${T15_BLE_FW:-2024.2}"
 
 say() { printf '\n== %s\n' "$*"; }
 up() { curl -s -o /dev/null --max-time 1 "$1"; }
