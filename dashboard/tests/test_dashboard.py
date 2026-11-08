@@ -173,7 +173,7 @@ def test_no_photos_tracked_in_git():
     files = subprocess.run(["git", "ls-files"], cwd=REPO, capture_output=True, text=True,
                            check=True).stdout.splitlines()
     photos = [f for f in files if Path(f).suffix.lower() in {".jpg", ".jpeg", ".png", ".heic", ".mp4", ".mov"}
-              and f not in VENDORED_ICONS]
+              and f not in VENDORED_ICONS and f not in SYNTHETIC_DEMO_MEDIA]
     assert photos == []
 
 
@@ -181,3 +181,8 @@ def test_no_photos_tracked_in_git():
 # They are not photos. Listed by exact path: any other image anywhere still fails this test.
 VENDORED_ICONS = {f"team15_starter/fleet/web/leaflet/images/{n}" for n in
                   ("layers.png", "layers-2x.png", "marker-icon.png", "marker-icon-2x.png", "marker-shadow.png")}
+
+# Judge demo media rendered from the dual-robot SIMULATION (3D digital twin). Not camera captures, no person:
+# recorded with no real-camera evidence folder configured (see demo/VIDEO_INDEX.md). Listed by exact path.
+SYNTHETIC_DEMO_MEDIA = {"demo/videos/Team15_Dual_Robot_Rescue_Demo.mp4", "demo/evidence/sim_3d_reroute.jpg",
+                        "demo/evidence/sim_mission_complete_qwen.jpg"}
