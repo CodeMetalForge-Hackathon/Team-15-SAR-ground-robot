@@ -78,7 +78,9 @@ Collected with `python3 -m pytest -q -p no:cacheprovider --collect-only <dir>` a
 
 ## 3. The five CI workflows
 
-All five run on `ubuntu-latest`. None installs torch, pyserial or libgpiod. None has access to a camera, a Pi or the network beyond pip.
+> **Added with this documentation:** a sixth workflow, `.github/workflows/docs.yml` (display name `docs`). It runs `python scripts/check_docs.py .` on every push and PR, and fails on broken relative links or heading anchors, backticked repo paths that do not exist, and private-data patterns (private or tailnet IPs, absolute home paths, emails, tokens, SSH key names). Run it locally with `python3 scripts/check_docs.py .`. Add `--mermaid` to also render every diagram, which needs `mmdc` from `@mermaid-js/mermaid-cli`.
+
+All five code workflows run on `ubuntu-latest`. None installs torch, pyserial or libgpiod. None has access to a camera, a Pi or the network beyond pip.
 
 | Workflow file (display name) | Triggers | Python | Installs | Runs |
 |---|---|---|---|---|
