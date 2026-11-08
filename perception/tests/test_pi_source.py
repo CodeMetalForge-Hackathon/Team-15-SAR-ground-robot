@@ -278,3 +278,28 @@ def test_default_source_is_local(monkeypatch):
     monkeypatch.setattr(live_camera, "run", lambda a: seen.setdefault("a", a) and 0)
     live_camera.main(["--sector", "G"])
     assert seen["a"].source == "local" and seen["a"].pi_rotation == 180
+
+
+def test_warm_up_runs_each_detector_once_and_discards():
+    calls = []
+
+    class D:
+        def detect_all(self, frame):
+            calls.append(frame.shape)
+            return [Detection([0, 0, 10, 10], "d", 1.0, "k", FULL_BODY_HOG)]
+
+    src = fake_source("stream").start()
+    try:
+        dt = live_camera.warm_up([D(), D()], src)
+        assert dt is not None and calls == [(H, W, 3), (H, W, 3)]
+        ok, _ = src.read(timeout_s=10)   # the stream keeps going afterwards
+        assert ok
+    finally:
+        src.release()
+
+
+def test_warm_up_tolerates_no_frame():
+    class Cap:
+        def read(self):
+            return False, None
+    assert live_camera.warm_up([_AlwaysPerson()], Cap()) is None
