@@ -60,6 +60,8 @@ def make_people(world, grid, rng, phone_rate=0.5, tags=None, statuses=None):
 
 
 class SimDrone:
+    kind = "air"
+
     def __init__(self, did, sensors, world, grid, people, rng, key=None,
                  speed=5.0, endurance=240.0, drift=0.02, uwb_range=None,
                  launch_at=0.0, charge_s=60.0, mmwave_alt=2.0, military=False):
@@ -95,6 +97,7 @@ class SimDrone:
         self.made = []                           # (det_id, time) for delivery scoring
         self.military = military
         self.failsafe = None
+        self.home_xy = (0.0, 0.0)                # where the link-loss failsafe goes
 
     # ---------------------------------------------------------------- radio
     def receive(self, raw, t):
@@ -170,8 +173,8 @@ class SimDrone:
         moved = 0.0
         if self.failsafe == "rtb":
             self.state = 4
-            moved = self._fly_toward(0.0, 0.0, self.true[2], dt)
-            if float(np.hypot(*self.est)) < 0.3 * self.world.cell_m:
+            moved = self._fly_toward(self.home_xy[0], self.home_xy[1], self.true[2], dt)
+            if float(np.hypot(*(self.est - np.asarray(self.home_xy)))) < 0.3 * self.world.cell_m:
                 self._land(t)
         elif self.failsafe == "hold":
             self.state = 4
@@ -247,7 +250,7 @@ class SimDrone:
                 if s == "ble" and not p.tag_id:
                     continue
                 pod = pre["pod"]
-                vis = getattr(self.world, "vis", None)
+                vis = self._vis()
                 if vis is not None:
                     pod *= float(sensor_visibility(s, vis[p.cell]))   # trees hide him from cameras
                 if self.rng.random() >= pod:
@@ -257,6 +260,10 @@ class SimDrone:
                     p.first_detected = t
                 found.append(self._detection(p, s, t))
         return [self._send(d) for d in found]
+
+    def _vis(self):
+        """How well this vehicle's cameras see into each cell (None = everywhere clear)."""
+        return getattr(self.world, "vis", None)
 
     def _detection(self, p, s, t):
         noise = self.rng.normal(0, 0.25 * self.world.cell_m, 2)

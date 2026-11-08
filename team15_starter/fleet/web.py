@@ -144,7 +144,7 @@ def _u8(a):
 
 
 def snapshot(hub, t, mission_id, origin, mode="live", paused=False, speed=1.0,
-             people=None, sim_drones=None, gw=None, done_at=None, events_tail=80):
+             people=None, sim_drones=None, gw=None, done_at=None, events_tail=80, vitals_at=None, hq=None):
     """Everything the page needs, as plain JSON. Positions are local metres;
     the page converts them to latitude/longitude around `origin`."""
     w, g = hub.world, hub.grid
@@ -159,16 +159,18 @@ def snapshot(hub, t, mission_id, origin, mode="live", paused=False, speed=1.0,
         else:
             tx = ty = None
         drones.append(dict(
-            id=d.id, x=round(d.x, 2), y=round(d.y, 2), z=round(d.z, 1), sigma=round(d.sigma, 2),
+            id=d.id, kind=d.kind, label=d.label,
+            x=round(d.x, 2), y=round(d.y, 2), z=round(d.z, 1), sigma=round(d.sigma, 2),
             task="LOST" if d.lost else d.task, state=d.state,
             battery=None if d.battery == 255 else d.battery,
-            time_left=None if d.state == 0 else round(hub.time_left(d, t), 0),
+            time_left=None if d.state == 0 or d.kind == "ground" else round(hub.time_left(d, t), 0),
             sensors=d.sensors, rssi=d.rssi, tx=tx, ty=ty, cmd=d.cmd,
             confirm=d.confirm_track, seen=round(t - d.last_seen, 1) if d.last_seen > -1e8 else None,
             trail=[[x, y] for _, x, y in hub.trails.get(d.id, [])[-300:]]))
     snap = dict(
-        mission=mission_id, mode=mode, t=round(t, 1), paused=paused, speed=speed,
+        mission=mission_id, mode=mode, t=round(t, 1), paused=paused, speed=speed, vitals_at=vitals_at,
         military=hub.cfg.military, signed=bool(hub.key), done_at=done_at, recalled=hub.recalled,
+        complete=hub.complete,
         grid=dict(n=w.n, cell=w.cell_m, home=list(g.home), origin=list(origin),
                   walls=[] if getattr(w, "scenario", None) is not None else
                   [[int(i), int(j)] for i, j in zip(*np.nonzero(w.obstacles))]),
@@ -200,6 +202,10 @@ def snapshot(hub, t, mission_id, origin, mode="live", paused=False, speed=1.0,
             threats=[[round(x, 1), round(y, 1), round(r, 1)] for x, y, r in sc.threats],
             regions=sc.regions(hub.mass), reports=reports,
             canopy=round(100 * float((sc.vis < 0.5).mean())))
+    if hq is not None:
+        snap["starlink"] = hq.summary(t)
+        if gw is not None and hasattr(gw, "starlink"):
+            snap["starlink"]["rover"] = gw.starlink.summary(t)
     if gw is not None:
         sent = max(1, gw.stats["up_sent"])
         snap["radio"] = dict(loss=round(100 * gw.stats["up_lost"] / sent, 1),
@@ -210,7 +216,7 @@ def snapshot(hub, t, mission_id, origin, mode="live", paused=False, speed=1.0,
                               seen=p.first_detected is not None) for p in people]
     if sim_drones is not None:
         snap["truth_drones"] = [dict(id=d.id, x=round(float(d.true[0]), 2), y=round(float(d.true[1]), 2),
-                                     dead=d.dead) for d in sim_drones]
+                                     dead=d.dead, kind=getattr(d, "kind", "air")) for d in sim_drones]
     return snap
 
 

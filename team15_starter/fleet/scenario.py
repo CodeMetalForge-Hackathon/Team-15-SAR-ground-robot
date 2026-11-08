@@ -53,6 +53,13 @@ def add_sim_args(ap: argparse.ArgumentParser):
     g.add_argument("--drift", type=float, default=0.02, help="VIO drift (0 = perfect position)")
     g.add_argument("--loadout", default=DEFAULT_LOADOUT, help="sensors per drone, ';' between drones")
     g.add_argument("--charge", type=float, default=45.0, help="seconds the mothership needs per recharge")
+    g = ap.add_argument_group("rover + Starlink")
+    g.add_argument("--rovers", type=int, default=None, help="ground rovers (default 1 on --web, else 0)")
+    g.add_argument("--rover-speed", type=float, default=2.5, help="rover top speed on a road, m/s")
+    g.add_argument("--rover-loadout", default="cv,mmwave,ble", help="rover sensors")
+    g.add_argument("--rover-link", choices=["starlink", "radio"], default="starlink",
+                   help="rover talks to the homebase over Starlink (default) or the drones' radio")
+    g.add_argument("--no-starlink", action="store_true", help="no Starlink uplink to HQ")
     return ap
 
 
@@ -83,6 +90,8 @@ def apply_scenario_defaults(args, argv):
     """--scenario pr changes a few defaults (only those you didn't set yourself)."""
     if args.scenario is None:
         args.scenario = "pr" if getattr(args, "web", False) else "grid"
+    if getattr(args, "rovers", 0) is None:
+        args.rovers = 1 if getattr(args, "web", False) else 0
     if args.scenario != "pr":
         return args
     given = " ".join(argv)
@@ -143,6 +152,11 @@ def _set_status(p, status, rng):
         p.hr, p.br = int(rng.integers(35, 44)), int(rng.integers(5, 8))
 
 
+def n_rovers(args):
+    r = getattr(args, "rovers", None)
+    return int(r) if r is not None else 0
+
+
 def build_sim(args, key):
     truth = build_world(args)
     grid = Grid(truth)
@@ -165,7 +179,31 @@ def build_sim(args, key):
               for i in range(args.drones)]
     jam = tuple(float(v) for v in args.jam.split(":")) if args.jam else None
     gw = SimGateway(drones, np.random.default_rng(args.seed + 99), loss=args.loss, jam=jam)
+    nr = n_rovers(args)
+    if nr:
+        from .ground import GroundView
+        from .rover import SimRover, rover_ids
+        from .starlink import CombinedGateway, StarlinkGateway
+        ground = GroundView(truth, args.rover_speed)
+        rovers = [SimRover(rid, args.rover_loadout.split(","), truth, grid, people,
+                           np.random.default_rng(args.seed + 50 + k), key=key, speed=args.rover_speed,
+                           endurance=4 * 3600.0, drift=args.drift * 0.5, launch_at=1.0 + k,
+                           charge_s=args.charge, military=args.military, ground=ground)
+                  for k, rid in enumerate(rover_ids(nr))]
+        if getattr(args, "rover_link", "starlink") == "starlink":
+            gw = CombinedGateway(gw, StarlinkGateway(rovers, np.random.default_rng(args.seed + 77)))
+        else:
+            gw.drones.update({r.id: r for r in rovers})
+        drones = drones + rovers
     return truth, grid, people, drones, gw
+
+
+def make_hq(args):
+    """The homebase's Starlink uplink to HQ (None with --no-starlink)."""
+    if getattr(args, "no_starlink", False):
+        return None
+    from .starlink import HQUplink
+    return HQUplink(np.random.default_rng(args.seed + 1234), military=args.military)
 
 
 class SeqLease:

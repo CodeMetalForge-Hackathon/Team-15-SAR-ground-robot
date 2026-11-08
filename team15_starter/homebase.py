@@ -33,7 +33,7 @@ import numpy as np
 
 from fleet.hub import Homebase
 from fleet.scenario import (SeqLease, add_mission_args, add_sim_args, build_sim, build_world,
-                            hub_config, load_allies, match_people, summarize_truth)
+                            hub_config, load_allies, make_hq, match_people, n_rovers, summarize_truth)
 from link import protocol as P
 from link.transport import BytePipeTransport, SerialTransport
 
@@ -42,7 +42,9 @@ def make_hub(args, key, seq0=1, log_dir="results"):
     world = build_world(args, hidden=True)
     return Homebase(world, args.drones, hub_config(args), key=key,
                     allies=load_allies(args.allies, args), log_dir=log_dir, seq0=seq0,
-                    verbose=not getattr(args, "quiet", False))
+                    verbose=not getattr(args, "quiet", False), n_rovers=n_rovers(args),
+                    rover_speed=getattr(args, "rover_speed", 2.5),
+                    expected=getattr(args, "people", None) if getattr(args, "sim", False) else None)
 
 
 def run_sim(args, key):
@@ -56,6 +58,7 @@ def simulate(args, key, log_dir=None, verbose=False, gif=False):
     truth, grid, people, drones, gw = build_sim(args, key)
     hub = make_hub(args, key, log_dir=log_dir)
     hub.verbose = verbose and not getattr(args, "quiet", False)
+    hq = make_hq(args) if n_rovers(args) or getattr(args, "starlink", False) else None
     pipe = BytePipeTransport()
     dt, t, next_tick, next_status, next_frame = 0.1, 0.0, 0.0, 0.0, 0.0
     frames = []
@@ -75,6 +78,12 @@ def simulate(args, key, log_dir=None, verbose=False, gif=False):
             next_tick += 0.2                           # homebase loop at 5 Hz
         gw.downlink(t, bytes(pipe.tx))                # what the S3 would read from USB
         pipe.tx.clear()
+        if hq is not None:
+            hq.tick(t, hub)
+        if hub.complete:
+            for d in drones:
+                if getattr(d, "kind", "air") == "air":
+                    d.launch_at = 1e12                # mission over: batteries stay on the pad
         if t >= next_status:
             say(hub.status_line(t))
             next_status += 15.0

@@ -12,7 +12,7 @@ import time
 from link import protocol as P
 from link.transport import BytePipeTransport
 from .hub import Homebase
-from .scenario import build_sim, build_world, hub_config, load_allies, match_people
+from .scenario import build_sim, build_world, hub_config, load_allies, make_hq, match_people, n_rovers
 from .web import Dashboard, parse_origin, snapshot
 
 
@@ -20,8 +20,9 @@ def _new_mission(args, key):
     truth, grid, people, drones, gw = build_sim(args, key)
     hub = Homebase(build_world(args, hidden=True), args.drones, hub_config(args), key=key,
                    allies=load_allies(args.allies, args), log_dir="results",
-                   verbose=not getattr(args, "quiet", False))
-    return truth, people, drones, gw, hub
+                   verbose=not getattr(args, "quiet", False), n_rovers=n_rovers(args),
+                   rover_speed=args.rover_speed, expected=getattr(args, "people", None))
+    return truth, people, drones, gw, hub, make_hq(args)
 
 
 def run_live_sim(args, key):
@@ -30,13 +31,14 @@ def run_live_sim(args, key):
     print(f"\n  dashboard:  http://localhost:{args.web_port}   (Ctrl-C to stop)\n")
     mission_id, speed, paused, setup_id = 0, float(args.speed_up), False, 0
     run = argparse.Namespace(**vars(args))
+    fleet_drones = args.drones or 3
     try:
         while True:
             mission_id += 1
-            truth, people, drones, gw, hub = _new_mission(run, key)
+            truth, people, drones, gw, hub, hq = _new_mission(run, key)
             pipe = BytePipeTransport()
             dt, t, next_tick = 0.1, 0.0, 0.0
-            done_at, restart = None, False
+            done_at, vitals_at, restart = None, None, False
             wall = time.monotonic()
             next_pub = 0.0
             print(f"=== mission {mission_id} (seed {run.seed}): {len(people)} hidden people ===")
@@ -53,6 +55,11 @@ def run_live_sim(args, key):
                         secs = float(c.get("secs", 30))
                         gw.jam = (t, t + secs)
                         hub._event(t, "jam", secs=int(secs))
+                    elif cmd == "sky" and hq is not None:   # block the homebase's Starlink for a bit
+                        secs = float(c.get("secs", 20))
+                        hq.outage(t, secs)
+                        if hasattr(gw, "starlink"):
+                            gw.starlink.link.forced = (t, t + secs)
                     elif cmd == "recall":
                         hub.recall(t)
                         for d in drones:
@@ -66,6 +73,9 @@ def run_live_sim(args, key):
                         victims = [v for v in (c.get("victims") or []) if "x" in v and "y" in v]
                         run.people = len(victims) if victims else max(1, min(8, int(c.get("count", 1))))
                         civilian = bool(c.get("civilian", False))
+                        fl = c.get("fleet", "both")
+                        run.drones = 0 if fl == "rover" else fleet_drones
+                        run.rovers = 0 if fl == "drones" else 1
                         run.military = not civilian
                         run.key = None if civilian else (run.key or "team15-pr-demo-key")
                         key = P.load_key(run.key)
@@ -76,7 +86,8 @@ def run_live_sim(args, key):
                         restart = True
                         print(f"  setup: {run.people} victim(s) {'placed' if victims else 'random'}, "
                               f"{'civilian' if civilian else 'military'}, area {run.n * run.cell_m:.0f} m at {run.origin}, "
-                              f"terrain {'from browser' if c.get('osm') else 'to fetch'}")
+                              f"terrain {'from browser' if c.get('osm') else 'to fetch'}, "
+                              f"{run.drones} drone(s) + {run.rovers or 0} rover(s)")
                     elif cmd == "restart":
                         restart = True
                         run.seed += 1
@@ -95,6 +106,16 @@ def run_live_sim(args, key):
                         next_tick += 0.2
                     gw.downlink(t, bytes(pipe.tx))
                     pipe.tx.clear()
+                    if hq is not None:
+                        hq.tick(t, hub)
+                    if hub.complete:
+                        for d in drones:
+                            if d.kind == "air":
+                                d.launch_at = 1e12      # mission over: batteries stay on the pad
+                    if vitals_at is None and hub.tracks:
+                        matched = match_people(people, hub.tracks, 1.5 * truth.cell_m)
+                        if len(matched) == len(people) and all(tr.assessed for tr, _ in matched.values()):
+                            vitals_at = t
                     if done_at is None and hub.tracks:
                         matched = match_people(people, hub.tracks, 1.5 * truth.cell_m)
                         if len(matched) == len(people) and all(
@@ -105,7 +126,8 @@ def run_live_sim(args, key):
                     steps += 1
                 if now >= next_pub:
                     dash.publish(snapshot(hub, t, mission_id, origin, mode="sim", paused=paused or t >= run.time,
-                                          speed=speed, people=people, sim_drones=drones, gw=gw, done_at=done_at))
+                                          speed=speed, people=people, sim_drones=drones, gw=gw, done_at=done_at,
+                                          vitals_at=vitals_at, hq=hq))
                     next_pub = now + 0.2
                 time.sleep(0.02)
             hub.close()

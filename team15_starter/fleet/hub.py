@@ -60,6 +60,7 @@ class HubConfig:
 class DroneState:
     id: int
     alt: float
+    kind: str = "air"               # air = drone, ground = rover
     x: float = 0.0
     y: float = 0.0
     z: float = 0.0
@@ -96,6 +97,10 @@ class DroneState:
     def sensors(self):
         return P.mask_to_sensors(self.sensing)
 
+    @property
+    def label(self):
+        return f"R{self.id - 10}" if self.kind == "ground" else f"D{self.id}"
+
 
 @dataclass
 class Track:
@@ -117,6 +122,7 @@ class Track:
     confirmed: bool = False         # it's a real person (2 sensors, a tag, radar, or high conf)
     assessed: bool = False          # we have their status (vitals from radar/watch, or CV injury call)
     checked: bool = False           # a drone already hovered over it for vitals
+    ground_checked: bool = False    # a rover already stopped next to it for vitals
 
     def as_dict(self):
         return dict(id=self.id, x=round(self.x, 2), y=round(self.y, 2), status=self.status,
@@ -142,7 +148,7 @@ def triage_from_vitals(hr, br):
 class Homebase:
     def __init__(self, world, n_drones=3, cfg: Optional[HubConfig] = None,
                  key: Optional[bytes] = None, allies=None, log_dir="results",
-                 seq0: int = 1, home=None, verbose=True):
+                 seq0: int = 1, home=None, verbose=True, n_rovers=0, rover_speed=2.5, expected=None):
         self.world = world
         self.cfg = cfg or HubConfig()
         self.grid = Grid(world, home)
@@ -153,6 +159,8 @@ class Homebase:
         self.allies = set(allies or [])
         self.drones = {d: DroneState(d, alt=self.cfg.base_alt + (d - 1) * self.cfg.alt_step)
                        for d in range(1, n_drones + 1)}
+        for r in range(11, 11 + n_rovers):          # rovers R1, R2 ... are node ids 11, 12 ...
+            self.drones[r] = DroneState(r, alt=0.0, kind="ground")
         # ablation: without a shared map every drone plans on its own private belief
         self.private = {d: world.belief.copy() for d in self.drones} if not self.cfg.share_map else None
         self.tracks = []
@@ -164,8 +172,14 @@ class Homebase:
         self.stats = dict(rx=0, rx_bad=0, rx_replay=0, tx=0, dets=0, rtb=0)
         self.verbose = verbose
         self.recalled = False
+        self.expected = expected                 # how many are missing (from the brief); None = unknown
+        self.complete = False
         self._now = 0.0
         self.trails = {d: [] for d in self.drones}   # (t, x, y) every ~1 s, for the dashboard
+        self.rover_brain = None
+        if n_rovers:
+            from .rover import RoverBrain
+            self.rover_brain = RoverBrain(self, rover_speed)
         self.events = []
         self.log_dir = log_dir
         if log_dir:
@@ -245,12 +259,13 @@ class Homebase:
         if d.state in (1, 2, 3, 4) and (not tr or now - tr[-1][0] >= 1.0):
             tr.append((now, round(d.x, 1), round(d.y, 1)))
             del tr[:-600]
-        cell = snap_free(self.world, self.grid.to_cell(d.x, d.y))
+        ground = self.rover_brain.ground if d.kind == "ground" and self.rover_brain else None
+        cell = ground.snap(self.grid.to_cell(d.x, d.y)) if ground else snap_free(self.world, self.grid.to_cell(d.x, d.y))
         prev_cell, t_look = d.last_look
         d.cell = cell
         airborne = d.state in (1, 2, 3, 4)
         if airborne and d.sensing and (cell != prev_cell or now - t_look >= self.cfg.look_period):
-            apply_look(self.world, self.mass, cell, d.sensors, d.sigma / self.world.cell_m)
+            apply_look(ground or self.world, self.mass, cell, d.sensors, d.sigma / self.world.cell_m)
             if self.private is not None:
                 apply_look(self.world, self.private[d.id], cell, d.sensors, d.sigma / self.world.cell_m)
             d.last_look = (cell, now)
@@ -333,6 +348,18 @@ class Homebase:
             if d.state in (1, 2, 3, 4) and not d.lost and d.cell is not None:
                 active.append(d)
 
+        rovers = [d for d in active if d.kind == "ground"]
+        active = [d for d in active if d.kind != "ground"]
+        if self.rover_brain is not None:
+            self.rover_brain.step(rovers, now)
+        if not self.complete and self.expected:
+            done = [t for t in self.tracks if t.confirmed and t.assessed]
+            if len(done) >= self.expected:
+                self.complete = True
+                rover = next((d for d in self.drones.values() if d.kind == "ground"), None)
+                self._event(now, "mission_complete", found=len(done),
+                            stay=rover.label if rover else None)
+                self.recall(now)
         for d in active:
             if self.recalled and d.task != "rtb":
                 self._release_confirm(d)
@@ -568,7 +595,7 @@ class Homebase:
         for d in self.drones.values():
             bat = "?" if d.battery == 255 else f"{d.battery}%"
             tag = "LOST" if d.lost else d.task
-            parts.append(f"D{d.id} {tag:<7} {bat:>4}")
+            parts.append(f"{d.label} {tag:<7} {bat:>4}")
         conf = sum(t.confirmed for t in self.tracks)
         vit = sum(t.assessed for t in self.tracks)
         return (f"t={now:6.1f}s | " + " | ".join(parts) +
@@ -583,7 +610,11 @@ class Homebase:
             self._log.write(json.dumps(rec) + "\n")
             self._log.flush()
         if self.verbose and not quiet and ev not in ("bad_packet",):
-            extras = " ".join(f"{k}={v}" for k, v in kw.items() if v is not None and v is not False)
+            shown = dict(kw)
+            if isinstance(shown.get("drone"), int) and shown["drone"] > 10:
+                shown = {("rover" if k == "drone" else k): (f"R{v - 10}" if k == "drone" else v)
+                         for k, v in shown.items()}
+            extras = " ".join(f"{k}={v}" for k, v in shown.items() if v is not None and v is not False)
             print(f"  [{now:6.1f}s] {ev:<17} {extras}")
 
     def close(self):

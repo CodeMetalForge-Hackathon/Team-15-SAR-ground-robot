@@ -137,6 +137,11 @@ button { font: inherit; color: inherit; }
 .leaflet-container { font: inherit; background: var(--map-bg); }
 .leaflet-control-attribution { font-size: 10px; }
 .dicon { width: 26px; height: 26px; border-radius: 50%; border: 2px solid #fff; display: grid; place-items: center; font-weight: 800; font-size: 12px; color: #111; box-shadow: 0 0 0 2px rgba(0,0,0,.35), 0 2px 10px rgba(0,0,0,.5); }
+.dicon.rover { border-radius: 5px; }
+.slk .row { display: flex; justify-content: space-between; padding: 3px 0; font-size: 12.5px; }
+.slk .row span:first-child { color: var(--dim); }
+.slk .ok { color: var(--good); font-weight: 700; } .slk .down { color: var(--bad); font-weight: 700; }
+.slk .hqi { font-size: 12px; padding: 3px 0; border-top: 1px solid var(--line); }
 .dlabel { position: absolute; left: 30px; top: 2px; white-space: nowrap; font-size: 11px; font-weight: 700; color: #fff; background: rgba(0,0,0,.62); padding: 1px 6px; border-radius: 4px; }
 .pulse { position: absolute; left: -9px; top: -9px; width: 44px; height: 44px; border-radius: 50%; border: 2px solid var(--accent); animation: pulse 1.4s ease-out infinite; }
 @keyframes pulse { 0% { transform: scale(.5); opacity: 1; } 100% { transform: scale(1.4); opacity: 0; } }
@@ -157,7 +162,8 @@ button { font: inherit; color: inherit; }
     <div class="ctrls">
       <button class="btn" id="b-pause">Pause</button>
       <div class="seg" id="speed"><button data-s="1">×1</button><button data-s="4">×4</button><button data-s="10">×10</button></div>
-      <button class="btn warn" id="b-jam" title="Jam the radio for 30 s">Jam 30 s</button>
+      <button class="btn warn" id="b-jam" title="Jam the drones' radio for 30 s">Jam 30 s</button>
+      <button class="btn warn" id="b-sky" title="Block the Starlink sky view for 20 s">Block sky 20 s</button>
       <button class="btn" id="b-recall" title="Send every drone home and land">Recall all</button>
       <button class="btn" id="b-new" title="Same place, new random parts">New mission</button>
       <button class="btn primary" id="b-setup" title="Pick the place and the victims yourself">Set up mission</button>
@@ -172,6 +178,7 @@ button { font: inherit; color: inherit; }
       <svg class="north" viewBox="0 0 26 38"><path d="M13 2 L22 26 L13 21 L4 26 Z" fill="#fff" stroke="#000" stroke-width="1"/><text x="13" y="36" text-anchor="middle" font-size="10" font-weight="800" fill="#fff" stroke="#000" stroke-width=".4">N</text></svg>
       <div class="legend">
         <span><i class="sw" style="background:#3b82f6;border-radius:50%"></i>Drone</span>
+        <span id="lg-rover" style="display:none"><i class="sw" style="background:#fb923c"></i>Rover</span>
         <span><i class="sw" style="background:rgba(var(--searched),.6)"></i>Searched</span>
         <span><i class="sw" style="background:linear-gradient(90deg,#ffd54a,#ff7a1a,#e11d48)"></i>Likely here</span>
         <span><i class="sw" style="border:3px solid #ef4444"></i>Contact</span>
@@ -198,6 +205,8 @@ button { font: inherit; color: inherit; }
         <div class="seg" id="su-span"><button data-v="300">300 m</button><button data-v="600">600 m</button><button data-v="1000">1 km</button><button data-v="1500">1.5 km</button></div>
         <div class="lab">Mission</div>
         <div class="seg" id="su-mode"><button data-v="mil">Military · hidden soldier</button><button data-v="civ">Civilian · lost hiker</button></div>
+        <div class="lab">Vehicles</div>
+        <div class="seg" id="su-fleet"><button data-v="drones">Drones</button><button data-v="rover">Rover</button><button data-v="both">Both</button></div>
         <div class="lab">Click the map to</div>
         <div class="seg" id="su-tool"><button data-v="area">Move area</button><button data-v="victim">Add victim</button><button data-v="lkp">Last known position</button><button data-v="hostile">Hostile zone</button></div>
         <div class="lab">Condition of the next victim you place</div>
@@ -224,6 +233,7 @@ button { font: inherit; color: inherit; }
         <div class="bar"><div id="posbar"></div></div>
       </section>
       <section class="card"><h3>Fleet <span id="f-sum"></span></h3><div id="fleet"></div></section>
+      <section class="card slk" id="slk-card" style="display:none"><h3>Starlink <span id="slk-sum"></span></h3><div id="slk"></div></section>
       <section class="card"><h3>Casualties <span>priority first</span></h3><div class="cas-list" id="cas"><div class="empty">No one found yet.</div></div></section>
       <section class="card"><h3>What the team knows <span>newest first</span></h3><div id="reports"></div><div class="tl" id="tl"></div></section>
     </aside>
@@ -233,6 +243,9 @@ button { font: inherit; color: inherit; }
 <script>
 "use strict";
 const COLORS = ["#3b82f6", "#22c55e", "#facc15", "#e879f9", "#38bdf8", "#fb7185"];
+const ROVER_C = ["#fb923c", "#f472b6", "#a3e635"];
+const VL = (i) => i > 10 ? "R" + (i - 10) : "D" + i;
+const VC = (d) => d.kind === "ground" ? ROVER_C[(d.id - 11) % ROVER_C.length] : COLORS[(d.id - 1) % COLORS.length];
 const STC = { critical: "#ef4444", injured: "#f59e0b", ok: "#22c55e", unknown: "#a1a1aa" };
 const $ = (id) => document.getElementById(id);
 const store = { get(k, d) { try { return localStorage.getItem(k) || d; } catch (e) { return d; } },
@@ -385,16 +398,17 @@ function drawOverlays(s) {
 
 // ------------------------------------------------------------ markers
 function droneIcon(d) {
-  const c = COLORS[(d.id - 1) % COLORS.length];
+  const c = VC(d), rover = d.kind === "ground";
   const bat = d.battery == null ? "" : ` · ${d.battery}%`;
   const pulse = d.cmd === 1 ? '<div class="pulse"></div>' : "";
+  const task = d.task === "confirm" ? "vitals check" : d.task === "stay" ? "with casualty" : d.task;
   return L.divIcon({ className: "", iconSize: [26, 26], iconAnchor: [13, 13],
-    html: `${pulse}<div class="dicon" style="background:${c}">${d.id}</div><div class="dlabel">D${d.id} ${d.task}${bat} · ${d.z} m</div>` });
+    html: `${pulse}<div class="dicon${rover ? " rover" : ""}" style="background:${c}">${rover ? "R" + (d.id - 10) : d.id}</div><div class="dlabel">${VL(d.id)} ${task}${bat}${rover ? " · ground" : " · " + d.z + " m"}</div>` });
 }
 function updDrones(s) {
   for (const d of s.drones) {
     if (d.state === 0 && d.task !== "landed" && !droneMk[d.id]) continue;
-    const p = ll(d.x, d.y), c = COLORS[(d.id - 1) % COLORS.length];
+    const p = ll(d.x, d.y), c = VC(d);
     if (!droneMk[d.id]) {
       droneMk[d.id] = L.marker(p, { zIndexOffset: 1000 }).addTo(map);
       trail[d.id] = [];
@@ -419,7 +433,7 @@ function updContacts(s) {
       html: `<div class="cicon" style="border-color:${col};background:${fill}">${t.id}</div>` });
     const vit = t.hr || t.br ? `heart ${t.hr || "?"} · breath ${t.br || "?"}` : "no vitals yet";
     const html = `<b>Contact #${t.id} · ${t.status.toUpperCase()}</b><br>${t.confirmed ? "confirmed" : "unconfirmed"} · conf ${Math.round(100 * t.conf)}%<br>${vit}` +
-      `<br>sensors: ${t.sensors.join(", ")}<br>seen by: ${t.seen_by.map((i) => "D" + i).join(", ")}` +
+      `<br>sensors: ${t.sensors.join(", ")}<br>seen by: ${t.seen_by.map(VL).join(", ")}` +
       (t.tag_id ? `<br>ID tag ${t.tag_id}${t.ally === true ? " (ally)" : t.ally === false ? " (UNKNOWN)" : ""}` : "") +
       `<br><span class="mg">${MG(t.x, t.y)}</span><br>(${t.x}, ${t.y}) m from homebase`;
     if (!conMk[t.id]) conMk[t.id] = L.marker(ll(t.x, t.y), { icon, zIndexOffset: 800 }).bindPopup(html).addTo(map);
@@ -460,10 +474,16 @@ function updPanel(s) {
   $("s-loss").textContent = s.radio ? s.radio.loss + "%" : `${s.stats.rx} rx`;
   $("m-mode").textContent = `${s.stats.tx} sent · ${s.stats.rx} received${s.stats.bad ? " · " + s.stats.bad + " rejected" : ""}`;
   const bn = $("banner");
-  if (s.done_at != null) {
+  const one = s.scenario && s.truth && s.truth.length === 1;
+  if (s.vitals_at != null) {
     bn.style.display = "block";
-    bn.textContent = s.scenario && s.truth && s.truth.length === 1 ? `Soldier found and assessed at ${mmss(s.done_at)}`
-      : `All ${s.truth ? s.truth.length : ""} found and checked for vitals at ${mmss(s.done_at)}`;
+    bn.textContent = one ? `Soldier found and assessed at ${mmss(s.vitals_at)}`
+      : `All ${s.truth ? s.truth.length : ""} found and checked for vitals at ${mmss(s.vitals_at)}`;
+  } else if (s.done_at != null) {
+    bn.style.display = "block";
+    const withV = s.tracks.filter((t) => t.hr || t.br).length;
+    bn.textContent = one ? `Soldier found at ${mmss(s.done_at)} · vitals pending`
+      : `All ${s.truth ? s.truth.length : ""} found at ${mmss(s.done_at)} · vitals ${withV} of ${s.truth ? s.truth.length : "?"}`;
   } else bn.style.display = "none";
   const sc = s.scenario;
   $("brief-card").style.display = sc ? "" : "none";
@@ -480,30 +500,47 @@ function updPanel(s) {
       return `<div class="report"><b class="h">${mmss(r.t)} · Recovery report, contact #${r.track}</b>
         Location <span class="mg">${MG(r.x, r.y)}</span><br>Condition <b>${r.status.toUpperCase()}</b> · ${vit}<br>ID ${id}<br>
         Terrain ${r.terrain}${r.road_m != null ? ` · nearest road ${r.road_m} m` : ""} · nearest hostile zone ${r.threat_m} m<br>
-        ${r.lkp_m} m from last known position · seen by ${r.seen_by.map((i) => "D" + i).join(", ")}</div>`;
+        ${r.lkp_m} m from last known position · seen by ${r.seen_by.map(VL).join(", ")}</div>`;
     }).join("");
   }
   ["b-pause", "b-jam", "b-new", "b-setup"].forEach((id) => { $(id).disabled = live; });
+  $("b-sky").disabled = live || !s.starlink;
   $("b-pause").textContent = s.paused ? "Play" : "Pause";
   $("b-recall").disabled = !!s.recalled;
-  $("b-recall").textContent = s.recalled ? "Recalled" : "Recall all";
+  $("b-recall").textContent = s.complete ? "Mission complete" : s.recalled ? "Recalled" : "Recall all";
   document.querySelectorAll("#speed button").forEach((b) => { b.classList.toggle("on", +b.dataset.s === s.speed); b.disabled = live; });
 
-  const air = s.drones.filter((d) => d.state !== 0).length;
-  $("f-sum").textContent = `${air}/${s.drones.length} airborne`;
+  const dr = s.drones.filter((d) => d.kind !== "ground"), rv = s.drones.filter((d) => d.kind === "ground");
+  const air = dr.filter((d) => d.state !== 0).length;
+  $("f-sum").textContent = (dr.length ? `${air}/${dr.length} airborne` : "") +
+    (rv.length ? `${dr.length ? " · " : ""}${rv.filter((d) => d.state !== 0).length}/${rv.length} rover out` : "");
+  $("lg-rover").style.display = rv.length ? "" : "none";
   $("fleet").innerHTML = s.drones.map((d) => {
-    const c = COLORS[(d.id - 1) % COLORS.length];
+    const c = VC(d), rover = d.kind === "ground";
     const b = d.battery == null ? null : d.battery;
     const bc = b == null ? "var(--faint)" : b > 50 ? "var(--good)" : b > 25 ? "var(--warn)" : "var(--bad)";
     const sens = (d.sensors || []).join(" · ") || "no sensor report";
     const link = d.seen == null ? "never heard" : d.seen < 3 ? "link ok" : `silent ${d.seen} s`;
-    return `<div class="drone"><div class="dot" style="background:${c}">${d.id}</div>
-      <div><b>D${d.id}</b> <span class="task ${d.task}">${d.task === "confirm" ? "vitals check" : d.task}</span>
-      <div class="meta">${sens} · alt ${d.z} m · ±${d.sigma} m · ${link}</div></div>
+    const via = rover && s.starlink && s.starlink.rover ? " via Starlink" : "";
+    return `<div class="drone"><div class="dot" style="background:${c};${rover ? "border-radius:5px" : ""}">${rover ? "R" + (d.id - 10) : d.id}</div>
+      <div><b>${VL(d.id)}</b> <span class="task ${d.task}">${d.task === "confirm" ? "vitals check" : d.task === "stay" ? "with casualty" : d.task}</span>
+      <div class="meta">${sens} · ${rover ? "ground" : "alt " + d.z + " m"} · ±${d.sigma} m · ${link}${via}</div></div>
       <div style="text-align:right">${b == null ? "–" : b + "%"}<span class="batt"><div style="width:${b || 0}%;background:${bc}"></div></span>
-      <div class="meta">${d.time_left == null ? "on pad" : d.time_left + " s left"}</div></div></div>`;
+      <div class="meta">${rover ? (d.state === 0 ? "parked" : "driving") : d.time_left == null ? "on pad" : d.time_left + " s left"}</div></div></div>`;
   }).join("");
 
+  const sl = s.starlink;
+  $("slk-card").style.display = sl ? "" : "none";
+  if (sl) {
+    $("slk-sum").innerHTML = sl.online ? `<span class="ok">● online</span>` : `<span class="down">● outage ${sl.outage_left} s</span>`;
+    const st = (o, left) => o ? `<span class="ok">online</span>` : `<span class="down">outage ${left} s</span>`;
+    let h = `<div class="row"><span>Homebase → HQ</span><span>${st(sl.online, sl.outage_left)} · ${sl.latency_ms} ms · ${sl.uptime}% up</span></div>
+      <div class="row"><span>Reports at HQ</span><span>${sl.delivered} delivered · ${sl.queued} waiting${sl.retries ? " · " + sl.retries + " resent" : ""}</span></div>`;
+    if (sl.burst) h += `<div class="row"><span>EMCON</span><span>sends in bursts every ${sl.burst} s</span></div>`;
+    if (sl.rover) h += `<div class="row"><span>Rover link</span><span>${st(sl.rover.online, sl.rover.outage_left)} · ${sl.rover.loss}% lost (trees block the sky)</span></div>`;
+    h += sl.hq.map((r) => `<div class="hqi"><b>HQ has #${r.id}</b> ${r.status.toUpperCase()}${r.hr || r.br ? ` · heart ${r.hr || "?"} breath ${r.br || "?"}` : " · no vitals yet"} · got it at ${mmss(r.received)}</div>`).join("");
+    $("slk").innerHTML = h;
+  }
   $("cas").innerHTML = s.tracks.length ? s.tracks.map((t) => {
     const vit = t.hr || t.br ? `heart ${t.hr || "?"} · breath ${t.br || "?"}` : "no vitals yet";
     return `<div class="cas" data-x="${t.x}" data-y="${t.y}"><span class="st ${t.status}">${t.status}</span>
@@ -516,15 +553,22 @@ function updPanel(s) {
     '<div class="empty">Drones are taking off…</div>';
 }
 function evHTML(e) {
-  const D = e.drone != null ? `D${e.drone}` : "";
+  const D = e.drone != null ? VL(e.drone) : "";
+  const R = e.drone > 10;
   const T = {
-    takeoff: [`${D} took off`, ""],
-    landed: [`${D} landed at the homebase (${e.battery}% left)`, "good"],
+    takeoff: [R ? `${D} drove out` : `${D} took off`, ""],
+    landed: [R ? `${D} parked at the homebase` : `${D} landed at the homebase (${e.battery}% left)`, "good"],
+    mission_complete: [`<b>Mission complete:</b> all ${e.found} found and assessed. Drones heading home${e.stay ? `; ${e.stay} stays with the casualty for the rescue team` : ""}`, "good"],
+    rover_stay: [`${D} parked next to #${e.track} (${(e.status || "").toUpperCase()}) to guide the rescue team in`, "good"],
+    rover_check: [`${D} driving to #${e.track} to read vitals (about ${e.eta_s} s away)`, "accent"],
+    hq_report: [`Starlink: HQ received #${e.track} (${(e.status || "").toUpperCase()})${e.delay_s > 1 ? `, ${e.delay_s} s late` : ""}`, "good"],
+    starlink_down: [`Starlink outage${e.secs ? ` (~${e.secs} s)` : ""}: HQ reports wait`, "bad"],
+    starlink_up: [`Starlink back`, "good"],
     contact_new: [`${D} ${e.sensor}: <b>possible person #${e.track}</b> at (${e.x}, ${e.y}) m`, "accent"],
     contact_update: [`${D} ${e.sensor} on #${e.track}: ${e.confirmed ? "<b>confirmed</b>" : "update"}${e.status !== "unknown" ? " · " + e.status : ""}${e.tag ? " · tag " + e.tag : ""}`, e.confirmed ? "good" : ""],
     vitals: [`${D} ${e.sensor} on #${e.track}: heart ${e.hr || "?"}, breath ${e.br || "?"} → <b>${(e.status || "").toUpperCase()}</b>`, e.status === "critical" ? "bad" : "good"],
     vitals_check: [`${D} sent down to read vitals on #${e.track}`, "accent"],
-    vitals_none: [`${D} hovered over #${e.track}: no vitals detected`, "warn"],
+    vitals_none: [`${D} ${e.by === "rover" ? "stopped next to" : "hovered over"} #${e.track}: no vitals detected`, "warn"],
     rtb: [`${D} heading home: ${e.time_left} s of battery, ${e.time_home} s to get back`, "warn"],
     link_lost: [`Lost link to ${D} (${e.silent_s} s silent)`, "bad"],
     link_back: [`${D} link restored`, "good"],
@@ -539,7 +583,7 @@ function evHTML(e) {
 }
 
 // ------------------------------------------------------------ mission setup
-const SU = { open: false, tool: "area", span: 600, civ: false, cond: "random", count: 1, center: null,
+const SU = { open: false, fleet: "both", tool: "area", span: 600, civ: false, cond: "random", count: 1, center: null,
              victims: [], lkp: null, threats: [], layer: null };
 const COND_C = { random: "#ffffff", ok: "#22c55e", injured: "#f59e0b", critical: "#ef4444" };
 function offLL(lat, lon, dx, dy) {   // metres east/north from a lat/lon
@@ -582,7 +626,7 @@ function suDraw() {
   const ho = SU.civ ? "no hostiles (civilian)" : (SU.threats.length ? `${SU.threats.length} hostile zone(s) placed` : ($("su-nohost").checked ? "no hostiles" : "2 hostile zones at random"));
   $("su-sum").innerHTML = `${vs}<br>${lk} · ${ho}<br>Area ${SU.span >= 1000 ? SU.span / 1000 + " km" : SU.span + " m"} square, homebase at its south-west corner.`;
   const segOn = (id, v) => document.querySelectorAll(`#${id} button`).forEach((b) => b.classList.toggle("on", b.dataset.v === String(v)));
-  segOn("su-span", SU.span); segOn("su-mode", SU.civ ? "civ" : "mil"); segOn("su-tool", SU.tool); segOn("su-cond", SU.cond);
+  segOn("su-fleet", SU.fleet); segOn("su-span", SU.span); segOn("su-mode", SU.civ ? "civ" : "mil"); segOn("su-tool", SU.tool); segOn("su-cond", SU.cond);
   $("su-count").textContent = SU.count;
   map.getContainer().style.cursor = "crosshair";
 }
@@ -652,7 +696,7 @@ async function suStart() {
   const osm = await fetchTerrain(G);
   $("su-status").textContent = osm ? `Terrain loaded (${osm.elements.length} features). Starting…` : "OpenStreetMap didn't answer; the homebase will try, then fall back to stand-in terrain. Starting…";
   const xy = (ll) => toLocal(o, ll[0], ll[1]).map((v) => Math.round(v * 10) / 10);
-  const cmd = { cmd: "setup", origin: o, n: G.n, cell: G.cell, civilian: SU.civ, count: SU.count, osm,
+  const cmd = { cmd: "setup", fleet: SU.fleet, origin: o, n: G.n, cell: G.cell, civilian: SU.civ, count: SU.count, osm,
     victims: SU.victims.map((v) => { const [x, y] = xy(v.ll); return { x, y, status: v.status }; }),
     lkp: SU.lkp ? xy(SU.lkp) : null,
     threats: SU.civ ? [] : SU.threats.length ? SU.threats.map((t) => [...xy(t.ll), t.r]) : ($("su-nohost").checked ? [] : null) };
@@ -671,6 +715,7 @@ $("su-plus").onclick = () => { SU.count = Math.min(8, SU.count + 1); suDraw(); }
 $("su-nohost").onchange = () => { if ($("su-nohost").checked) SU.threats = []; suDraw(); };
 const seg = (id, f) => document.querySelectorAll(`#${id} button`).forEach((b) => b.onclick = () => { f(b.dataset.v); suDraw(); });
 seg("su-span", (v) => { SU.span = +v; });
+seg("su-fleet", (v) => { SU.fleet = v; });
 seg("su-mode", (v) => { SU.civ = v === "civ"; if (SU.civ) SU.threats = []; });
 seg("su-tool", (v) => { SU.tool = v; });
 seg("su-cond", (v) => { SU.cond = v; });
@@ -679,6 +724,7 @@ seg("su-cond", (v) => { SU.cond = v; });
 function post(cmd) { fetch("/control", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(cmd) }).catch(() => {}); }
 $("b-pause").onclick = () => post({ cmd: S && S.paused ? "play" : "pause" });
 $("b-jam").onclick = () => post({ cmd: "jam", secs: 30 });
+$("b-sky").onclick = () => post({ cmd: "sky", secs: 20 });
 $("b-new").onclick = () => post({ cmd: "restart" });
 $("b-recall").onclick = () => post({ cmd: "recall" });
 document.querySelectorAll("#speed button").forEach((b) => b.onclick = () => post({ cmd: "speed", value: +b.dataset.s }));
