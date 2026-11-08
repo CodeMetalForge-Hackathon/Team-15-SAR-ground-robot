@@ -54,6 +54,10 @@ flowchart LR
 | Software tests and CI | see the test page | unit / integration / CI | [TEST_RESULTS.md](TEST_RESULTS.md) |
 | 3D rendering | about 60 fps at 1080p–4K (Apple M4 Pro; vsync-capped) | real browser measurement | [BENCHMARKS.md](BENCHMARKS.md#rendering-performance) |
 
+
+<img width="1512" height="756" alt="Screenshot_2026-11-08_at_11 52 24_AM" src="https://github.com/user-attachments/assets/f9d8cee9-0def-47b1-b854-f7afa61c87be" />
+
+
 ## Simulation versus hardware
 
 | Capability | Simulation | Real hardware |
