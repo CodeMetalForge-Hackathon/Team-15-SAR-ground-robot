@@ -38,8 +38,10 @@ class BleLinkTest(unittest.TestCase):
         import bleak
         from sar_sim import ble_link
 
-    def connect(self, mode="old", name="Crazyflie"):
+    def connect(self, mode="old", name="Crazyflie", **drone_kw):
         drone = bleak.FakeDrone(mode=mode, name=name)
+        for k, v in drone_kw.items():
+            setattr(drone, k, v)
         bleak.DRONES[:] = [drone]
         drv = ble_link.BleDriver()
         drv.packet_factory = lambda header, data: bytes([header]) + bytes(data)
@@ -103,6 +105,41 @@ class BleLinkTest(unittest.TestCase):
             self.assertEqual((drv.long_mode, drv.rx.dialect), (want, dialect), mode)
             self.assertEqual(drv.lossy, mode == "2024.2")
             drv.close()
+
+    def test_slow_link_without_long_echo_keeps_working_with_short_packets(self):
+        # Gavin's Windows laptop: slow writes, and the long link test never came back. A test
+        # packet still queued afterwards used to kill the link ("cannot send a 24-byte packet").
+        drv, drone = self.connect("old", write_delay=0.7, long_echo=False)
+        self.assertIsNone(drv.long_mode)
+        setpoint = bytes([0x30]) + bytes(12) + (30000).to_bytes(2, "little")
+        drv.send_packet(Pk(setpoint))
+        self.assertTrue(self.wait(lambda: setpoint in drone.received, 6.0))
+        time.sleep(1.5)
+        self.assertEqual(self.errors, [])
+        drv.send_packet(Pk(bytes([0x8C, 0x07]) + bytes(22)))          # too long for this link
+        time.sleep(0.3)
+        self.assertTrue(self.errors)                                   # cflib is told...
+        drv.send_packet(Pk(setpoint))
+        self.assertTrue(self.wait(lambda: drone.received.count(setpoint) >= 2, 6.0))   # ...link lives
+
+    def test_drone_that_never_answers_the_link_test_still_connects(self):
+        drv, drone = self.connect("old", silent=True)
+        self.assertIsNone(drv.long_mode)
+        drone.silent = False
+        setpoint = bytes([0x30]) + bytes(12) + (0).to_bytes(2, "little")
+        drv.send_packet(Pk(setpoint))
+        self.assertTrue(self.wait(lambda: setpoint in drone.received))
+
+    def test_bleak_windows_warnings_are_silenced(self):
+        import subprocess
+        code = ("import warnings, sar_sim.ble_link; warnings.warn_explicit("
+                "'write_value_with_result_and_option_async() is deprecated', DeprecationWarning, "
+                "'client.py', 982, module='bleak.backends.winrt.client'); "
+                "warnings.warn_explicit('other code still warns', DeprecationWarning, 'x.py', 1, module='other')")
+        r = subprocess.run([sys.executable, "-W", "default", "-c", code], cwd=ROOT,
+                           capture_output=True, text=True, timeout=30)
+        self.assertNotIn("write_value_with_result", r.stderr)          # bleak's flood: gone
+        self.assertIn("other code still warns", r.stderr)              # everyone else's: kept
 
     def test_2024_2_firmware_short_answers_work_long_ones_are_dropped_not_damaged(self):
         drv, drone = self.connect("2024.2")

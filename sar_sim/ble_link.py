@@ -40,9 +40,13 @@ import asyncio
 import logging
 import queue
 import threading
+import warnings
 from collections import deque
 
 log = logging.getLogger(__name__)
+# bleak's Windows backend warns on every single write (a deprecated WinRT call inside bleak):
+# harmless, but it floods the terminal and slows the link down
+warnings.filterwarnings("ignore", category=DeprecationWarning, module=r"bleak")
 
 SERVICE = "00000201-1c7f-4f9e-947b-43b7c00a9a08"
 CRTP = "00000202-1c7f-4f9e-947b-43b7c00a9a08"
@@ -52,6 +56,8 @@ NULL = b"\xff"                      # CRTP port 15, channel 3: ignored by the dr
 ECHO_HEADER = 0xFC                  # CRTP port 15, channel 0 (link echo), legacy bits set
 NAME_PREFIX = "Crazyflie"
 SCAN_S = 4.0
+ECHO_WAIT_S = (3.0, 5.0, 8.0)      # short-echo tries: slow Bluetooth stacks (Windows) need longer
+LONG_ECHO_WAIT_S = 4.0
 POLL_S = 0.004                      # pause after an idle poll
 COALESCE = {(3, 0)}                 # thrust setpoints: only the newest one matters...
 
@@ -341,24 +347,43 @@ class BleDriver:
     async def _detect_firmware(self):
         """Short echo: is the length byte 'length - 1' (most firmware) or 'length' (2024.2)?"""
         probe = bytes([ECHO_HEADER]) + b"t15ok"     # 6 bytes
-        for _ in range(2):
+        answered = False
+        for wait_s in ECHO_WAIT_S:
             self.probe = asyncio.get_running_loop().create_future()
             self._push(probe, None)
             try:
-                frag = await asyncio.wait_for(self.probe, 3.0)
+                frag = await asyncio.wait_for(self.probe, wait_s)
             except asyncio.TimeoutError:
                 continue
             finally:
                 self.probe = None
+            answered = True
             if frag[0] & 0x1F == len(probe):
                 self.rx.dialect, self.long_mode, self.lossy = FW2024_2, "full", True
                 log.warning("Drone radio firmware 2024.2: long Bluetooth answers are damaged by the "
                             "firmware and will be dropped. Short ones work. A firmware update fixes it.")
+                self._drop_probes()
                 return
             break
+        if not answered:
+            log.warning("The drone didn't answer the Bluetooth link test; carrying on with short "
+                        "packets only (enough for setpoints and logging)")
+            self.long_mode = None
+            self._drop_probes()
+            return
         self.long_mode = await self._detect_long_mode()
+        self._drop_probes()
+
+    def _drop_probes(self):
+        """Link-test packets still waiting to go out are no use any more (and a long one
+        would not fit a link without long packets)."""
+        with self.lock:
+            self.out = deque(item for item in self.out if item[1][:1] != bytes([ECHO_HEADER]))
 
     async def _write_raw(self, raw):
+        if len(raw) > 20 and self.long_mode is None:
+            log.warning("dropped a %d-byte packet: this Bluetooth link only carries 20 bytes", len(raw))
+            return
         writes = uplink_writes(raw, self.pid, self.long_mode)
         if len(writes) > 1:
             self.pid = (self.pid + 1) & 3
@@ -385,7 +410,7 @@ class BleDriver:
             self.echo_waiter = asyncio.get_running_loop().create_future()
             self._push(bytes([ECHO_HEADER]) + payload, None)
             try:
-                if await asyncio.wait_for(self.echo_waiter, 2.0) == payload:
+                if await asyncio.wait_for(self.echo_waiter, LONG_ECHO_WAIT_S) == payload:
                     return mode
             except asyncio.TimeoutError:
                 pass

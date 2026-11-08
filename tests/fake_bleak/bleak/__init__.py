@@ -26,6 +26,9 @@ class FakeDrone:
         self.pid = 0
         self.up_buf, self.up_len, self.up_pid = None, 0, None
         self.writes = 0
+        self.write_delay = 0.002         # one write's round trip (slow Bluetooth stacks: much more)
+        self.long_echo = True            # False: it never echoes a long link-test packet
+        self.silent = False              # True: it never answers anything
 
     def fragments(self, pk):
         if self.mode == "2024.2":                      # ble_crazyflies.c in release 2024.2
@@ -42,8 +45,11 @@ class FakeDrone:
 
     def _got(self, pk):
         port, ch = pk[0] >> 4, pk[0] & 3
+        if self.silent:
+            return
         if port == 15 and ch == 0:
-            self.downlink.appendleft(pk)              # link echo
+            if len(pk) <= 20 or self.long_echo:
+                self.downlink.appendleft(pk)          # link echo
         elif port == 15 and ch == 1:                  # link source: the connect handshake
             self.downlink.appendleft(bytes([0xF1]) + b"Bitcraze Crazyflie" + bytes(12))
         elif not (port == 15 and ch == 3):
@@ -125,7 +131,7 @@ class BleakClient:
         self.drone.notify = callback
 
     async def write_gatt_char(self, char, data, response=None):
-        await asyncio.sleep(0.002)                     # a short Bluetooth connection interval
+        await asyncio.sleep(self.drone.write_delay)    # a Bluetooth connection interval
         if not self.is_connected:
             raise ConnectionError("not connected")
         self.drone.write(char, data)
