@@ -1,0 +1,11 @@
+{
+  "driver": "simulated",
+  "sensor_id": "grove-us-front",
+  "sensor_mount": "FRONT",
+  "source": "SIMULATED",
+  "sample_interval_s": 0.1,
+  "obstacle": {
+    "mount_height_m": 0.08,
+    "max_speed_mps": 0.30
+  }
+}
