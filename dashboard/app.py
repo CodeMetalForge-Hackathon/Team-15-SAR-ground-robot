@@ -39,6 +39,7 @@ from core.ingest import InvalidObservation
 from core.store import InvalidDecision, MissionStore, UnknownObservation
 from dashboard.perception_source import ConflictingProducer, InvalidPerception, PerceptionStore
 from dashboard.range_source import RangeSource
+from dashboard.rescue_api import RescueSession, make_router, session_from_env
 
 STATIC = Path(__file__).resolve().parent / "static"
 PHOTO_SUFFIXES = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png"}
@@ -54,7 +55,8 @@ def _roots(evidence_dir) -> list[Path]:
 
 def create_app(store: MissionStore | None = None, evidence_dir=None,
                range_source: RangeSource | None = None,
-               perception: PerceptionStore | None = None) -> FastAPI:
+               perception: PerceptionStore | None = None,
+               rescue: RescueSession | None = None) -> FastAPI:
     store = store if store is not None else MissionStore()
     perception = perception if perception is not None else PerceptionStore()
     range_source = range_source if range_source is not None else RangeSource()
@@ -62,6 +64,8 @@ def create_app(store: MissionStore | None = None, evidence_dir=None,
     app = FastAPI(title="Team 15 base station")
     app.state.store = store
     app.state.perception = perception
+    app.state.rescue = rescue if rescue is not None else session_from_env()
+    app.include_router(make_router(app.state.rescue))   # /rescue: dual-robot SIMULATION digital twin
 
     def serve_photo(obs_id: str, keys: tuple[str, ...]) -> FileResponse:
         obs = store.observation(obs_id)

@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Team-15 Rescue Twin</title>
+<link rel="icon" href="data:,">
+<script type="importmap">{ "imports": { "three": "/rescue/vendor/three/three.module.min.js" } }</script>
+<style>
+:root{
+  --bg:#0b0f14; --panel:#10161e; --panel2:#141c26; --line:#1f2a36; --text:#d7dee7; --muted:#8592a3; --dim:#5d6a7a;
+  --air:#35d0e0; --gnd:#4c8dff; --amber:#f2b33d; --red:#ef5350; --green:#4cc38a; --ai:#a48bd8;
+  --fs:clamp(12px, 0.62vw + 4px, 22px); --gap:clamp(8px, 0.5vw, 16px); --left:clamp(250px, 17vw, 560px); --right:clamp(300px, 21vw, 680px); --bottom:clamp(170px, 19vh, 420px);
+  color-scheme: dark;
+}
+*{box-sizing:border-box} html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font:400 var(--fs)/1.38 Inter,"SF Pro Text",system-ui,-apple-system,"Segoe UI",sans-serif;overflow:hidden}
+button,select{font:inherit;color:var(--text)}
+.app{display:grid;height:100vh;grid-template-columns:var(--left) 1fr var(--right);grid-template-rows:auto 1fr var(--bottom);grid-template-areas:"top top top" "left view right" "bottom bottom bottom"}
+.app.noleft{grid-template-columns:0 1fr var(--right)} .app.noright{grid-template-columns:var(--left) 1fr 0} .app.noleft.noright{grid-template-columns:0 1fr 0}
+.app.nobottom{grid-template-rows:auto 1fr 0} .app.noleft .left,.app.noright .right,.app.nobottom .bottom{display:none}
+header{grid-area:top;display:flex;align-items:center;gap:calc(var(--gap)*1.5);padding:calc(var(--gap)*.7) var(--gap);border-bottom:1px solid var(--line);background:linear-gradient(180deg,#0f151d,#0b0f14)}
+.brand{font-weight:700;letter-spacing:.08em;font-size:1.02em;white-space:nowrap} .brand b{color:var(--air)} .brand span{color:var(--muted);font-weight:500;letter-spacing:.12em}
+.chip{display:inline-flex;align-items:center;gap:.4em;padding:.18em .6em;border:1px solid var(--line);border-radius:999px;font-size:.78em;color:var(--muted);white-space:nowrap}
+.chip.sim{border-color:#2b3644;color:#aab6c4} .chip i{width:.55em;height:.55em;border-radius:50%;display:inline-block;background:var(--dim)}
+.phase{font-weight:650;padding:.25em .75em;border-radius:6px;background:#17202b;border:1px solid var(--line);white-space:nowrap}
+.clock{font-variant-numeric:tabular-nums;font-weight:600;font-size:1.15em} .grow{flex:1}
+.panel{background:var(--panel);overflow:auto;padding:var(--gap);display:flex;flex-direction:column;gap:var(--gap)}
+.left{grid-area:left;border-right:1px solid var(--line)} .right{grid-area:right;border-left:1px solid var(--line)}
+.bottom{grid-area:bottom;border-top:1px solid var(--line);display:grid;grid-template-columns:1.25fr 1fr .62fr;gap:var(--gap);padding:var(--gap);background:var(--panel)}
+.view{grid-area:view;position:relative;min-width:0;min-height:0} canvas#c{width:100%;height:100%;display:block}
+h3{margin:0 0 .45em;font-size:.74em;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:650}
+.card{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:calc(var(--gap)*.85)}
+.row{display:flex;gap:.5em;align-items:center;flex-wrap:wrap} .row>*{flex:1 1 auto}
+.btn{background:#1a2430;border:1px solid #2a3746;border-radius:6px;padding:.42em .7em;cursor:pointer;white-space:nowrap}
+.btn:hover{border-color:#3b4b5e} .btn.pri{background:#173350;border-color:#2a5a8c} .btn.warn{background:#3a2a14;border-color:#6b4c1d} .btn.on{border-color:var(--air);color:var(--air)}
+select{background:#1a2430;border:1px solid #2a3746;border-radius:6px;padding:.38em .5em;width:100%}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:.15em .8em;font-size:.88em} .kv dt{color:var(--muted)} .kv dd{margin:0;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.agent{border-left:3px solid var(--air)} .agent.g{border-left-color:var(--gnd)}
+.why{font-size:.82em;color:#b8c3cf;margin-top:.4em;overflow-wrap:anywhere}
+.tag{font-size:.68em;letter-spacing:.08em;padding:.1em .45em;border-radius:4px;border:1px solid;white-space:nowrap}
+.t-air{color:var(--air);border-color:#1e5e66} .t-gnd{color:var(--gnd);border-color:#264a80} .t-ai{color:var(--ai);border-color:#4d4270} .t-real{color:var(--green);border-color:#22603f} .t-amb{color:var(--amber);border-color:#6b4c1d} .t-red{color:var(--red);border-color:#6b2a29}
+.toggles label{display:flex;align-items:center;gap:.5em;font-size:.88em;padding:.12em 0;cursor:pointer} .toggles input{accent-color:var(--air)}
+.list{display:flex;flex-direction:column;gap:.35em;font-size:.84em} .msg{display:grid;grid-template-columns:4.2em 9.5em 1fr;gap:.5em;padding:.18em 0;border-bottom:1px solid #18212b}
+.msg .t{color:var(--dim);font-variant-numeric:tabular-nums} .msg .who{font-weight:600}
+.timeline{display:flex;gap:.35em;flex-wrap:wrap;margin-bottom:.5em} .step{flex:1 1 0;min-width:6.5em;text-align:center;font-size:.72em;padding:.4em .3em;border-radius:6px;border:1px solid var(--line);color:var(--dim);background:#0f151d}
+.step.done{color:var(--green);border-color:#22603f;background:#0f1d17} .step.now{color:var(--amber);border-color:#6b4c1d}
+.scroll{overflow:auto;min-height:0} .bottom>div{display:flex;flex-direction:column;min-height:0}
+.report{font-size:.88em;white-space:pre-wrap;overflow-wrap:anywhere} .ai{border-left:3px solid var(--ai)}
+.perf{font-size:.8em;font-variant-numeric:tabular-nums} .perf b{color:var(--text)}
+.labels{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+.lbl{position:absolute;transform:translate(-50%,-130%);font-size:.74em;font-weight:600;padding:.12em .5em;border-radius:4px;background:rgba(11,15,20,.78);border:1px solid var(--line);white-space:nowrap}
+.overlay{position:absolute;left:var(--gap);top:var(--gap);display:flex;flex-direction:column;gap:.35em;pointer-events:none}
+.ovl{background:rgba(11,15,20,.72);border:1px solid var(--line);border-radius:8px;padding:.45em .75em;backdrop-filter:blur(6px);max-width:44vw}
+.ovl.big{font-size:1.45em;font-weight:650}
+.camsel{position:absolute;right:var(--gap);top:var(--gap);display:flex;gap:.3em;flex-wrap:wrap;justify-content:flex-end;max-width:60%}
+.camsel .btn{background:rgba(16,22,30,.85);font-size:.82em}
+.toast{position:absolute;left:50%;bottom:calc(var(--gap)*1.5);transform:translateX(-50%);display:flex;flex-direction:column;gap:.3em;align-items:center;pointer-events:none}
+.toast div{background:rgba(16,22,30,.92);border:1px solid var(--line);border-radius:8px;padding:.45em .9em;font-weight:600;animation:fade 6s forwards}
+@keyframes fade{0%{opacity:0;transform:translateY(8px)}8%{opacity:1;transform:none}80%{opacity:1}100%{opacity:0}}
+.present .ovl.big{font-size:2.1em} .present .camsel{display:none}
+.ev img{width:100%;border-radius:6px;border:1px solid var(--line)}
+.legend{display:grid;grid-template-columns:1.1em 1fr;gap:.25em .5em;font-size:.8em;align-items:center} .sw{width:1em;height:.6em;border-radius:2px}
+a{color:var(--air)}
+@media (max-width: 900px){ .app{grid-template-columns:0 1fr 0} .left,.right{display:none} .bottom{grid-template-columns:1fr} }
+</style>
+</head>
+<body>
+<div class="app" id="app">
+  <header>
+    <div class="brand"><b>TEAM-15</b> <span>| RESCUE INTELLIGENCE DIGITAL TWIN</span></div>
+    <span class="chip sim" title="Every robot motion on this page is simulated"><i style="background:var(--amber)"></i>SIMULATED — no hardware connected</span>
+    <span class="phase" id="phase">—</span>
+    <span class="grow" id="title" style="color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></span>
+    <span class="chip" id="links"></span>
+    <span class="clock" id="clock">T+0.0 s</span>
+    <button class="btn" id="bLeft" title="Toggle left panel">◧</button><button class="btn" id="bRight" title="Toggle right panel">◨</button><button class="btn" id="bBottom" title="Toggle bottom panel">⬓</button>
+    <button class="btn" id="bPresent" title="Judge presentation mode (P)">Present</button><button class="btn" id="bFull" title="Fullscreen (F)">⛶</button>
+  </header>
+
+  <aside class="panel left">
+    <div class="card">
+      <h3>Mission</h3>
+      <select id="scenario"></select>
+      <div class="why" id="summary"></div>
+      <div class="row" style="margin-top:.6em">
+        <button class="btn pri" id="bStart">▶ Start</button><button class="btn" id="bPause">❚❚ Pause</button><button class="btn" id="bReset">↺ Reset</button>
+      </div>
+      <div class="row" style="margin-top:.5em">
+        <label style="flex:0 0 auto;color:var(--muted);font-size:.85em">Speed</label>
+        <select id="speed"><option>1</option><option>2</option><option selected>5</option><option>10</option><option>20</option><option>40</option></select>
+        <button class="btn warn" id="bObstacle" title="Drop debris ahead of the rover (simulated event)">+ Debris</button>
+      </div>
+    </div>
+    <div class="card">
+      <h3>Experiment</h3>
+      <div class="row"><select id="mode" title="Coordination mode (benchmark baselines)"><option value="coordinated">Coordinated (shared map)</option><option value="independent">Independent agents</option><option value="static_route">No replanning</option></select></div>
+      <div class="row" style="margin-top:.4em"><select id="planner" title="Aerial search planner"><option value="mcts">Aerial: MCTS (PR #17)</option><option value="greedy">Aerial: greedy</option><option value="lawnmower">Aerial: lawnmower</option></select></div>
+    </div>
+    <div class="card agent"><h3>AIR-1 · Aerial scout <span class="tag t-air">SIMULATED</span></h3><dl class="kv" id="air"></dl><div class="why" id="airWhy"></div></div>
+    <div class="card agent g"><h3>GND-1 · RoverC-Pro <span class="tag t-gnd">SIMULATED</span></h3><dl class="kv" id="gnd"></dl><div class="why" id="gndWhy"></div></div>
+    <div class="card toggles"><h3>Layers</h3>
+      <label><input type="checkbox" data-l="routes" checked> Routes (planned / traversed)</label>
+      <label><input type="checkbox" data-l="shared" checked> Shared map (corridor states)</label>
+      <label><input type="checkbox" data-l="coverage" checked> Aerial search coverage</label>
+      <label><input type="checkbox" data-l="uncertainty"> Remaining uncertainty (belief)</label>
+      <label><input type="checkbox" data-l="aerial" checked> Aerial observations</label>
+      <label><input type="checkbox" data-l="ground" checked> Ground observations</label>
+      <label><input type="checkbox" data-l="labels" checked> Labels</label>
+      <label><input type="checkbox" data-l="truth"> Simulator ground truth <span class="tag t-amb">VIEWER ONLY</span></label>
+    </div>
+    <div class="card"><h3>Legend</h3><div class="legend">
+      <span class="sw" style="background:var(--air)"></span>Aerial: observed CLEAR / coverage / candidate
+      <span class="sw" style="background:var(--gnd)"></span>Ground: route, traversed corridor
+      <span class="sw" style="background:repeating-linear-gradient(45deg,var(--amber) 0 3px,transparent 3px 6px)"></span>UNKNOWN / STALE / OCCLUDED (never clear)
+      <span class="sw" style="background:var(--red)"></span>BLOCKED / hazard / safety stop
+      <span class="sw" style="background:var(--green)"></span>Reached at standoff / staging
+      <span class="sw" style="background:var(--ai)"></span>Model advisory (Qwen)
+    </div><div class="why">Grid: 2 m cells, 48 m site, SITE frame (x east, y north). Robot models drawn ×2.2–3.5 for visibility.</div></div>
+    <div class="card"><h3>Graphics</h3>
+      <div class="row"><select id="quality"><option value="low">Low (no shadows)</option><option value="medium">Medium</option><option value="high" selected>High</option><option value="ultra">Ultra / 4K</option></select></div>
+      <label class="toggles" style="display:flex;gap:.5em;margin-top:.4em;font-size:.85em"><input type="checkbox" id="auto" checked> Adaptive render scale</label>
+    </div>
+  </aside>
+
+  <main class="view" id="view">
+    <canvas id="c"></canvas>
+    <div class="labels" id="labels"></div>
+    <div class="overlay"><div class="ovl big" id="ovPhase">—</div><div class="ovl" id="ovDetail"></div></div>
+    <div class="camsel" id="cams">
+      <button class="btn on" data-cam="tactical">Tactical</button><button class="btn" data-cam="cinematic">Cinematic</button><button class="btn" data-cam="aerial">Aerial follow</button>
+      <button class="btn" data-cam="ground">Ground follow</button><button class="btn" data-cam="onboard">Drone view</button><button class="btn" data-cam="topdown">Top-down</button><button class="btn" data-cam="free">Free orbit</button>
+    </div>
+    <div class="toast" id="toast"></div>
+  </main>
+
+  <aside class="panel right">
+    <div class="card ai"><h3>Rescue intelligence <span class="tag t-ai">MODEL ADVISORY</span></h3>
+      <div class="row"><button class="btn" id="bReport">Generate rescue report</button></div>
+      <div class="why" id="qStatus"></div>
+      <div class="report" id="qText"></div>
+      <div class="report" id="dText" style="margin-top:.5em;color:#b8c3cf"></div>
+    </div>
+    <div class="card"><h3>Targets &amp; ranking</h3><div class="list" id="targets"></div></div>
+    <div class="card" id="opCard" style="display:none"><h3>Operator request</h3><div class="why" id="opText"></div><button class="btn warn" id="bProbe" style="margin-top:.5em">Approve sensor-gated ground probe</button></div>
+    <div class="card"><h3>Observations <span class="tag t-air">AIR</span> <span class="tag t-gnd">GND</span></h3><div class="list scroll" id="obs" style="max-height:32vh"></div></div>
+    <div class="card ev"><h3>Recorded evidence <span class="tag t-real">REAL RECORDED CAMERA</span></h3><div class="why" id="evLabel"></div><div id="evFrames"></div></div>
+  </aside>
+
+  <section class="bottom">
+    <div>
+      <h3>Mission timeline</h3>
+      <div class="timeline" id="timeline"></div>
+      <h3>Agent communication</h3>
+      <div class="list scroll" id="log"></div>
+    </div>
+    <div>
+      <h3>Shared mission map</h3>
+      <dl class="kv" id="mapkv"></dl>
+      <h3 style="margin-top:.6em">Scouting tasks</h3>
+      <div class="list scroll" id="scouts"></div>
+    </div>
+    <div>
+      <h3>Telemetry</h3>
+      <div class="perf" id="perf"></div>
+    </div>
+  </section>
+</div>
+<script type="module" src="/rescue/app.js"></script>
+</body>
+</html>
