@@ -17,6 +17,12 @@ Endpoints
 - ``GET /api/perception/frame.jpg``  latest annotated frame (memory only)
 - ``GET /api/perception/advisory``   latest rescue advisory
 - ``GET /api/perception/health``     system health panel (camera, latency, map age, calibration, rover)
+- ``GET /demo``                      single-screen live demo: camera | robot-relative map | controller + timeline
+- ``GET /api/controller``            read-only Mac USB probe of the StickC link (never opens the port,
+                                    no motor path); firmware UNVERIFIED; recorded wheel-test result
+- ``GET /api/timeline``              observed mission events (camera, person tracks, controller USB)
+- ``POST/GET /api/rover/state``      status posted by the Mac rover host (commanded motion, camera veto,
+                                    e-stop); display only, SIMULATED is always labelled
 
 Camera distances are CAMERA_ESTIMATE values. They are never shown as range-sensor readings.
 
@@ -37,8 +43,11 @@ from fastapi.responses import FileResponse, HTMLResponse, Response
 from core import range_view
 from core.ingest import InvalidObservation
 from core.store import InvalidDecision, MissionStore, UnknownObservation
+from dashboard.controller_status import ControllerProbe
 from dashboard.perception_source import ConflictingProducer, InvalidPerception, PerceptionStore
 from dashboard.range_source import RangeSource
+from dashboard.rover_state import InvalidRoverState, RoverStateStore
+from dashboard.timeline import Timeline
 
 STATIC = Path(__file__).resolve().parent / "static"
 PHOTO_SUFFIXES = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png"}
@@ -54,10 +63,16 @@ def _roots(evidence_dir) -> list[Path]:
 
 def create_app(store: MissionStore | None = None, evidence_dir=None,
                range_source: RangeSource | None = None,
-               perception: PerceptionStore | None = None) -> FastAPI:
+               perception: PerceptionStore | None = None, controller: ControllerProbe | None = None,
+               timeline: Timeline | None = None, rover_state: RoverStateStore | None = None) -> FastAPI:
     store = store if store is not None else MissionStore()
     perception = perception if perception is not None else PerceptionStore()
     range_source = range_source if range_source is not None else RangeSource()
+    timeline = timeline if timeline is not None else Timeline()
+    rover_state = rover_state if rover_state is not None else RoverStateStore()
+    controller = controller if controller is not None else ControllerProbe()
+    if controller.on_change is None:
+        controller.on_change = timeline.observe_usb
     roots = _roots(evidence_dir)
     app = FastAPI(title="Team 15 base station")
     app.state.store = store
@@ -84,6 +99,32 @@ def create_app(store: MissionStore | None = None, evidence_dir=None,
     def index() -> HTMLResponse:
         return HTMLResponse((STATIC / "index.html").read_text(encoding="utf-8"),
                             headers={"Cache-Control": "no-store"})
+
+    @app.get("/demo", response_class=HTMLResponse)
+    def demo() -> HTMLResponse:
+        return HTMLResponse((STATIC / "demo.html").read_text(encoding="utf-8"),
+                            headers={"Cache-Control": "no-store"})
+
+    @app.get("/api/controller")
+    def api_controller() -> dict:
+        return controller.status()
+
+    @app.post("/api/rover/state")
+    def rover_state_post(body: dict) -> dict:
+        try:
+            out = rover_state.post(body)
+        except InvalidRoverState as e:
+            raise HTTPException(status_code=422, detail=str(e)) from None
+        timeline.observe_rover(body)
+        return out
+
+    @app.get("/api/rover/state")
+    def rover_state_get() -> dict:
+        return rover_state.view()
+
+    @app.get("/api/timeline")
+    def api_timeline(limit: int = 100) -> dict:
+        return timeline.view(max(1, min(limit, 300)))
 
     @app.get("/state")
     def state() -> dict:
@@ -116,11 +157,14 @@ def create_app(store: MissionStore | None = None, evidence_dir=None,
     @app.post("/api/perception/frame")
     def perception_frame(body: dict) -> dict:
         try:
-            return perception.post_frame(body)
+            out = perception.post_frame(body)
         except InvalidPerception as e:
             raise HTTPException(status_code=422, detail=str(e)) from None
         except ConflictingProducer as e:
+            timeline.observe_conflict(str(e))
             raise HTTPException(status_code=409, detail=str(e)) from None
+        timeline.observe_frame(body["state"])
+        return out
 
     @app.post("/api/perception/advisory")
     def perception_advisory_post(body: dict) -> dict:
@@ -134,9 +178,11 @@ def create_app(store: MissionStore | None = None, evidence_dir=None,
     @app.post("/api/perception/health")
     def perception_health_post(body: dict) -> dict:
         try:
-            return perception.post_health(body)
+            out = perception.post_health(body)
         except InvalidPerception as e:
             raise HTTPException(status_code=422, detail=str(e)) from None
+        timeline.observe_camera(body.get("camera_status"), body.get("source_mode"), body.get("error"))
+        return out
 
     @app.get("/api/perception")
     def perception_view() -> dict:

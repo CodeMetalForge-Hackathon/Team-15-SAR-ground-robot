@@ -204,11 +204,37 @@ class BridgeTransport:
             raise
 
 
-def open_serial(path: str, baud: int = 115200):  # pragma: no cover - needs real hardware and pyserial
-    """Open the bridge's USB serial port. Refuses unstable names like /dev/ttyACM0. NOT for tests."""
-    if not path.startswith("/dev/serial/by-id/"):
+_MAC_PORT = re.compile(r"^/dev/cu\.(usbserial|wchusbserial)-([A-Za-z0-9]+)$")
+
+
+def check_port_path(path: str, expected_usb_serial: Optional[str] = None, platform: Optional[str] = None) -> None:
+    """Refuse any serial path that is not a stable name for the verified StickC.
+
+    Linux (Pi): /dev/serial/by-id/... only. macOS (Mac host): /dev/cu.usbserial-<USB serial><port letter/digit>
+    (or cu.wchusbserial-), and the caller must name the StickC's USB serial number, which the node name must
+    start with. /dev/tty.* is refused on macOS: opening it blocks on carrier detect.
+    """
+    import sys
+    plat = platform or sys.platform
+    if plat == "darwin":
+        m = _MAC_PORT.match(path or "")
+        if not m:
+            raise PermissionError("on macOS use /dev/cu.usbserial-<serial> (never /dev/tty.*) of the verified StickC")
+        if not expected_usb_serial or not re.fullmatch(r"[A-Za-z0-9]{4,32}", expected_usb_serial):
+            raise PermissionError("on macOS the StickC's USB serial number must be given (e.g. 7D520E63EE)")
+        if not m.group(2).startswith(expected_usb_serial):
+            raise PermissionError(f"{path} does not belong to USB serial {expected_usb_serial}")
+        return
+    if not (path or "").startswith("/dev/serial/by-id/"):
         raise PermissionError("use the stable /dev/serial/by-id/... path of the verified StickC")
-    import serial  # lazy: pyserial is only needed on the Pi
+    if expected_usb_serial and expected_usb_serial not in path:
+        raise PermissionError(f"{path} does not belong to USB serial {expected_usb_serial}")
+
+
+def open_serial(path: str, baud: int = 115200, expected_usb_serial: Optional[str] = None):  # pragma: no cover
+    """Open the bridge's USB serial port (needs real hardware and pyserial). NOT for tests."""
+    check_port_path(path, expected_usb_serial)
+    import serial  # lazy: pyserial is only needed on the host that owns the USB cable
 
     # Open with DTR and RTS deasserted: on StickC boards these lines drive the ESP32 EN/G0 auto-reset
     # circuit, and toggling them can reset the controller (or hold G0 low = download mode, no zeroing).

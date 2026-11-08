@@ -484,6 +484,7 @@ def test_open_serial_deasserts_dtr_rts_before_open(monkeypatch):
             calls.append(("open",))
 
     monkeypatch.setitem(sys.modules, "serial", types.SimpleNamespace(Serial=FakeSerial))
+    monkeypatch.setattr(sys, "platform", "linux")   # by-id path rule (Pi host); macOS rule tested in test_mac_host_e2e
     open_serial("/dev/serial/by-id/usb-TEST-if00-port0")
     i_open = calls.index(("open",))
     assert ("set", "dtr", False) in calls[:i_open] and ("set", "rts", False) in calls[:i_open]

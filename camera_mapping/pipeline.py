@@ -11,6 +11,7 @@ from typing import Dict, List, Optional
 
 from . import SCHEMA_PERCEPTION, SOURCE_LABEL
 from .assess import assess, corridor_half, near_bearing_rad, suggest_route
+from .candidates import evaluate_candidates
 from .config import PerceptionConfig
 from .detector import ObjectDetection, UNSUPPORTED_REQUESTED
 from .distance import ESTIMATED, MethodResult, estimate_all
@@ -64,6 +65,7 @@ class PerceptionPipeline:
         self.map.update(t, tracks)
         assessment = assess(self.map, tracks, self.cfg)
         route = suggest_route(self.map, self.cfg, assessment)
+        candidates = evaluate_candidates(self.map, self.cfg)
         half = corridor_half(self.cfg)
         near_b = math.degrees(near_bearing_rad(self.map, self.cfg))
         records = []
@@ -123,6 +125,7 @@ class PerceptionPipeline:
             "map": self.map.to_json(),
             "assessment": assessment,
             "route": route,
+            "candidates": candidates,
             "latency_ms": lat,
             "unsupported_classes": UNSUPPORTED_REQUESTED,
             "motion_authority": "NONE",
@@ -148,6 +151,8 @@ def stale_view(state: Optional[dict], now: float, stale_after_s: float = 2.0) ->
                                  reasons=[f"perception data stale ({age:.1f} s old)"] +
                                  list((state.get("assessment") or {}).get("reasons") or []))
         out["route"] = dict(state.get("route") or {}, status="STALE_NOT_USABLE", waypoints=[])
+        out["candidates"] = [dict(c, status="UNOBSERVED", reasons=["perception data stale"])
+                             for c in state.get("candidates") or []]
         m = dict(state.get("map") or {})
         if m.get("rows"):                          # nothing stale is drawn as FREE or OCCUPIED
             m["rows"] = ["U" * len(r) for r in m["rows"]]

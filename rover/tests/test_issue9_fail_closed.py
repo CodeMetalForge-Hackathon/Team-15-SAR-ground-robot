@@ -323,7 +323,8 @@ def test_sim_readings_always_assert_a_verdict():
 # Modules allowed to touch the motor path. Everything else (Qwen/LLM glue, dashboard, perception, ranging,
 # rover/pi_io.py, rover/status_api.py, any new rover module) must not. Adding a file here needs review.
 MOTOR_PATH_ALLOWED = {"rover/motion.py", "rover/hardware.py", "rover/protocol.py", "rover/navigator.py",
-                      "rover/sim.py", "rover/simrun.py", "rover/bridge.py"}
+                      "rover/sim.py", "rover/simrun.py", "rover/bridge.py",
+                      "rover/mac_host.py"}  # Mac host loop: camera veto -> supervisor -> bridge (reviewed PR)
 MOTOR_PATH_NAMES = ("rover.motion", "rover.hardware", "rover.protocol", "rover.bridge", "SafetySupervisor",
                     "RoverCAdapter", "BridgeTransport", "open_serial", "encode_motor_block", "approve_motion")
 

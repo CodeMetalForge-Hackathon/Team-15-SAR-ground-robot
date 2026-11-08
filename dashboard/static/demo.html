@@ -1,0 +1,327 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Team 15 Live Demo</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --panel: #ffffff; --ink: #1b1f24; --muted: #5b6573; --line: #d5dae1; --cell: #eef1f5;
+    --live: #1a7f37; --live-bg: #dafbe1; --sim: #b42318; --sim-bg: #ffe4e1; --warn: #9a6700; --warn-bg: #fff8c5;
+    --info: #0969da; --info-bg: #ddf4ff; --person: #d1242f; --obst: #6e7781; --fov: rgba(9,105,218,.10);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0d1117; --panel: #161b22; --ink: #e6edf3; --muted: #9aa4b1; --line: #30363d; --cell: #1c222b;
+      --live: #3fb950; --live-bg: #12321d; --sim: #ff8b80; --sim-bg: #3d1614; --warn: #e3b341; --warn-bg: #3a2e0a;
+      --info: #4493f8; --info-bg: #0c2d4f; --person: #ff6b6b; --obst: #8b949e; --fov: rgba(68,147,248,.14);
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+         font: 14px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  header { padding: 10px 16px; border-bottom: 1px solid var(--line); background: var(--panel);
+           display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; }
+  header h1 { font-size: 17px; margin: 0; }
+  header .sub { color: var(--muted); font-size: 12px; }
+  main { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr) minmax(280px, .9fr);
+         gap: 12px; padding: 12px 16px; }
+  @media (max-width: 1100px) { main { grid-template-columns: 1fr 1fr; } .col-r { grid-column: 1 / -1; } }
+  @media (max-width: 720px) { main { grid-template-columns: 1fr; } }
+  .col { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px; min-width: 0; }
+  .panel h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted);
+              margin: 0 0 8px; font-weight: 600; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .badge { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 11px; font-weight: 700;
+           letter-spacing: .02em; white-space: nowrap; }
+  .ok { color: var(--live); background: var(--live-bg); }
+  .bad { color: var(--sim); background: var(--sim-bg); }
+  .warn { color: var(--warn); background: var(--warn-bg); }
+  .info { color: var(--info); background: var(--info-bg); }
+  .muted { color: var(--muted); }
+  .small { font-size: 12px; }
+  .cam { position: relative; background: #000; border-radius: 6px; aspect-ratio: 16 / 9; overflow: hidden;
+         display: flex; align-items: center; justify-content: center; }
+  .cam img { width: 100%; height: 100%; object-fit: contain; display: block; }
+  .cam .empty { color: #9aa4b1; font-size: 13px; text-align: center; padding: 12px; }
+  .cam .stamp { position: absolute; left: 6px; top: 6px; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  th, td { text-align: left; padding: 4px 6px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; }
+  td.num { font-variant-numeric: tabular-nums; }
+  .kv { display: grid; grid-template-columns: 9.5em 1fr; gap: 4px 8px; font-size: 12.5px; }
+  .kv dt { color: var(--muted); }
+  .kv dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+  svg { width: 100%; height: auto; display: block; }
+  .tl { list-style: none; margin: 0; padding: 0; max-height: 340px; overflow-y: auto; font-size: 12px; }
+  .tl li { padding: 5px 0; border-bottom: 1px solid var(--line); display: grid; grid-template-columns: 5.2em 1fr; gap: 6px; }
+  .tl time { color: var(--muted); font-variant-numeric: tabular-nums; }
+  .adv { font-size: 13px; white-space: pre-wrap; }
+  .note { font-size: 11.5px; color: var(--muted); margin-top: 6px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Team 15 · Live rover + camera demo</h1>
+  <span class="badge info">NO MOTOR CONTROLS ON THIS PAGE</span>
+  <span class="badge info">OPERATOR CONTROLS ALL MOVEMENT</span>
+  <span class="sub" id="clock"></span>
+  <span class="sub">Source labels: <b>LIVE-HW</b> real Pi camera · <b>RECORDED</b> replayed frames ·
+    <b>SYNTHETIC</b> generated · <b>MAC_USB_PROBE</b> read-only USB scan</span>
+</header>
+<main>
+  <div class="col">
+    <section class="panel" aria-labelledby="cam-h">
+      <h2 id="cam-h">Camera · person detection <span id="cam-src" class="badge bad">NO DATA</span>
+        <span id="cam-fresh" class="badge bad">—</span></h2>
+      <div class="cam"><img id="cam-img" alt="Annotated camera frame" hidden>
+        <div class="empty" id="cam-empty">No camera frame received.<br>Start <code>scripts/camera_demo.sh</code>.</div>
+      </div>
+      <div class="note" id="cam-meta"></div>
+    </section>
+    <section class="panel" aria-labelledby="det-h">
+      <h2 id="det-h">Detections (this frame)</h2>
+      <table><thead><tr><th>#</th><th>Label</th><th>Conf.</th><th>Bearing</th><th>Corridor</th><th>Distance</th><th>Frame time</th></tr></thead>
+        <tbody id="det-body"><tr><td colspan="7" class="muted">none</td></tr></tbody></table>
+      <div class="note">Confidence is the Faster R-CNN class score, not a calibrated probability. Bearing comes from
+        pixel column + camera intrinsics (<span id="intr">?</span>). A distance is shown only if the pipeline
+        estimated one, and is always a camera estimate, never a range-sensor reading.</div>
+    </section>
+  </div>
+
+  <div class="col">
+    <section class="panel" aria-labelledby="map-h">
+      <h2 id="map-h">Robot-relative detection map <span class="badge info" id="map-cal">UNCALIBRATED</span></h2>
+      <svg id="map" viewBox="0 0 400 330" role="img" aria-label="Top-down robot-relative map"></svg>
+      <div class="note" id="map-note"></div>
+    </section>
+    <section class="panel" aria-labelledby="as-h">
+      <h2 id="as-h">Forward corridor assessment <span id="as-badge" class="badge warn">UNKNOWN</span></h2>
+      <div class="small" id="as-reasons">—</div>
+    </section>
+  </div>
+
+  <div class="col col-r">
+    <section class="panel" aria-labelledby="ctl-h">
+      <h2 id="ctl-h">Rover controller <span id="usb-badge" class="badge bad">…</span></h2>
+      <dl class="kv">
+        <dt>USB link</dt><dd id="c-usb">…</dd>
+        <dt>Controller</dt><dd id="c-model">—</dd>
+        <dt>Serial node</dt><dd id="c-port">—</dd>
+        <dt>Firmware</dt><dd id="c-fw">—</dd>
+        <dt>E-stop</dt><dd id="c-estop">—</dd>
+        <dt>Rover host</dt><dd id="c-host">—</dd>
+        <dt>Commanded motion</dt><dd id="c-cmd">—</dd>
+        <dt>Camera veto</dt><dd id="c-veto">—</dd>
+        <dt>Wheel test</dt><dd id="c-wheel">—</dd>
+        <dt>Camera</dt><dd id="c-cam">—</dd>
+      </dl>
+      <div class="note">Read-only: this page never opens the serial port and has no motor path.</div>
+    </section>
+    <section class="panel" aria-labelledby="ai-h">
+      <h2 id="ai-h">Navigation recommendation <span id="nav-badge" class="badge warn">—</span></h2>
+      <div class="adv" id="nav-text">Rover host not running: no recommendation computed.</div>
+      <h2 style="margin-top:10px">Rescue advisory <span id="ai-badge" class="badge warn">NONE</span></h2>
+      <div class="adv" id="ai-text">No advisory yet.</div>
+      <div class="note">Recommendations are advisory (authority NONE). Motion only happens when an operator requests it and the deterministic supervisor accepts it.</div>
+    </section>
+    <section class="panel" aria-labelledby="tl-h">
+      <h2 id="tl-h">Mission timeline (observed events)</h2>
+      <ul class="tl" id="tl"><li><time>—</time><span class="muted">no events yet</span></li></ul>
+    </section>
+  </div>
+</main>
+<script>
+"use strict";
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const hms = (t) => t ? new Date(t * 1000).toLocaleTimeString([], {hour12: false}) : "—";
+const badge = (el, text, cls) => { el.textContent = text; el.className = "badge " + cls; };
+async function get(url) {
+  try { const r = await fetch(url, {cache: "no-store"}); return r.ok ? await r.json() : null; }
+  catch { return null; }
+}
+const srcCls = (m) => m === "LIVE-HW" ? "ok" : (m === "RECORDED" || m === "SYNTHETIC") ? "warn" : "bad";
+
+let lastSeq = null;
+function renderCamera(p, h) {
+  const mode = p && p.source_mode;
+  badge($("cam-src"), mode || "NO DATA", srcCls(mode));
+  if (!p || p.status === "NO_DATA") {
+    badge($("cam-fresh"), (h && h.camera_status) || "NOT_CONNECTED", "bad");
+    $("cam-img").hidden = true; $("cam-empty").hidden = false;
+    $("cam-meta").textContent = h && h.camera_error ? "camera error: " + h.camera_error : "";
+    return;
+  }
+  badge($("cam-fresh"), p.fresh ? `FRESH ${p.age_s}s` : `STALE ${p.age_s}s`, p.fresh ? "ok" : "bad");
+  if (p.frame_available && p.frame_seq !== lastSeq) {
+    lastSeq = p.frame_seq;
+    $("cam-img").src = "/api/perception/frame.jpg?s=" + encodeURIComponent(p.frame_seq ?? Date.now());
+  }
+  $("cam-img").hidden = !p.frame_available; $("cam-empty").hidden = !!p.frame_available;
+  const c = p.camera || {}; const lat = p.latency_ms || {};
+  const latTxt = Object.entries(lat).map(([k, v]) => `${k} ${Math.round(v)}`).join(" · ");
+  $("cam-meta").textContent = `capture ${hms(p.t)} · frame ${p.frame_seq ?? "?"} · ${c.device || c.source || "camera ?"}`
+    + (latTxt ? ` · latency ms: ${latTxt}` : "");
+}
+
+function distCell(o) {
+  const d = o.distance || {};
+  if (d.status !== "ESTIMATED" || d.distance_m == null) return `<span class="muted">UNKNOWN</span>`;
+  return `${d.distance_m.toFixed(2)} m <span class="badge ${d.label && d.label.startsWith("CALIBRATED") ? "info" : "warn"}">${esc(d.label)}</span>`;
+}
+function renderDetections(p) {
+  const objs = (p && p.fresh && p.objects) || [];
+  $("intr").textContent = (p && p.camera_model && p.camera_model.intrinsics_source) || "?";
+  if (!objs.length) { $("det-body").innerHTML = `<tr><td colspan="7" class="muted">${p && p.status === "STALE" ? "stale: not shown" : "none"}</td></tr>`; return; }
+  $("det-body").innerHTML = objs.map((o) => {
+    const b = (o.distance || {}).bearing_deg;
+    return `<tr><td class="num">${o.track_id}</td>
+      <td>${o.category === "PERSON" ? "<b>person</b>" : esc(o.object_class)} <span class="muted">${esc(o.validity)}</span></td>
+      <td class="num">${(o.detection_confidence ?? 0).toFixed(2)}</td>
+      <td class="num">${typeof b === "number" ? (b >= 0 ? `${b.toFixed(1)}° L` : `${(-b).toFixed(1)}° R`) : "?"}</td>
+      <td>${esc(o.corridor_position || "?")}</td><td>${distCell(o)}</td><td class="num">${hms(o.timestamp)}</td></tr>`;
+  }).join("");
+}
+
+// Top-down view: rover at the origin facing up. Range rings at 1 m steps out to RMAX.
+const RMAX = 4, CX = 200, CY = 306, SC = 245 / RMAX;
+function pt(r, bDeg) { const b = bDeg * Math.PI / 180; return [CX - r * SC * Math.sin(b), CY - r * SC * Math.cos(b)]; }
+function renderMap(p) {
+  const fresh = p && p.fresh;
+  const cm = (p && p.camera_model) || {};
+  const hfov = cm.hfov_deg || 0;
+  const calibrated = p && p.calibration_status === "CALIBRATED";
+  badge($("map-cal"), p ? (p.calibration_status || "UNCALIBRATED") : "NO DATA", calibrated ? "ok" : "warn");
+  let s = "";
+  for (let r = 1; r <= RMAX; r++) {
+    s += `<circle cx="${CX}" cy="${CY}" r="${r * SC}" fill="none" stroke="var(--line)" stroke-dasharray="3 4"/>`;
+    s += `<text x="${CX + 3}" y="${CY - r * SC - 3}" font-size="10" fill="var(--muted)">${r} m</text>`;
+  }
+  if (hfov) {
+    const [lx, ly] = pt(RMAX, hfov / 2), [rx, ry] = pt(RMAX, -hfov / 2);
+    s += `<path d="M${CX},${CY} L${lx},${ly} A${RMAX * SC},${RMAX * SC} 0 0 1 ${rx},${ry} Z" fill="var(--fov)" stroke="var(--info)" stroke-width="1"/>`;
+    s += `<text x="${lx - 2}" y="${ly + 14}" font-size="10" fill="var(--info)" text-anchor="end">FOV ${hfov.toFixed(0)}°</text>`;
+  }
+  const notes = [];
+  let nLab = 0;
+  if (fresh) {
+    for (const o of p.objects || []) {
+      const d = o.distance || {}; const b = d.bearing_deg;
+      if (typeof b !== "number") continue;
+      const col = o.category === "PERSON" ? "var(--person)" : "var(--obst)";
+      const placed = calibrated && d.status === "ESTIMATED" && d.distance_m != null && d.distance_m <= RMAX;
+      const [ex, ey] = pt(RMAX, b);
+      s += `<line x1="${CX}" y1="${CY}" x2="${ex}" y2="${ey}" stroke="${col}" stroke-width="${o.category === "PERSON" ? 2 : 1}" stroke-dasharray="${placed ? "" : "5 4"}"/>`;
+      if (placed) {
+        const [px, py] = pt(d.distance_m, b);
+        s += `<circle cx="${px}" cy="${py}" r="6" fill="${col}"/>`;
+        if (d.sigma_m) s += `<circle cx="${px}" cy="${py}" r="${Math.max(6, d.sigma_m * SC)}" fill="none" stroke="${col}" stroke-opacity=".5"/>`;
+      }
+      if (o.category === "PERSON") {          // label persons only, staggered so close rays stay readable
+        const k = nLab++;
+        const [lx, ly] = pt(RMAX + 0.18 + (k % 3) * 0.22, b);
+        s += `<text x="${lx}" y="${ly}" font-size="10.5" font-weight="700" fill="${col}" text-anchor="middle">#${o.track_id}${placed ? "" : " ?"}</text>`;
+      }
+    }
+    if ((p.objects || []).length && !calibrated)
+      notes.push("Red = person, grey = other object. Dashed ray + '?' = bearing only, distance not shown because the camera is not physically calibrated.");
+  } else {
+    notes.push(p && p.status === "STALE" ? "Perception stale: nothing drawn." : "No perception data.");
+  }
+  for (const cnd of (fresh && p.candidates) || []) {        // candidate paths (advisory): end point in metres
+    const [x, y] = cnd.end_m || [0, 0];
+    const col = cnd.status === "OBSERVED_CLEAR" ? "var(--live)" : cnd.status === "OBSTRUCTED" ? "var(--sim)" : "var(--warn)";
+    const ex = CX - y * SC, ey = CY - x * SC;
+    s += `<line x1="${CX}" y1="${CY}" x2="${ex}" y2="${ey}" stroke="${col}" stroke-width="${Math.max(2, 2 * cnd.half_width_m * SC)}" stroke-opacity=".22" stroke-linecap="round"/>`;
+    const word = {OBSERVED_CLEAR: "clear", OBSTRUCTED: "blocked", UNOBSERVED: "unseen"}[cnd.status] || cnd.status;
+    const anchor = y > 0.01 ? "end" : y < -0.01 ? "start" : "middle", dx = y > 0.01 ? -8 : y < -0.01 ? 8 : 0;
+    s += `<text x="${ex + dx}" y="${ey + (anchor === "middle" ? -8 : 4)}" font-size="10" font-weight="600" fill="${col}" text-anchor="${anchor}">${esc(cnd.name[0] + cnd.name.slice(1).toLowerCase())}: ${esc(word)}</text>`;
+  }
+  s += `<polygon points="${CX},${CY - 14} ${CX - 9},${CY + 8} ${CX + 9},${CY + 8}" fill="var(--ink)"/>`;
+  s += `<text x="${CX}" y="${CY + 24}" font-size="10" fill="var(--muted)" text-anchor="middle">rover = reference origin (heading up; not localized)</text>`;
+  $("map").innerHTML = s;
+  if (fresh && (p.candidates || []).length) notes.push("Wide bands = candidate paths (advisory; green observed clear, red obstructed, amber unobserved). Never executed automatically.");
+  notes.push("Bearings are camera-derived (LIVE-HW only when the source badge says so). No simulated objects are drawn on this map.");
+  $("map-note").textContent = notes.join(" ");
+  const a = (p && p.assessment) || {status: "UNKNOWN", reasons: ["no data"]};
+  badge($("as-badge"), a.status, a.status === "CLEAR" ? "ok" : a.status === "BLOCKED" ? "bad" : "warn");
+  $("as-reasons").textContent = (a.reasons || []).join("; ") || "—";
+}
+
+function renderNav(r) {
+  const v = r && r.status === "LIVE" ? r.camera_verdict : null;
+  if (!v) { badge($("nav-badge"), "—", "warn"); $("nav-text").textContent = "Rover host not running: no recommendation computed."; return; }
+  badge($("nav-badge"), v.action + (v.operator ? " · " + v.operator : ""), v.action === "NO_CAMERA_OBJECTION" ? "ok" : v.action === "STOP" ? "bad" : "warn");
+  const c = (v.candidates || []).map((x) => `${x.name}: ${x.status}`).join(" · ");
+  $("nav-text").textContent = `${v.action === "STOP" ? "STOP." : v.action === "HOLD" ? "Remain stopped." : "Camera does not object (supervisor gates still apply)."} ${v.reason}`
+    + (v.suggestion ? `\nSuggested for operator review: ${v.suggestion} path (observed clear). Not executed automatically.` : "")
+    + (c ? `\nCandidate paths: ${c}` : "") + `\nComputed from the frame ${v.age_s ?? "?"} s old · source ${v.source_mode || "?"}`;
+}
+
+function renderHost(r, c) {
+  renderNav(r);
+  if (!r || r.status === "NOT_RUNNING") {
+    $("c-host").innerHTML = `<span class="badge warn">NOT RUNNING</span> <span class="muted">${esc((r && r.text) || "")}</span>`;
+    $("c-cmd").textContent = c ? c.command_state : "—"; $("c-veto").textContent = "—"; return;
+  }
+  const lab = r.physical ? "ok" : "warn";
+  $("c-host").innerHTML = `<span class="badge ${lab}">${esc(r.label)}</span> <span class="badge ${r.status === "LIVE" ? "info" : "bad"}">${esc(r.status)} ${r.age_s}s</span> <span class="muted">driver ${esc(r.driver)} · autonomy ${esc(r.autonomy)}</span>`;
+  const o = r.output || {};
+  $("c-cmd").innerHTML = `<b>${esc(r.active_command)}</b> <span class="muted">out vx ${(+o.vx || 0).toFixed(2)} vy ${(+o.vy || 0).toFixed(2)} wz ${(+o.wz || 0).toFixed(2)}${r.physical ? "" : " (simulated: no wheel moves)"} · approved: ${esc(r.motion_approved_by || "nobody")} · last stop: ${esc(r.last_stop_reason)}</span>`;
+  const v = r.camera_verdict || {};
+  $("c-veto").innerHTML = `<span class="badge ${v.action === "NO_CAMERA_OBJECTION" ? "ok" : v.action === "STOP" ? "bad" : "warn"}">${esc(v.action)}</span>${v.operator ? ` <span class="badge info">${esc(v.operator)}${v.suggestion ? ": " + esc(v.suggestion) : ""}</span>` : ""} <span class="muted">${esc(v.reason)}</span>`;
+  const e = r.estop || {}, l = r.safety_latch;
+  if (e.tripped || l) $("c-estop").innerHTML = `<span class="badge bad">${e.tripped ? "E-STOP LATCHED" : "SAFETY LATCH"}</span> <span class="muted">${esc(e.reason || (l && l.kind + ": " + l.detail))}</span>`;
+}
+
+function renderController(c, h) {
+  if (!c) { badge($("usb-badge"), "DASHBOARD API DOWN", "bad"); return; }
+  badge($("usb-badge"), c.usb_status, c.usb_status === "DETECTED" ? "ok" : c.usb_status === "NOT_DETECTED" || c.usb_status === "PROBE_ERROR" ? "bad" : "warn");
+  $("c-usb").textContent = `${c.usb_text} (checked ${hms(c.t)})`;
+  const k = (c.candidates || [])[0];
+  $("c-model").innerHTML = k ? `${esc(k.chip)} ${esc(k.vid)}:${esc(k.pid)}<br><span class="muted">${esc(k.model_hint)}</span>` : `<span class="muted">not identified</span>`;
+  $("c-port").textContent = (c.serial_ports || []).join(", ") || "none";
+  $("c-fw").innerHTML = `<span class="badge warn">${esc(c.firmware_status)}</span> <span class="muted">${esc(c.firmware_text)}</span>`;
+  $("c-estop").innerHTML = `<span class="badge info">${esc(c.estop.software)}</span> <span class="muted">${esc(c.estop.text)}</span>`;
+  $("c-cmd").textContent = c.command_state;
+  const w = c.wheel_test || {};
+  const wc = w.result === "PASS" ? "ok" : w.result === "NOT_RUN" ? "warn" : "bad";
+  $("c-wheel").innerHTML = `<span class="badge ${wc}">${esc(w.result)}</span> <span class="muted">${esc(w.text)}${w.t ? " at " + esc(w.t) : ""}${w.observations ? ": " + esc(w.observations) : ""}</span>`;
+  if (h) $("c-cam").innerHTML = `<span class="badge ${h.camera_status === "STREAMING" ? "ok" : "bad"}">${esc(h.camera_status)}</span> <span class="muted">${esc(h.source_mode || "")} ${h.producer ? "· " + esc(h.producer) : ""}${h.producer_conflict ? " · CONFLICT: second camera runner refused" : ""}</span>`;
+}
+
+function renderAdvisory(a) {
+  if (!a || a.status === "NO_ADVISORY") { badge($("ai-badge"), "NONE", "warn"); $("ai-text").textContent = "No advisory yet."; return; }
+  const cur = a.evidence_current !== false && (a.age_s ?? 0) <= 4;
+  const q = a.qwen || {}, d = a.deterministic || {};
+  const useQ = a.qwen_status === "QWEN_GUARDED" && q.explanation && !(q.guard && q.guard.fell_back_to_deterministic);
+  const who = useQ ? `${q.model_id || "Qwen"} (guarded)` : (d.source || a.source || "DETERMINISTIC");
+  badge($("ai-badge"), `${who} · ${cur ? a.age_s + "s" : "OUTDATED " + a.age_s + "s: may not match the current frame"}`, cur ? "info" : "bad");
+  const lines = [];
+  if (useQ) {
+    lines.push(q.explanation);
+    lines.push(`Person evidence: ${q.person_evidence ?? "?"} · uncertainty ${q.uncertainty ?? "?"} · action ${q.recommended_action ?? "?"}`);
+    if ((q.missing_evidence || []).length) lines.push("Missing: " + q.missing_evidence.join("; "));
+  }
+  lines.push((useQ ? "Deterministic: " : "") + (d.summary || a.summary || "—"));
+  if (d.recommended_action) lines.push("→ " + d.recommended_action);
+  $("ai-text").textContent = lines.join("\n");
+}
+
+function renderTimeline(t) {
+  const ev = (t && t.events) || [];
+  if (!ev.length) return;
+  $("tl").innerHTML = ev.map((e) => `<li><time>${hms(e.t)}</time><span><span class="badge ${srcCls(e.source) === "ok" ? "ok" : e.source === "MAC_USB_PROBE" || e.source === "DASHBOARD" ? "info" : srcCls(e.source)}">${esc(e.source)}</span> <b>${esc(e.kind)}</b> ${esc(e.detail)}</span></li>`).join("");
+}
+
+async function tick() {
+  $("clock").textContent = "dashboard clock " + new Date().toLocaleTimeString([], {hour12: false});
+  const [p, h, c, a, t, r] = await Promise.all([get("/api/perception"), get("/api/perception/health"),
+    get("/api/controller"), get("/api/perception/advisory"), get("/api/timeline?limit=60"), get("/api/rover/state")]);
+  renderCamera(p, h); renderDetections(p); renderMap(p); renderController(c, h); renderHost(r, c); renderAdvisory(a); renderTimeline(t);
+}
+tick(); setInterval(tick, 700);
+</script>
+</body>
+</html>
