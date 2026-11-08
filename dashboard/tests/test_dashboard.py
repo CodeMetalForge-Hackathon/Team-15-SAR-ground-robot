@@ -172,5 +172,12 @@ def test_index_page_renders_map_elements(setup):
 def test_no_photos_tracked_in_git():
     files = subprocess.run(["git", "ls-files"], cwd=REPO, capture_output=True, text=True,
                            check=True).stdout.splitlines()
-    photos = [f for f in files if Path(f).suffix.lower() in {".jpg", ".jpeg", ".png", ".heic", ".mp4", ".mov"}]
+    photos = [f for f in files if Path(f).suffix.lower() in {".jpg", ".jpeg", ".png", ".heic", ".mp4", ".mov"}
+              and f not in VENDORED_ICONS]
     assert photos == []
+
+
+# Leaflet's own UI icons (BSD-2, LICENSE alongside), vendored for the offline fleet map (PR #17).
+# They are not photos. Listed by exact path: any other image anywhere still fails this test.
+VENDORED_ICONS = {f"team15_starter/fleet/web/leaflet/images/{n}" for n in
+                  ("layers.png", "layers-2x.png", "marker-icon.png", "marker-icon-2x.png", "marker-shadow.png")}
