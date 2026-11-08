@@ -28,7 +28,7 @@ Verified from M5Stack documentation (not from our unit):
 
 Not verified, so each one blocks Gate 5:
 1. **Exact controller model and firmware.** We don't yet know whether it is a StickC or a StickC Plus, nor what sketch is flashed. Nothing on this Mac shows a USB serial device for it (only Bluetooth and debug ports).
-2. **The Pi-to-RoverC link does not exist.** Inspected over Tailscale (100.97.93.118): no USB devices, no serial devices, and the header I²C bus is not enabled. See `HARDWARE_READINESS.md`.
+2. **The Pi-to-RoverC link does not exist.** Inspected over Tailscale ($PI_HOST): no USB devices, no serial devices, and the header I²C bus is not enabled. See `HARDWARE_READINESS.md`.
    - The RoverC bus is mastered by the StickC.
    - Wiring the Pi into a Grove I²C port would put two masters on one bus. That is unsupported.
    - **Recommendation:** add StickC bridge firmware that takes commands over USB serial (or Wi-Fi UDP) and **zeroes the motors when commands stop arriving** (for example after 300 ms). Then measure that timeout and record it in `HardwareVerification.stop_on_link_loss_ms`.

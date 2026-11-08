@@ -18,7 +18,7 @@ a camera detection has been validated, and no such association exists today.
 |---|---|---|
 | Navigation (same Pi) | `RangeClient()` | reads `/dev/shm/team15_range.json` (atomically replaced, tmpfs, no network) |
 | Anything on the Pi | `GET http://127.0.0.1:8765/range`, `GET /health` | `serve --host 127.0.0.1` (default) |
-| Dashboard on the Mac | `GET http://100.97.93.118:8765/range` over Tailscale | `serve --host 0.0.0.0 --cors-origin http://127.0.0.1:8000` |
+| Dashboard on the Mac | `GET http://$PI_HOST:8765/range` over Tailscale | `serve --host 0.0.0.0 --cors-origin http://127.0.0.1:8000` |
 | Debug | `python3 -m ranging watch [--url …]` | prints what a consumer sees |
 
 ## Navigation API (wheel-control worker)
@@ -184,7 +184,7 @@ read-only proxy. This is a suggestion; this branch does not edit `dashboard/`:
 ```python
 # dashboard/app.py (owner's choice)
 from ranging import RangeClient
-_range = RangeClient(url=os.environ.get("RANGE_URL", "http://100.97.93.118:8765/range"))
+_range = RangeClient(url=os.environ.get("RANGE_URL", "http://$PI_HOST:8765/range"))
 
 @app.get("/api/range")
 def api_range():
