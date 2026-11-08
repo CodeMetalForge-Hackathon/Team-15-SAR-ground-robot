@@ -47,6 +47,38 @@ INCH, FOOT = 0.0254, 0.3048
 SCANNER_FRESH_S = 5.0     # unverified discovery signals go stale after 5 s on the server
 
 
+DEFAULT_CAL = (3.28, -59.0, 2.2)   # 1 m reference, typical phone; calibrate at the venue instead
+
+
+def distance_ft(rssi, cal):
+    """Log-distance path loss: d = d_ref * 10^((rssi_ref - rssi) / (10 n))."""
+    d_ref, r_ref, n = cal
+    return d_ref * 10 ** ((r_ref - rssi) / (10 * n))
+
+
+def parse_cal_point(text):
+    ft, _, dbm = text.partition(":")
+    try:
+        ft, dbm = float(ft), float(dbm)
+    except ValueError:
+        raise ValueError(f"calibration point {text!r} must look like 3:-60 (feet:dBm)")
+    if not (0.5 <= ft <= 30 and -120 <= dbm <= 0):
+        raise ValueError(f"calibration point {text!r} is out of range")
+    return ft, dbm
+
+
+def make_cal(points):
+    """Fit (d_ref, rssi_ref, n) through two (feet, dBm) readings."""
+    (d1, r1), (d2, r2) = sorted(points)
+    if d2 / d1 < 1.5:
+        raise ValueError("take the two calibration readings at least 1.5x apart in distance (e.g. 2 ft and 6 ft)")
+    n = (r1 - r2) / (10 * math.log10(d2 / d1))
+    if not 1.2 <= n <= 5.0:
+        raise ValueError(f"those readings give a path-loss exponent of {n:.2f} (expected 1.2-5; the closer "
+                         "reading must be clearly stronger). Retake both with the phone held the same way.")
+    return (d1, r1, n)
+
+
 class Abort(Exception):
     """Stop the mission; leaving the link's context lands the drone where it is."""
 
@@ -141,6 +173,9 @@ class SimScanner:
         return dict(verified=True, mode_label="SIMULATED", label="Enrolled beacon 001", alias=1,
                     rssi=-62 + (self.n * 7) % 5 - 2, age_s=0.3)
 
+    def rssis(self, since=None):
+        return [-62 + (i * 7) % 5 - 2 for i in range(12)] if self.present else []
+
     def summary(self, since=None):
         cur = self.current()
         return _summary(cur, [cur["rssi"]] * 8 if cur else [], "SIMULATED ground scanner")
@@ -225,6 +260,10 @@ class GroundScanner:
     def current(self):
         with self.lock:
             return dict(self.latest) if self.latest else None
+
+    def rssis(self, since=None):
+        with self.lock:
+            return [r for t, r in self.samples if since is None or t >= since]
 
     def summary(self, since=None):
         with self.lock:
@@ -323,6 +362,7 @@ class Mission:
         self.airborne, self.t_air = False, None
         self.trigger, self.finding, self.events = None, None, []
         self.home = (0.0, 0.0)
+        self.forward_m, self.estimate = cfg.forward_m, None
         self.bad_vbat_since = self.bad_pose_since = None
 
     # ---- shared state -------------------------------------------------------
@@ -343,6 +383,7 @@ class Mission:
         with self.lock:
             s, phase, detail = dict(self.snap), self.phase, self.detail
             finding, trigger, outcome = self.finding, self.trigger, self.outcome
+            estimate, fwd = self.estimate, self.forward_m
             airborne = self.airborne
         c = self.cfg
         t = dict(ready=True, source="LIVE" if self.live else "SIMULATED", airborne=airborne,
@@ -352,7 +393,8 @@ class Mission:
                  busy=airborne, agent_error="",
                  last_action=f"{phase}: {detail}"[:300],
                  mission=dict(script="fly_to_phone", phase=phase, detail=detail, outcome=outcome,
-                              target_m=[round(c.forward_m, 3), 0.0, round(c.height_m, 3)],
+                              target_m=[round(fwd, 3), 0.0, round(c.height_m, 3)],
+                              distance_estimate=estimate,
                               elapsed_s=None if self.t_air is None else round(self.clock() - self.t_air, 1),
                               trigger=trigger, finding=finding,
                               summary=self.summary_line()))
@@ -364,6 +406,16 @@ class Mission:
         return t
 
     def summary_line(self):
+        e = self.estimate
+        pre = ""
+        if e and e.get("used") == "signal":
+            pre = (f"Signal put the phone at ~{e['estimate_ft']} ft (noise spread {e['spread_ft'][0]}-"
+                   f"{e['spread_ft'][1]} ft{'' if e['calibrated'] else ', UNCALIBRATED'}); flew {e['forward_ft']} ft. ")
+        elif e:
+            pre = f"Signal too sparse ({e['reason']}); flew the fixed {e['forward_ft']} ft. "
+        return pre + self._finding_line()
+
+    def _finding_line(self):
         f = self.finding
         if self.outcome == "no_phone":
             return "Phone not detected by ground scanner; drone did not fly"
@@ -404,7 +456,7 @@ class Mission:
             return
         self.bad_pose_since = None
         hx, hy = self.home
-        if not (hx - c.corridor_m <= p[0] <= hx + c.forward_m + c.corridor_m
+        if not (hx - c.corridor_m <= p[0] <= hx + self.forward_m + c.corridor_m
                 and abs(p[1] - hy) <= c.corridor_m + 0.1 and p[2] <= c.height_m + 0.35):
             raise Abort(f"Left the flight corridor at ({p[0]:+.2f}, {p[1]:+.2f}, {p[2]:.2f}) m")
 
@@ -414,6 +466,37 @@ class Mission:
             self.link.wait(min(0.1, max(0.0, end - self.clock())))
             self._sample()
             self._check()
+
+    def estimate_distance(self):
+        c = self.cfg
+        if self.scanner is None:
+            raise Abort("--distance-from-signal needs the ground scanner (--discovery-url)")
+        self.set_phase("measuring_signal", f"{c.signal_window_s:.0f} s of phone readings before launch")
+        since, end = time.monotonic(), self.clock() + c.signal_window_s
+        while self.clock() < end:
+            self._check()
+            self.link.wait(0.2)
+            self._sample()
+        rs = sorted(self.scanner.rssis(since))
+        d_ref, r_ref, n = c.cal
+        est = dict(samples=len(rs), calibrated=c.cal_ok,
+                   model=dict(ref_ft=round(d_ref, 2), ref_dbm=r_ref, exponent=round(n, 2)))
+        if len(rs) < c.min_signal_samples:
+            est.update(used="fixed", forward_ft=round(self.forward_m / FOOT, 2),
+                       reason=f"{len(rs)} readings in {c.signal_window_s:.0f} s, need {c.min_signal_samples}")
+        else:
+            med = statistics.median(rs)
+            weak, strong = rs[len(rs) // 4], rs[(3 * len(rs)) // 4]
+            d = distance_ft(med, c.cal)
+            hop = min(max(d, c.min_forward_ft), c.max_forward_ft)
+            est.update(used="signal", rssi_dbm_median=med, rssi_dbm_iqr=[weak, strong],
+                       estimate_ft=round(d, 1),
+                       spread_ft=[round(distance_ft(strong, c.cal), 1), round(distance_ft(weak, c.cal), 1)],
+                       forward_ft=round(hop, 2), clamped=abs(hop - d) > 1e-9)
+            self.forward_m = hop * FOOT
+        with self.lock:
+            self.estimate = est
+        self.set_phase("distance_estimated", self.summary_line().split(". ")[0])
 
     def arrived(self, target, name, tol_xy, tol_z):
         p = self.snap["pose"]
@@ -447,13 +530,16 @@ class Mission:
                     log(f"  trigger: {self.trigger.get('label')} at {self.trigger.get('rssi')} dBm "
                         f"({'verified' if self.trigger.get('verified') else 'UNVERIFIED'})")
 
+            if c.distance_from_signal:
+                self.estimate_distance()
+
             s = self._sample()
             if s["vbat"] is None or s["vbat"] < c.takeoff_vbat:
                 raise Abort(f"Battery {s['vbat']} V is below the {c.takeoff_vbat} V takeoff minimum")
             if s["pose"] is None:
                 raise Abort("No position estimate before takeoff (positioning deck attached and settled?)")
             self.home = s["pose"][:2]
-            hx, hy, h, d = self.home[0], self.home[1], c.height_m, c.forward_m
+            hx, hy, h, d = self.home[0], self.home[1], c.height_m, self.forward_m
 
             self.set_phase("takeoff", f"to {h / INCH:.1f} in")
             self.t_air, self.airborne = self.clock(), True
@@ -509,6 +595,7 @@ class Mission:
             return dict(script="fly_to_phone", mode="LIVE" if self.live else "SIMULATED",
                         outcome=self.outcome, summary=self.summary_line(),
                         height_in=round(self.cfg.height_m / INCH, 1), forward_ft=round(self.cfg.forward_m / FOOT, 2),
+                        flown_forward_ft=round(self.forward_m / FOOT, 2), distance_estimate=self.estimate,
                         trigger=self.trigger, finding=self.finding, events=list(self.events),
                         note="Identity/RSSI come from the stationary ground scanner, not from the drone.")
 
@@ -534,6 +621,16 @@ def build_parser():
     g.add_argument("--signal-id", help="unverified discovery signal id to look for")
     p.add_argument("--wait-for-phone", type=float, default=0.0,
                    help="seconds to wait for the phone before taking off; 0 = fly immediately")
+    p.add_argument("--distance-from-signal", action="store_true",
+                   help="set the hop from the phone's signal strength (scanner beside the drone's takeoff spot)")
+    p.add_argument("--rssi-cal", nargs=2, metavar="FT:DBM",
+                   help="two venue readings from --calibrate-at, e.g. --rssi-cal 2:-52 6:-64")
+    p.add_argument("--calibrate-at", type=float, metavar="FT",
+                   help="no flight: print the phone's median signal with it FT feet from the scanner")
+    p.add_argument("--signal-window-s", type=float, default=5.0, help="seconds of readings to average")
+    p.add_argument("--min-signal-samples", type=int, default=5)
+    p.add_argument("--min-forward-ft", type=float, default=1.0)
+    p.add_argument("--max-forward-ft", type=float, default=6.0)
     p.add_argument("--coordinator", help="mission control, e.g. http://127.0.0.1:8080")
     p.add_argument("--credentials", type=Path, help="role file with the 'crazyflie' token "
                    "(default ~/.config/team15/network.json)")
@@ -555,11 +652,47 @@ def validate(args, p):
         v = getattr(args, name)
         if not finite(v) or not lo <= v <= hi:
             p.error(f"--{name.replace('_', '-')} must be between {lo} and {hi}")
+    for name, lo, hi in (("signal_window_s", 1, 30), ("min_forward_ft", 0.5, 6.0), ("max_forward_ft", 0.5, 6.0)):
+        v = getattr(args, name)
+        if not finite(v) or not lo <= v <= hi:
+            p.error(f"--{name.replace('_', '-')} must be between {lo} and {hi}")
+    if args.min_forward_ft > args.max_forward_ft:
+        p.error("--min-forward-ft is above --max-forward-ft")
+    try:
+        args.cal = make_cal([parse_cal_point(t) for t in args.rssi_cal]) if args.rssi_cal else DEFAULT_CAL
+    except ValueError as exc:
+        p.error(str(exc))
+    args.cal_ok = bool(args.rssi_cal)
     args.height_m, args.forward_m = args.height_in * INCH, args.forward_ft * FOOT
     args.corridor_m, args.mc_lost_s = 0.45, 2.0
-    need = args.takeoff_s + 0.8 + 2 * (max(1.0, args.forward_m / args.speed) + 1.0) + args.hover_s + 3
+    longest = max(args.forward_m, args.max_forward_ft * FOOT if args.distance_from_signal else 0)
+    need = args.takeoff_s + 0.8 + 2 * (max(1.0, longest / args.speed) + 1.0) + args.hover_s + 3
     if need > args.max_flight_s:
         p.error(f"this flight needs about {need:.0f} s; raise --max-flight-s or --speed")
+
+
+def calibrate(args, scanner):
+    if scanner is None:
+        log("--calibrate-at needs --discovery-url (the ground scanner)")
+        return 2
+    window = max(8.0, args.signal_window_s)
+    log(f"hold the phone {args.calibrate_at:g} ft from the scanner, in front of it, as it will be in the demo; "
+        f"measuring for {window:.0f} s")
+    scanner.start()
+    since = time.monotonic()
+    try:
+        if not args.fast:
+            time.sleep(window)
+    finally:
+        rs = scanner.rssis(since)
+        scanner.stop()
+    if len(rs) < args.min_signal_samples:
+        log(f"only {len(rs)} readings; is the phone advertising and the right --alias/--signal-id set?")
+        return 1
+    med = statistics.median(rs)
+    log(f"{len(rs)} readings, median {med:g} dBm (min {min(rs)}, max {max(rs)})")
+    print(f"{args.calibrate_at:g}:{med:g}")
+    return 0
 
 
 def main(argv=None):
@@ -583,6 +716,11 @@ def main(argv=None):
     else:
         scanner = None
         log("note: no --discovery-url; the drone will fly but report no phone identity")
+
+    if args.calibrate_at is not None:
+        return calibrate(args, scanner)
+    if args.distance_from_signal and not args.cal_ok:
+        log("note: --distance-from-signal without --rssi-cal uses a generic phone model; expect large errors")
 
     mission = Mission(link, args, scanner=scanner, live=live)
     mc = None

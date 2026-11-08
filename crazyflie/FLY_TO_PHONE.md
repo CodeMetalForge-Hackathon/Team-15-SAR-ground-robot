@@ -40,6 +40,36 @@ python3 crazyflie/fly_to_phone.py --live-drone --preflight-confirmed \
 unverified advertisement instead, and the report labels it UNVERIFIED. With
 `--wait-for-phone 0` the drone takes off immediately.
 
+## Distance from the phone's signal (optional)
+
+`--distance-from-signal` sets the hop from the phone's signal strength instead of
+a fixed 5 ft. It is an educated guess, not a measurement: the scanner sits still,
+so it gives a rough distance and no direction. The phone must be straight ahead.
+
+1. Put the ground scanner right beside the drone's takeoff spot.
+2. Calibrate in the demo room, holding the phone the way it will sit in the demo:
+
+   ```sh
+   python crazyflie/fly_to_phone.py --calibrate-at 2 --discovery-url http://127.0.0.1:8765 --alias 1
+   python crazyflie/fly_to_phone.py --calibrate-at 6 --discovery-url http://127.0.0.1:8765 --alias 1
+   ```
+
+   Each prints a reading like `2:-52`.
+3. Fly with both readings:
+
+   ```sh
+   python crazyflie/fly_to_phone.py --live-drone --preflight-confirmed --uri ble://Crazyflie \
+       --discovery-url http://127.0.0.1:8765 --alias 1 --wait-for-phone 30 \
+       --distance-from-signal --rssi-cal 2:-52 6:-64
+   ```
+
+Before takeoff it averages 5 s of readings (median) and fits them to a
+log-distance curve through your two calibration points. The hop is clamped to
+1-6 ft. With fewer than 5 readings it flies the fixed `--forward-ft` and says so.
+The estimate, its noise spread and the distance flown go to mission control in
+`telemetry.mission.distance_estimate` and to the report. Expect errors of a foot
+or more indoors; a person or table between phone and scanner makes it read far.
+
 ## What the operator view gets
 
 `GET /api/state` -> `nodes.crazyflie.telemetry`:

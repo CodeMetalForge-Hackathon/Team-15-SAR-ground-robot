@@ -181,6 +181,52 @@ class MissionControlHandoff(unittest.TestCase):
         self.assertLess(len([c for c in link.commands if c[0] == "go_to"]), 2)
 
 
+class FixedSignal(ftp.SimScanner):
+    def __init__(self, values):
+        super().__init__()
+        self.values = values
+
+    def rssis(self, since=None):
+        return list(self.values)
+
+
+class SignalDistance(unittest.TestCase):
+    CAL = ("--rssi-cal", "2:-52", "6:-64")
+
+    def test_calibration_fit(self):
+        cal = ftp.make_cal([(2, -52), (6, -64)])
+        self.assertAlmostEqual(ftp.distance_ft(-52, cal), 2.0)
+        self.assertAlmostEqual(ftp.distance_ft(-64, cal), 6.0)
+        self.assertLess(ftp.distance_ft(-55, cal), ftp.distance_ft(-60, cal))
+
+    def test_hop_follows_the_signal(self):
+        m, link = run(None, FixedSignal([-58] * 10), "--distance-from-signal", *self.CAL)
+        expected = ftp.distance_ft(-58, ftp.make_cal([(2, -52), (6, -64)]))
+        self.assertEqual(m.outcome, "completed")
+        self.assertAlmostEqual(link.commands[1][1], expected * 0.3048, places=3)
+        self.assertEqual(m.estimate["used"], "signal")
+        self.assertIn("Signal put the phone at", m.summary_line())
+
+    def test_far_signal_is_clamped(self):
+        m, link = run(None, FixedSignal([-80] * 10), "--distance-from-signal", *self.CAL)
+        self.assertTrue(m.estimate["clamped"])
+        self.assertAlmostEqual(link.commands[1][1], 6.0 * 0.3048, places=3)
+
+    def test_sparse_signal_flies_fixed_distance_and_says_so(self):
+        m, link = run(None, FixedSignal([-58, -59]), "--distance-from-signal", *self.CAL)
+        self.assertEqual(m.estimate["used"], "fixed")
+        self.assertAlmostEqual(link.commands[1][1], 5 * 0.3048, places=3)
+        self.assertIn("too sparse", m.summary_line())
+
+    def test_bad_calibration_is_rejected(self):
+        for bad in (["2:-60", "6:-50"], ["2:-52", "2.5:-53"], ["x", "6:-60"]):
+            with self.assertRaises(SystemExit):
+                cfg("--distance-from-signal", "--rssi-cal", *bad)
+
+    def test_calibrate_mode_prints_a_reading(self):
+        self.assertEqual(ftp.main(["--calibrate-at", "3", "--fast"]), 0)
+
+
 class EndToEndCli(unittest.TestCase):
     def test_dry_run_writes_report(self):
         with tempfile.TemporaryDirectory() as d:
