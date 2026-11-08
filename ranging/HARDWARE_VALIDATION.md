@@ -37,7 +37,7 @@ Print this sheet, or copy it to `~/Team15_evidence/range/signoff.md`. Keep it ou
 | 8 | Red ↔ black | no short | ☐ | ☐ |
 | 9 | Mount | front center. Axis height ____ m, pitch ____ °, setback ____ m | ☐ | ☐ |
 | 10 | *Powered, no range code:* VCC at the sensor | 3.20–3.45 V | ☐ ____ V | ☐ ____ V |
-| 11 | *Powered, no range code:* SIG to GND | ≤ 3.4 V (≈ 3.3 V from the Pi pull-up is normal) | ☐ ____ V | ☐ ____ V |
+| 11 | *Powered, no range code:* SIG to GND, GPIO5 in its boot state (`pinctrl get 5` → `no pu`) | **≈ 0.3–0.9 V** (board R2 10 kΩ pull-down vs Pi pull-up). **> 1.2 V (e.g. 3.3 V) = stop**: pull-down missing, not the documented board. > 3.4 V = remove power now | ☐ ____ V | ☐ ____ V |
 
 Any failure: power off, fix it, and repeat the whole column. If row 1 shows V1.0
 or no marking, **stop**: the board is not accepted for direct 3.3 V GPIO use.
@@ -62,6 +62,8 @@ or no marking, **stop**: the board is not accepted for direct 3.3 V GPIO use.
    - any target with |error| > 5 cm
 
    The 5 cm limit is a proposed acceptance limit; the team should confirm it.
-4. Update `obstacle.safety_margin_m` from `calibrate` → `analysis.recommended`.
+4. Update `obstacle.safety_margin_m` from `calibrate` → `analysis.recommended`, and set
+   `max_range_m` to `analysis.recommended_max_range_m`. At 3.3 V the 3.5 m datasheet range
+   is not assumed; include 2.50 and 3.00 m targets to find the real maximum.
    The thresholds are final only once the RoverC-Pro speed, deceleration and
    latency have also been measured. Wheel motion is outside this sheet.

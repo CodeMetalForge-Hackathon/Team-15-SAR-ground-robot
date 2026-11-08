@@ -20,6 +20,7 @@ SPEC_VCC_MIN_V = 3.2
 SPEC_VCC_MAX_V = 5.2
 SPEED_OF_SOUND_MPS = 343.0           # ~20 C dry air; Seeed code uses 29 us/cm (~345 m/s)
 MIN_SAMPLE_INTERVAL_S = 0.06          # keep pings apart so a late echo is not read as the next one
+SIG_IDLE_MAX_V = 1.2                  # see check_electrical: board pull-down vs Pi boot pull-up
 
 # Header lines the driver must never claim on a Pi 5.
 RESERVED_BCM = {
@@ -164,10 +165,16 @@ def check_electrical(e: ElectricalConfig) -> None:
         elif not (lo <= e.vcc_measured_v <= hi):
             problems.append(f"vcc_measured_v {e.vcc_measured_v} V outside {lo}-{hi} V for a "
                             f"{e.sensor_vcc_v} V supply")
+    # Seeed schematic (8-Nov-2017, with C14): SIG -> MCU P67 with R2 = 10 kOhm pull-DOWN to GND.
+    # Against the Pi's default ~50 kOhm GPIO5 pull-up and the 1 kOhm series resistor, idle SIG reads
+    # about 0.3-0.9 V. Near 3.3 V means the pull-down is missing: not the documented board.
     if e.sig_idle_measured_v is None:
         problems.append("sig_idle_measured_v not recorded")
     elif not (-0.1 <= e.sig_idle_measured_v <= 3.4):
         problems.append(f"sig_idle_measured_v {e.sig_idle_measured_v} V: SIG above 3.4 V must never reach a Pi GPIO")
+    elif e.sig_idle_measured_v > SIG_IDLE_MAX_V:
+        problems.append(f"sig_idle_measured_v {e.sig_idle_measured_v} V > {SIG_IDLE_MAX_V} V: expected ~0.3-0.9 V "
+                        "from the board's 10 kOhm SIG pull-down (R2); missing pull-down = not the documented V2.0 board")
     if not e.wiring_verified_by or not e.wiring_verified_at:
         problems.append("wiring not verified: set wiring_verified_by and wiring_verified_at after the "
                         "WIRING.md checklist is done")
