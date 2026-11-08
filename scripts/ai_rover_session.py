@@ -149,20 +149,22 @@ class Session:
     # --- scripted runs --------------------------------------------------------------------------------
     def demo20(self):
         self.log("PHASE", note="0-5 s: controller link, STOP state, camera availability")
+        th = threading.Thread(target=self.ask_qwen)      # Qwen + LoRA takes ~8-11 s on MPS: start it first
+        th.start()
         self.cmd("STOP")
         s = self.snapshot("after STOP")
         if s.get("safety_latch"):            # e.g. COMMS_LOST from an earlier silent link: a named operator clears it
             self.cmd("RESET_LATCH")
         self.camera_check()
         self.cmd("APPROVE")
-        th = threading.Thread(target=self.ask_qwen)      # Qwen + LoRA takes ~10 s on MPS: start it early
-        th.start()
         self.wait_until(5)
         self.log("PHASE", note="5-10 s: detections + Qwen recommendation")
         self.camera_check()
         th.join(timeout=max(0.5, 10.5 - (time.time() - self.t0)))
         if th.is_alive():
-            self.log("QWEN", action="STOP", fallback=True, explanation="no Qwen answer by t=10.5 s: STOP fallback used")
+            self.log("QWEN", action="STOP", fallback=True, explanation="no Qwen answer by t=10.5 s: STOP fallback used",
+                     model={"label": "NONE (deadline)"})
+            self.cmd("STOP", origin="qwen-deadline")
         self.wait_until(10)
         self.log("PHASE", note="10-15 s: validation of the proposal and of unsafe requests")
         if self.last_advice:
