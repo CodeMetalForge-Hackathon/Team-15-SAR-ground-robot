@@ -43,6 +43,15 @@ MAX_HEADER_BYTES = 4096
 MAX_JPEG_BYTES = 8 * 1024 * 1024
 ROTATIONS = {0: None, 90: cv2.ROTATE_90_CLOCKWISE, 180: cv2.ROTATE_180,
              270: cv2.ROTATE_90_COUNTERCLOCKWISE}
+# Receiver-side rotation for the robot mount. The Pi (picamera2 identity
+# transform) reports a fixed device-tree mount rotation of 180 that libcamera
+# already compensates, but that value does not follow the physical mount: on the
+# wheeled robot the stream arrives upside down, and 180 here makes it upright
+# (verified 2026-11-07, orientation check orient-1794095449791). The bench
+# sighting D1-b1794091323-000001 was taken with the camera the other way up, so
+# 180 inverted it. Re-check after any remount with
+# ``python -m perception.orientation_check``.
+DEFAULT_PI_ROTATION = 180
 ENV_HOST, ENV_USER, ENV_KEY = "TEAM15_PI_HOST", "TEAM15_PI_USER", "TEAM15_PI_KEY"
 
 # Runs on the Pi from stdin (python3 -u - W H FPS QUALITY). Uses only what is
@@ -79,8 +88,11 @@ def offset():
             best = (c - a, (a + c) / 2 - b)
     return best[1]
 off = offset()
+props = cam.camera_properties
 hello = {"sensor_model": info[0].get("Model"), "pi_model": pi_model,
          "size": [w, h], "fps": fps, "jpeg_quality": q,
+         "sensor_mount_rotation": props.get("Rotation"),
+         "pi_transform": str(cfg.get("transform")),
          "clock": "SensorTimestamp+CLOCK_MONOTONIC->wall", "t_start": time.time()}
 out.write(b"T15HELLO " + json.dumps(hello).encode() + b"\n"); out.flush()
 seq, period, next_t = 0, 1.0 / fps, time.time()
@@ -103,7 +115,8 @@ while True:
         seq += 1
         data = jpg.tobytes()
         hdr = {"seq": seq, "t_capture": t_cap, "clock": clock, "len": len(data),
-               "exposure_us": md.get("ExposureTime")}
+               "exposure_us": md.get("ExposureTime"),
+               "analogue_gain": md.get("AnalogueGain"), "lux": md.get("Lux")}
         out.write(b"T15FRAME " + json.dumps(hdr).encode() + b"\n" + data); out.flush()
     next_t += period
     delay = next_t - time.time()
@@ -197,7 +210,7 @@ class PiCameraSource:
     def __init__(self, host: Optional[str] = None, *, user: Optional[str] = None,
                  key: Optional[str] = None, port: Optional[int] = None,
                  size: Tuple[int, int] = (1280, 720), fps: float = 5.0,
-                 jpeg_quality: int = 80, rotation: int = 180,
+                 jpeg_quality: int = 80, rotation: int = DEFAULT_PI_ROTATION,
                  connect_timeout_s: int = 10, max_reconnects: int = 3,
                  command: Optional[Sequence[str]] = None,
                  script: str = SENDER_SCRIPT, log=None) -> None:
@@ -422,6 +435,8 @@ class PiCameraSource:
             "jpeg_quality": h.get("jpeg_quality", self.jpeg_quality),
             "rotation_deg": self.rotation,
             "rotation_applied_by": "receiver",
+            "sensor_mount_rotation": h.get("sensor_mount_rotation"),
+            "pi_transform": h.get("pi_transform"),
             "capture_clock": hdr.get("clock"),
             "pi_frame_seq": hdr.get("seq"),
             "capture_time": self.last_capture_time,

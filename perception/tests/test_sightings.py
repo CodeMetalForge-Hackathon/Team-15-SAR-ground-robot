@@ -138,6 +138,7 @@ def _weights_cached():
 
 @pytest.mark.skipif(not _weights_cached(), reason="torchvision weights not cached")
 def test_person_detector_blank_frames():
+    pytest.importorskip("torch")  # CI installs OpenCV only
     from perception.detectors import TorchPersonDetector
     d = TorchPersonDetector("frcnn_mbv3_fpn", device="cpu")
     for val in (0, 128, 255):

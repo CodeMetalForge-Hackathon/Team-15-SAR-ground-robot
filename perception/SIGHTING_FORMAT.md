@@ -66,13 +66,21 @@ Not sent (ingest adds them): `rx_time`, `stale_after_s`.
     picamera2 `SensorTimestamp` mapped to the Pi's NTP wall clock), not the Mac
     arrival time. `evidence.camera.rx_time` is the arrival time and
     `capture_to_rx_s` is the gap between the two.
-  - Frames are rotated on arrival (`--pi-rotation`, default 180, for the
-    upside-down mount). The saved PNG, the `bbox` and `frame_size` are all in the
-    rotated, upright image.
+  - Orientation: exactly one software rotation, on the receiver
+    (`--pi-rotation`, default 180 for the wheeled-robot mount, verified with
+    `python -m perception.orientation_check`). The Pi requests an identity
+    transform; it reports `sensor_mount_rotation` (a fixed device-tree value,
+    180, compensated by libcamera regardless of the physical mount) and
+    `pi_transform`, both recorded in `evidence.camera`. The dashboard does not
+    rotate images. Re-run the orientation check after any remount. The saved
+    PNG, the `bbox` and `frame_size` are all in the rotated, upright image.
+  - Sighting `D1-b1794091323-000001` (bench mount, `rotation_deg: 180`) is
+    upside down because the camera was the other way up on the bench. It is
+    kept unchanged as historical evidence; its checksums still match.
   - Only the newest frame is processed. Older frames that arrive in a burst are
     dropped (counted in the run summary under `pi_stream`).
   - `evidence.camera` example:
-    `{"source": "pi5-imx708", "device": "Raspberry Pi camera (remote, bench)", "pi_model": "Raspberry Pi 5 Model B Rev 1.1", "sensor_model": "imx708", "transport": "ssh-jpeg", "stream_size": [1280, 720], "stream_fps": 5.0, "jpeg_quality": 80, "rotation_deg": 180, "rotation_applied_by": "receiver", "capture_clock": "sensor", "pi_frame_seq": 62, "capture_time": 1794090200.898, "rx_time": 1794090201.11, "capture_to_rx_s": 0.212}`
+    `{"source": "pi5-imx708", "device": "Raspberry Pi camera (remote, bench)", "pi_model": "Raspberry Pi 5 Model B Rev 1.1", "sensor_model": "imx708", "transport": "ssh-jpeg", "stream_size": [1280, 720], "stream_fps": 5.0, "jpeg_quality": 80, "rotation_deg": 180, "rotation_applied_by": "receiver", "sensor_mount_rotation": 180, "pi_transform": "<libcamera.Transform 'identity'>", "capture_clock": "sensor", "pi_frame_seq": 62, "capture_time": 1794090200.898, "rx_time": 1794090201.11, "capture_to_rx_s": 0.212}`
     `sensor_model` and `pi_model` are reported by the Pi at connect time, not assumed.
     `capture_clock` is `sensor`, or `pi_wall_at_request` if the sensor timestamp
     was missing or implausible.
