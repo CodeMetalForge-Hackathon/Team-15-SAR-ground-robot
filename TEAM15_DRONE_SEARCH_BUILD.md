@@ -19,7 +19,7 @@ Created as a downloadable artifact by the assistant (no write access to the loca
 | Item | Status |
 |---|---|
 | Repo `https://github.com/CodeMetalForge-Hackathon/Team-15` | **Not readable.** Fetch returned a client error (consistent with a private repo); no README, branches or files were visible; nothing is indexed by search. |
-| GitHub invitation | Found in Mubashir’s Gmail: “ithlambelle invited you to CodeMetalForge-Hackathon/Team-15” (noreply@github.com, 2026-11-07 15:42 UTC, **unread**). *(source: Gmail)* **Accept it first** — then the repo becomes visible. |
+| GitHub invitation | Organisation invitation to CodeMetalForge-Hackathon/Team-15 (2026-11-07). **Accept it first** — then the repo becomes visible. |
 | Saturday Mission Brief text | **Not accessible.** Only the user’s statement: flights only with Code Metal staff, daytime only. |
 | Organizer hardware inventory / photos of issued equipment | **Not accessible.** Equipment below is from the user’s description; everything else is UNCONFIRMED. |
 | Local repo write access | **None.** This file is returned as content. |

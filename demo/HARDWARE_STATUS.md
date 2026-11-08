@@ -42,7 +42,8 @@ Setup: Pi 5 + IMX708 at 1280 × 720, 5 fps, JPEG q80, rotated 180°. Frames go t
 Limitations:
 
 * The 4-pose result covers one person in one room.
-* The person-pose runner lives on an unmerged branch (`test/camera-live-countdown`).
+* The person-pose runner lives on an unmerged branch, preserved on GitHub as the redacted snapshot
+  `archive/camera-live-countdown` (`882e9a4`).
 * The recorded-frame regression test needs private frames and has never run in CI.
 
 ## RoverC-Pro and M5StickC controller
@@ -50,12 +51,12 @@ Limitations:
 | Item | Status | Type | Evidence |
 |---|---|---|---|
 | USB serial detection | At first **not detected** in 8 checks (2026-11-07 23:27 → 11-08 12:28 UTC). **Later detected** on the team Pi as an FTDI USB-serial device and read with esptool (2026-11-08 09:42 ET) | PHYSICAL, read-only | [ROV-02](../docs/experiments/reports/ROV-02-controller-connectivity-inspection.md); private identification record |
-| Controller identification | ESP32-PICO-D4 rev v1.1, 4 MB flash. Rules out StickC Plus2 and S3 sticks; consistent with M5StickC or M5StickC Plus. Verdict: **"likely M5StickC Plus, NOT CONFIRMED"** (needs the rear label). **"Plus SE" is not established** | PHYSICAL, read-only (esptool `flash_id`) | private identification record |
+| Controller identification | ESP32-PICO-D4 rev v1.1, 4 MB flash. Rules out StickC Plus2 and S3 sticks; consistent with M5StickC or M5StickC Plus. Verdict: **"likely M5StickC Plus, NOT CONFIRMED"** (needs the rear label). The team reports the rear label reads **M5StickC Plus SE** (photo not archived) | PHYSICAL, read-only (esptool `flash_id`) | private identification record |
 | Original firmware backup | 4,194,304 bytes, SHA-256 `bc1366ef08dd4ff251dc64ad3daf896a037ec9f563ae3cfe7e6dd654215bf95d`. **Two independent full reads were byte-identical.** Re-hashed for this package: matches. RoverC motor power OFF during the read. **Restoring it was never tested** | PHYSICAL, read-only | private record and backup (not published: third-party firmware) |
 | Installed firmware | the earlier USB text protocol (`HELLO` / `STOP` / `MOVE`) from the PR #6 effort. **Not** the Team-15 bridge | PHYSICAL, read-only | private identification record |
-| Team-15 bridge firmware flashed | **No evidence.** The bridge compiles on the closed PR #20 branch, and an approval-gated flash script exists there, but its header still says "NOT FLASHED, NOT RUN" | — | `docs/13_M5STICKC_BRIDGE.md`; PR #20 (closed) |
-| DISARMED screen on the device | **No evidence** (only in the firmware state machine and its Python model) | MOCKED | [BRG-01](../docs/experiments/reports/BRG-01-bridge-watchdog-mocked-tests.md) |
-| STOP acknowledgement from the device | **No evidence on hardware.** The mocked model acknowledges STOP | MOCKED | BRG-01 |
+| Team-15 bridge firmware flashed | **USER-REPORTED, not archived.** The team reports flashing the PR #20 build with hash verification. The terminal output and photos were shared outside the repo and are in no evidence store; the flash script logs on the Pi, which was unreachable during the final audit. The firmware source on `main` does not compile; the compiling source is on the closed PR #20 branch (`0d7a11d`) | USER-REPORTED | [FINAL_GITHUB_AUDIT](../docs/FINAL_GITHUB_AUDIT.md) |
+| DISARMED screen on the device | **USER-REPORTED (photos not archived).** Otherwise only the firmware state machine and its Python model | MOCKED; USER-REPORTED | [BRG-01](../docs/experiments/reports/BRG-01-bridge-watchdog-mocked-tests.md) |
+| STOP acknowledgement from the device | **USER-REPORTED over USB serial, not archived.** The mocked model acknowledges STOP. The 13 archived AI-rover sessions used SIMULATED MOTOR OUTPUT, so their ACKs are model ACKs | MOCKED; USER-REPORTED | BRG-01 |
 | I²C | the Pi header bus `i2c-1` is not enabled. RoverC address 0x38 not seen in sysfs (`i2cdetect` deliberately not run) | PHYSICAL, read-only | `docs/rover/HARDWARE_READINESS.md` |
 | Bridge watchdog | **63/63** tests pass. The modelled watchdog stops at 0.251 s (design 250 ms, requirement ≤ 300 ms). Cable cut: host `DRIVER_FAULT` after 0.05 s | MOCKED (simulated clock) | BRG-01; `rover/tests/test_bridge.py` |
 | Physical motor test | **NOT STARTED: Gate 5 blocked.** ROV-03a and ROV-03b NOT RUN: "No motor command was sent, no serial port was opened and no firmware was flashed" | — | `docs/rover/SAFETY_AND_LIMITATIONS.md`, ROV-02 |
