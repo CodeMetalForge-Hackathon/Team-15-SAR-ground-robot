@@ -365,7 +365,7 @@ class SafetySupervisor:
         if self.estop.tripped:
             if self.latched != SafetyStop.ESTOP:
                 self._latch(SafetyStop.ESTOP, self.estop.reason)
-            self._hard_zero()
+            self._zero_never_raise()
             return
         if now - self.last_heartbeat > self.limits.watchdog_timeout_s:
             self._latch(SafetyStop.COMMS_LOST, f"no heartbeat for {now - self.last_heartbeat:.3f}s")
@@ -387,7 +387,7 @@ class SafetySupervisor:
                 if p:
                     self._latch(SafetyStop.UNDERVOLTAGE if "undervoltage" in p else SafetyStop.POWER_UNKNOWN, p)
         if self.latched:
-            self._hard_zero()
+            self._zero_never_raise()
             return
         self._apply(self._ramp(self.output, self.target, self.limits.max_accel_per_s * dt))
 
@@ -425,6 +425,14 @@ class SafetySupervisor:
         except Exception as e:
             self._event("DRIVER_STOP_FAILED", str(e))
             raise
+
+    def _zero_never_raise(self) -> None:
+        """Re-assert zero every tick while stopped. A dead link must not crash the control loop:
+        the failure is recorded (DRIVER_STOP_FAILED) and the controller-side watchdog holds the motors."""
+        try:
+            self._hard_zero()
+        except Exception:
+            pass
 
     def _latch(self, why: SafetyStop, detail: str) -> None:
         if self.latched is None:

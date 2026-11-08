@@ -333,3 +333,19 @@ def test_nothing_outside_rover_can_reach_the_motor_path():
         text = p.read_text(errors="ignore")
         offenders += [f"{rel}: {b}" for b in banned if b in text]
     assert offenders == []
+
+
+def test_dead_link_never_crashes_tick_and_stays_latched():
+    """A controller that throws on every write (cable pulled) must not crash the control loop."""
+    c, d, s = moving_forward()
+
+    def dead(*_):
+        raise OSError("serial port disconnected")
+    d.apply = dead
+    d.stop = dead
+    for _ in range(10):
+        c.t = round(c.t + 0.05, 6)
+        feed(s, c)
+        s.tick()  # must not raise
+    assert s.latched == SafetyStop.DRIVER_FAULT and s.output == ZERO and s.approved_by is None
+    assert any(e.kind == "DRIVER_STOP_FAILED" for e in s.events)
