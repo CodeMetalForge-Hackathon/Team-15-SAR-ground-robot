@@ -208,7 +208,7 @@ class GroundScanner:
         self.url, self.alias, self.signal_id, self.period = url.rstrip("/"), alias, signal_id, period
         self.lock, self.stop_event = threading.Lock(), threading.Event()
         self.latest, self.error, self.samples = None, None, []
-        self._last_age = None
+        self._last_age, self._keys = None, set()
         self.thread = threading.Thread(target=self._loop, daemon=True)
 
     def _get(self, path):
@@ -232,8 +232,16 @@ class GroundScanner:
         if not found:
             return None
         s = min(found, key=lambda s: s.get("last_verified_age_s", 1e9))
+        # A verified sighting refreshes once per 30 s token window. Within the window the phone
+        # keeps sending the same token; the verifier logs those as "replay": same signature check,
+        # same phone, fresh RSSI. Use them (and the verified ones) as signal readings.
+        now = time.monotonic()
+        samples = [(now - e["age_s"], e["rssi"]) for e in b.get("events", [])
+                   if e.get("alias") == s["alias"] and e.get("kind") in ("verified", "replay")
+                   and finite(e.get("rssi"), e.get("age_s"))]
         return dict(verified=True, alias=s["alias"], label=s.get("label"), rssi=s["rssi"],
-                    age_s=s.get("last_verified_age_s"), mode_label=b.get("mode_label"))
+                    age_s=s.get("last_verified_age_s"), mode_label=b.get("mode_label"),
+                    samples=samples)
 
     def _loop(self):
         while not self.stop_event.is_set():
@@ -242,8 +250,20 @@ class GroundScanner:
             except Exception as exc:          # network, JSON, server restarting
                 cur, err = None, f"{type(exc).__name__}: {exc}"[:150]
             with self.lock:
+                samples = cur.pop("samples", None) if cur else None
+                if samples:
+                    cur["rssi"] = max(samples)[1]            # newest authenticated reading
                 self.latest, self.error = cur, err
-                if cur is not None and finite(cur.get("age_s")):
+                if samples:
+                    for t, r in samples:
+                        key = round(t, 1)                     # events carry age to 0.1 s
+                        if key not in self._keys:
+                            self._keys.add(key)
+                            self.samples.append((t, r))
+                    if len(self._keys) > 5000:
+                        self._keys = {round(t, 1) for t, _ in self.samples[-500:]}
+                    del self.samples[:-2000]
+                elif cur is not None and finite(cur.get("age_s")):
                     if self._last_age is None or cur["age_s"] < self._last_age - 0.01:
                         self.samples.append((time.monotonic(), cur["rssi"]))   # a new packet arrived
                         del self.samples[:-2000]
