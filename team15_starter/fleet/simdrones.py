@@ -20,7 +20,7 @@ from typing import Optional
 import numpy as np
 
 from link import protocol as P
-from .planner import SENSOR_PRESET, fov_cells
+from .planner import SENSOR_PRESET, fov_cells, sensor_visibility
 
 
 @dataclass
@@ -36,9 +36,9 @@ class Person:
     first_detected: Optional[float] = None
 
 
-def make_people(world, grid, rng, phone_rate=0.5):
+def make_people(world, grid, rng, phone_rate=0.5, tags=None, statuses=None):
     people = []
-    for cell in world.people:
+    for k, cell in enumerate(world.people):
         x, y = grid.to_xy(cell)
         x += rng.uniform(-0.3, 0.3) * world.cell_m
         y += rng.uniform(-0.3, 0.3) * world.cell_m
@@ -52,7 +52,10 @@ def make_people(world, grid, rng, phone_rate=0.5):
                 else (int(rng.integers(145, 160)), int(rng.integers(31, 36)))
         has_phone = rng.random() < phone_rate
         tag = int(rng.integers(1, 2 ** 32 - 1)) if has_phone else 0
-        people.append(Person(x, y, cell, str(status), hr, br, tag, has_phone and rng.random() < 0.5))
+        if tags is not None:
+            tag = tags[k] if k < len(tags) else 0
+        people.append(Person(x, y, cell, str(status), hr, br, tag,
+                             tags is None and has_phone and rng.random() < 0.5))
     return people
 
 
@@ -243,7 +246,11 @@ class SimDrone:
                     continue
                 if s == "ble" and not p.tag_id:
                     continue
-                if self.rng.random() >= pre["pod"]:
+                pod = pre["pod"]
+                vis = getattr(self.world, "vis", None)
+                if vis is not None:
+                    pod *= float(sensor_visibility(s, vis[p.cell]))   # trees hide him from cameras
+                if self.rng.random() >= pod:
                     continue
                 self.reported[(k, s)] = t
                 if p.first_detected is None:

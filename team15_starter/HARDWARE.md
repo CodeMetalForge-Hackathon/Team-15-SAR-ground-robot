@@ -84,6 +84,33 @@ board that comes with the MR60BHA2 radar kit).
 
 That proves the whole radio chain before anything flies.
 
+## Live dashboard (the command centre)
+
+```bash
+python3 homebase.py --sim --web                       # simulated drones
+python3 homebase.py --port /dev/ttyACM0 --web         # real drones
+```
+
+Open **http://localhost:8080**. On the Jetson, teammates on the same Wi-Fi can open
+`http://<jetson-ip>:8080`. It shows a satellite map with drones, trails, the
+"searched" tint, a glow where people are likely, contacts coloured by status,
+the fleet, the casualty list and a timeline. **Recall all** sends every drone
+home, real ones too. In the sim you can also pause, change speed, jam the radio
+for 30 s, and start a new mission.
+
+- With `--web` the default mission is **personnel recovery**: one isolated soldier on
+  real terrain. Forest, roads, water and buildings come from OpenStreetMap (fetched
+  once, cached in `results/`). His hiding-place map follows evasion behaviour, and
+  trees cut what cameras can see. Hostile zones carry a risk cost and their cores
+  are no-fly. He carries an authenticated ally beacon. When he's found you get a
+  recovery report with an MGRS grid. Add `--civilian` for civilian mode, or
+  `--scenario grid` for the old toy map.
+- Put the search on your venue: `--origin LAT,LON` (the homebase position).
+- Land with no OpenStreetMap tag counts as forest (`--cover open` for farmland areas).
+- Indoor runs (`--cell-m 0.5`) switch to a floor-plan grid automatically.
+- No extra installs. The map library ships in `fleet/web/leaflet/`. Only the
+  satellite tiles need internet; offline you still get the floor-plan view.
+
 ## Dress rehearsal without any hardware
 
 ```bash
@@ -147,12 +174,14 @@ tag and a sequence number, so forged and replayed packets are rejected.
    drone might really be (its reported `sigma`). Drift doesn't fool the map.
 3. **Vitals.** A new contact pulls the nearest drone with mmWave down to hover over it.
    Heart and breath rate give a status. The status thresholds are **placeholders**, not medical advice.
-4. **Battery.** A* distance home vs. time left. The drone comes back before it has to,
-   lands, and the mothership recharges it.
+4. **Battery.** A* distance home vs. time left. That includes waiting for each waypoint
+   and the landing descent. The drone comes back before it has to, lands, and the
+   mothership recharges it.
 5. **Jamming.** Detections are stored on the drone until the homebase acks them.
    A drone that hears nothing for 8 s holds; after 20 s it flies home on its own.
-6. **Military.** `--military --key secret` → signed packets only, 4× fewer emissions
+6. **Military.** `--military --key secret` → signed packets only, about 2.5× fewer radio packets
    (EMCON telemetry), exposure cost in MCTS. Optional lower TX power in firmware.
+   The cost: in 20 missions it found everyone in 130 s vs 92 s (drones report less often).
 
 ## Honest limits
 

@@ -34,17 +34,46 @@ SENSOR_PRESET = {
 
 @dataclass
 class GridWorld(World):
-    """sar.World plus: walls on/off, a uniform prior, or a heatmap from a .npy file
-    (e.g. a SAREnv lost-person map). With the same seed/prior, the homebase and
-    the simulator get the identical prior."""
+    """sar.World plus: walls on/off, a uniform prior, a heatmap from a .npy file
+    (e.g. a SAREnv lost-person map), or a real-terrain Scenario (fleet/terrain.py)
+    that supplies the prior, no-fly zones, camera visibility and threat map.
+    With the same seed/scenario, the homebase and the simulator get the same prior."""
     walls: bool = True
+    scenario: object = None
+
+    @property
+    def vis(self):
+        return None if self.scenario is None else self.scenario.vis
+
+    @property
+    def threat(self):
+        return None if self.scenario is None else self.scenario.threat
 
     def _add_blocks(self):
-        if self.walls:
+        if self.scenario is not None:
+            self.obstacles = self.scenario.nofly.copy()   # hostile cores, not walls
+        elif self.walls:
             super()._add_blocks()
 
+    # cameras can't see through canopy: expected detections are weighted by visibility
+    def footprint_mass(self, belief, c):
+        if self.vis is None:
+            return super().footprint_mass(belief, c)
+        return float(sum(belief[nc] * self.vis[nc] for nc in self._footprint(c)))
+
+    def update_no_detection(self, belief, c):
+        if self.vis is None:
+            return super().update_no_detection(belief, c)
+        for nc in self._footprint(c):
+            belief[nc] *= (1.0 - self.pod * self.vis[nc])
+        s = belief.sum()
+        if s > 0:
+            belief /= s
+
     def _prior(self):
-        if self.prior == "uniform":
+        if self.scenario is not None:
+            p = self.scenario.prior.copy()
+        elif self.prior == "uniform":
             p = np.ones((self.n, self.n))
         elif self.prior.endswith(".npy"):
             src = np.load(self.prior).astype(float)
@@ -73,6 +102,15 @@ class Grid:
         j = int(round(x / self.cell_m)) + self.home[1]
         i = self.home[0] - int(round(y / self.cell_m))
         return (min(max(i, 0), self.n - 1), min(max(j, 0), self.n - 1))
+
+
+def sensor_visibility(name, vis):
+    """Canopy hurts cameras most. Radar sees through leaves a bit; radio beacons don't care."""
+    if name in ("thermal", "cv"):
+        return vis
+    if name == "mmwave":
+        return np.maximum(vis, 0.6)
+    return np.ones_like(vis)
 
 
 def fov_cells(name, cell_m):
@@ -130,6 +168,9 @@ def apply_look(world, mass, cell, sensors, sigma_cells=0.0):
         ia, ib = max(0, i0 - r), min(world.n, i0 + r + 1)
         ja, jb = max(0, j0 - r), min(world.n, j0 + r + 1)
         sub = cover[ia - (i0 - r): ib - (i0 - r), ja - (j0 - r): jb - (j0 - r)]
+        vis = getattr(world, "vis", None)
+        if vis is not None:
+            sub = sub * sensor_visibility(name, vis[ia:ib, ja:jb])
         mass[ia:ib, ja:jb] *= (1.0 - pod * sub)
     return before - float(mass.sum())
 
@@ -198,7 +239,16 @@ def downhill(world, field, cell):
 # ------------------------------------------------------------------- planner
 class FleetMCTS(MCTS):
     """sar.MCTS with an `allowed` list: the fleet layer removes moves that a
-    teammate already claimed or that the battery can't come back from."""
+    teammate already claimed or that the battery can't come back from.
+    With a scenario, the military exposure cost comes from the real threat map."""
+
+    def _exposure_cost(self, c):
+        threat = getattr(self.world, "threat", None)
+        if self.exposure == 0:
+            return 0.0
+        if threat is None:
+            return super()._exposure_cost(c)
+        return self.exposure * float(threat[c])
 
     def next_move(self, world, belief, pos, allowed=None):
         moves = list(allowed) if allowed is not None else list(world.neighbours(pos))

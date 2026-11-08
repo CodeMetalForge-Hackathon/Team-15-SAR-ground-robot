@@ -36,6 +36,7 @@ class HubConfig:
     speed_mps: float = 5.0          # cruise speed, for time-to-home estimates
     reserve_s: float = 30.0         # never plan to land with less than this
     rtb_margin: float = 1.3         # x the A* time home, for wind and drift
+    descent_mps: float = 1.0        # landing descent rate, counted in the time home
     base_alt: float = 30.0          # drone 1 altitude (m); others stacked above
     alt_step: float = 5.0           # vertical separation between drones
     confirm_alt: float = 1.5        # mmWave works within ~1.5 m
@@ -69,6 +70,7 @@ class DroneState:
     wp_ack: int = 0
     rssi: int = 0
     last_seen: float = -1e9
+    pose_t: float = -1e9            # when x, y were last reported
     airborne_since: Optional[float] = None
     cell: Optional[tuple] = None
     task: str = "idle"              # idle | search | confirm (vitals) | rtb | landed
@@ -161,6 +163,9 @@ class Homebase:
         self.seq = seq0
         self.stats = dict(rx=0, rx_bad=0, rx_replay=0, tx=0, dets=0, rtb=0)
         self.verbose = verbose
+        self.recalled = False
+        self._now = 0.0
+        self.trails = {d: [] for d in self.drones}   # (t, x, y) every ~1 s, for the dashboard
         self.events = []
         self.log_dir = log_dir
         if log_dir:
@@ -207,7 +212,7 @@ class Homebase:
             d.x, d.y = float(msg["x"]), float(msg["y"])
             d.z = float(msg.get("z", d.z))
             d.sigma = float(msg.get("sigma", d.sigma))
-            d.last_seen = now
+            d.last_seen = d.pose_t = now
             self._update_cell(d, now)
         elif msg.get("type") == "det":
             sensor = msg.get("sensor", "cv")
@@ -222,12 +227,13 @@ class Homebase:
     def _on_telemetry(self, d, t: P.Telemetry, now):
         was_flying = d.state in (1, 2, 3, 4)
         d.x, d.y, d.z, d.sigma = t.x, t.y, t.z, t.sigma
+        d.pose_t = now
         d.battery, d.sensing, d.wp_ack = t.battery, t.sensing, t.wp_ack
         d.state = t.state
         flying = t.state in (1, 2, 3, 4)
         if flying and not was_flying:
             d.airborne_since = now
-            d.task, d.target, d.goal, d.hold_until = "search", None, None, None
+            d.task, d.target, d.goal, d.hold_until = ("rtb" if self.recalled else "search"), None, None, None
             self._event(now, "takeoff", drone=d.id, battery=t.battery)
         if not flying and was_flying:
             d.task, d.airborne_since = ("landed" if d.task == "rtb" else "idle"), None
@@ -235,6 +241,10 @@ class Homebase:
         self._update_cell(d, now)
 
     def _update_cell(self, d, now):
+        tr = self.trails.setdefault(d.id, [])
+        if d.state in (1, 2, 3, 4) and (not tr or now - tr[-1][0] >= 1.0):
+            tr.append((now, round(d.x, 1), round(d.y, 1)))
+            del tr[:-600]
         cell = snap_free(self.world, self.grid.to_cell(d.x, d.y))
         prev_cell, t_look = d.last_look
         d.cell = cell
@@ -312,6 +322,7 @@ class Homebase:
     # ------------------------------------------------------------------ tick
     def tick(self, now: float) -> list:
         cfg = self.cfg
+        self._now = now
         active = []
         tx_s = (20 if cfg.military else cfg.tx_period_ds) / 10.0
         timeout = max(cfg.link_timeout, 3.5 * tx_s)        # EMCON drones talk less often
@@ -323,6 +334,9 @@ class Homebase:
                 active.append(d)
 
         for d in active:
+            if self.recalled and d.task != "rtb":
+                self._release_confirm(d)
+                d.task, d.target = "rtb", None
             self._battery_check(d, now)
             self._stuck_check(d, now)
         self._assign_confirms(active, now)
@@ -342,20 +356,27 @@ class Homebase:
             return self.cfg.endurance_s
         return self.cfg.endurance_s - (now - d.airborne_since)
 
-    def time_home(self, cell):
+    def time_home(self, cell, d=None):
+        """A* hops home x (fly one cell + wait up to one report for the next waypoint),
+        plus the landing descent. The wait matters: in EMCON a drone reports every 2 s."""
         steps = self.home_field[cell]
-        return math.inf if steps == math.inf else steps * self.world.cell_m / self.cfg.speed_mps
+        if steps == math.inf:
+            return math.inf
+        tx_s = (20 if self.cfg.military else self.cfg.tx_period_ds) / 10.0
+        hop = self.world.cell_m / self.cfg.speed_mps + tx_s
+        alt = d.alt if d is not None else self.cfg.base_alt
+        return steps * hop + alt / self.cfg.descent_mps
 
     def _battery_check(self, d, now):
         if d.task == "rtb":
             return
         left = self.time_left(d, now) - self.cfg.reserve_s
-        if left <= self.time_home(d.cell) * self.cfg.rtb_margin:
+        if left <= self.time_home(d.cell, d) * self.cfg.rtb_margin:
             self._release_confirm(d)
             d.task, d.target, d.goal, d.hold_until = "rtb", None, None, None
             self.stats["rtb"] += 1
             self._event(now, "rtb", drone=d.id, time_left=round(left + self.cfg.reserve_s, 1),
-                        time_home=round(self.time_home(d.cell), 1))
+                        time_home=round(self.time_home(d.cell, d), 1))
 
     def _stuck_check(self, d, now):
         """Real drones get blocked (wind, an obstacle the map doesn't have, drift
@@ -372,18 +393,29 @@ class Homebase:
         """Can this drone go to `cell` and still make it home with the reserve?"""
         hop = self.world.cell_m / self.cfg.speed_mps
         left = self.time_left(d, now) - self.cfg.reserve_s - hop
-        return left > self.time_home(cell) * self.cfg.rtb_margin
+        return left > self.time_home(cell, d) * self.cfg.rtb_margin
 
-    def _arrived(self, d, cell):
+    def _arrived(self, d, cell, now=None):
+        """Within tolerance of the cell centre. With `now`, uses where the drone should be
+        by now (it keeps flying between reports): in EMCON a report only comes every 2 s,
+        and without this the drone would hover at every waypoint waiting for the next."""
         x, y = self.grid.to_xy(cell)
-        return math.hypot(d.x - x, d.y - y) <= self.cfg.arrive_tol * self.world.cell_m
+        px, py = d.x, d.y
+        if now is not None and d.cmd == P.CMD_GOTO and d.target == cell:
+            dx, dy = x - px, y - py
+            dist = math.hypot(dx, dy)
+            step = min(dist, self.cfg.speed_mps * max(0.0, now - d.pose_t))
+            if dist > 1e-6:
+                px, py = px + dx / dist * step, py + dy / dist * step
+        return math.hypot(px - x, py - y) <= self.cfg.arrive_tol * self.world.cell_m
 
     def _step_rtb(self, d):
         d.z_cmd, d.target_xy = None, None
         if d.cell == self.home:
             d.target, d.cmd = self.home, P.CMD_LAND
-        elif d.target is None or self._arrived(d, d.target) or d.cmd == P.CMD_LAND:
-            d.target, d.cmd = downhill(self.world, self.home_field, d.cell), P.CMD_GOTO
+        elif d.target is None or self._arrived(d, d.target, self._now) or d.cmd == P.CMD_LAND:
+            nxt_from = d.target if d.target is not None and self._arrived(d, d.target, self._now) else d.cell
+            d.target, d.cmd = downhill(self.world, self.home_field, nxt_from), P.CMD_GOTO
 
     def _assign_confirms(self, active, now):
         pending = [t for t in self.tracks if not t.assessed and not t.checked
@@ -419,8 +451,12 @@ class Homebase:
                 d.hold_until = now + 60.0                  # max time to get over it and down
             over = dist <= 0.15 * self.world.cell_m + 0.5
             low = d.z <= self.cfg.confirm_alt + 0.25
-            if over and low and d.hold_until - now > self.cfg.hold_s:
-                d.hold_until = now + self.cfg.hold_s       # over it and low: radar gets hold_s seconds
+            hold = self.cfg.hold_s
+            vis = getattr(self.world, "vis", None)
+            if vis is not None:
+                hold /= max(float(vis[tr.cell]), 0.4)      # radar through leaves needs a longer look
+            if over and low and d.hold_until - now > hold:
+                d.hold_until = now + hold                  # over it and low: radar gets its look
             if now >= d.hold_until:
                 tr.checked = True
                 self._event(now, "vitals_none", drone=d.id, track=tr.id,
@@ -429,14 +465,15 @@ class Homebase:
                 d.task, d.target = "search", None
             return
         d.hold_until, d.target_xy = None, None             # not over it (yet / any more): restart the clock
-        if d.target is None or self._arrived(d, d.target) or d.cmd == P.CMD_HOLD:
-            path = astar(self.world, d.cell, d.goal)
-            if not path:
+        if d.target is None or self._arrived(d, d.target, now) or d.cmd == P.CMD_HOLD:
+            start = d.target if d.target is not None and d.cmd == P.CMD_GOTO and self._arrived(d, d.target, now) else d.cell
+            path = astar(self.world, start, d.goal)
+            if path is None:                               # truly unreachable (inside a no-fly zone)
                 tr.checked = True
                 self._release_confirm(d)
                 d.task, d.target = "search", None
                 return
-            d.target, d.cmd, d.z_cmd = path[0], P.CMD_GOTO, None
+            d.target, d.cmd, d.z_cmd = (path[0] if path else d.goal), P.CMD_GOTO, None
 
     def _plan_search(self, searchers, now):
         if not searchers:
@@ -447,20 +484,24 @@ class Homebase:
         ids = {d.id for d in searchers}
         for d in self.drones.values():          # everyone else's current target is claimed
             if d.target is not None and d.state in (1, 2, 3, 4) and self.cfg.allocate:
-                if d.id in ids and (self._arrived(d, d.target) or d.cmd != P.CMD_GOTO):
+                if d.id in ids and (self._arrived(d, d.target, now) or d.cmd != P.CMD_GOTO):
                     continue
                 apply_look(self.world, claimed, d.target, d.sensors or ["thermal"])
                 taken.add(d.target)
         for d in searchers:
-            if d.target is None or self._arrived(d, d.target) or d.cmd != P.CMD_GOTO:
+            if d.target is None or self._arrived(d, d.target, now) or d.cmd != P.CMD_GOTO:
                 replan.append(d)
         for d in sorted(replan, key=lambda d: d.id):
             sensors = d.sensors or ["thermal"]
             sensors = [x for x in sensors if x in SENSOR_PRESET] or ["thermal"]
             main = max(sensors, key=lambda x: fov_cells(x, self.world.cell_m))
             self.world.fov, self.world.pod = fov_cells(main, self.world.cell_m), SENSOR_PRESET[main]["pod"]
-            moves = [m for m in self.world.neighbours(d.cell)
-                     if self._feasible(d, m, now) and d.avoid.get(m, 0) <= now]
+            here = d.target if (d.target is not None and d.cmd == P.CMD_GOTO
+                                and self._arrived(d, d.target, now)) else d.cell
+            moves = [m for m in self.world.neighbours(here)
+                     if self._feasible(d, m, now) and d.avoid.get(m, 0) <= now and m != d.cell]
+            if not moves:
+                moves = [m for m in self.world.neighbours(here) if self._feasible(d, m, now)]
             free = [m for m in moves if m not in taken] if self.cfg.allocate else moves
             allowed = free or moves
             if not allowed:
@@ -469,11 +510,17 @@ class Homebase:
                 continue
             plan_on = claimed if self.private is None else self.private[d.id]
             s = float(plan_on.sum())
-            nxt = self.mcts.next_move(self.world, plan_on / s if s > 0 else plan_on, d.cell, allowed)
+            nxt = self.mcts.next_move(self.world, plan_on / s if s > 0 else plan_on, here, allowed)
             d.target, d.cmd, d.z_cmd, d.target_xy = nxt, P.CMD_GOTO, None, None
             if self.cfg.allocate:
                 taken.add(nxt)
                 claim_path(self.world, claimed, nxt, sensors, self.cfg.claim_steps)
+
+    def recall(self, now):
+        """Operator: everyone home now (mission over, weather, threat)."""
+        if not self.recalled:
+            self.recalled = True
+            self._event(now, "recall")
 
     # ----------------------------------------------------------------- radio
     def _radio(self, now):
@@ -526,6 +573,8 @@ class Homebase:
 
     def _event(self, now, ev, quiet=False, **kw):
         rec = dict(t=round(now, 2), ev=ev, **kw)
+        if quiet:
+            rec["q"] = 1                       # routine update: logged, but not shown in the timeline
         self.events.append(rec)
         if self._log:
             self._log.write(json.dumps(rec) + "\n")

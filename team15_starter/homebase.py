@@ -7,8 +7,12 @@ through the ESP32-S3 gateway, and writes the casualty list.
     python homebase.py --sim --military --key "team15-secret"
     python homebase.py --sim --gif                          # saves fleet_search.gif
 
+    # live dashboard in the browser (real satellite map), then open http://localhost:8080
+    python homebase.py --sim --web
+    python homebase.py --sim --web --origin 44.142,-71.681   # put the search on your venue
+
     # real hardware: ESP32-S3 on USB (Jetson: /dev/ttyACM0, Mac: /dev/cu.usbmodem*)
-    python homebase.py --port /dev/ttyACM0
+    python homebase.py --port /dev/ttyACM0 --web
 
     # dress rehearsal: fake hardware on a virtual serial port
     python fleet_sim.py --pty          # prints a port name, e.g. /dev/pts/5
@@ -37,7 +41,7 @@ from link.transport import BytePipeTransport, SerialTransport
 def make_hub(args, key, seq0=1, log_dir="results"):
     world = build_world(args, hidden=True)
     return Homebase(world, args.drones, hub_config(args), key=key,
-                    allies=load_allies(args.allies), log_dir=log_dir, seq0=seq0,
+                    allies=load_allies(args.allies, args), log_dir=log_dir, seq0=seq0,
                     verbose=not getattr(args, "quiet", False))
 
 
@@ -160,6 +164,12 @@ def run_hw(args, key):
         cv = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         cv.bind(("127.0.0.1", args.cv_port))
         cv.setblocking(False)
+    dash = None
+    if args.web:
+        from fleet.web import Dashboard, parse_origin, snapshot
+        dash, origin = Dashboard(args.web_port).start(), parse_origin(args.origin)
+        print(f"  dashboard:  http://localhost:{args.web_port}")
+    next_pub = 0.0
     print(f"=== homebase on {args.port}: {args.drones} drones"
           f"{', MILITARY' if args.military else ''}{', signed' if key else ''}"
           f"{f', CV on udp {args.cv_port}' if cv else ''}. Ctrl-C to stop. ===")
@@ -187,6 +197,13 @@ def run_hw(args, key):
             if now >= next_status:
                 print(hub.status_line(now))
                 next_status = now + 5.0
+            if dash:
+                for c in dash.take_commands():
+                    if c.get("cmd") == "recall":
+                        hub.recall(now)               # the only browser command that touches real drones
+            if dash and now >= next_pub:
+                dash.publish(snapshot(hub, now, 1, origin, mode="live"))
+                next_pub = now + 0.25
             time.sleep(0.01)
     except KeyboardInterrupt:
         pass
@@ -212,13 +229,22 @@ def main():
     ap.add_argument("--keep-going", action="store_true", help="sim: don't stop when everyone is found")
     ap.add_argument("--gif", action="store_true", help="sim: save fleet_search.gif")
     ap.add_argument("--quiet", action="store_true", help="hide the event log")
+    ap.add_argument("--web", action="store_true", help="live dashboard at http://localhost:WEB_PORT")
+    ap.add_argument("--web-port", type=int, default=8080)
+    ap.add_argument("--speed-up", type=float, default=4.0, help="sim --web: start at this many x real time")
     add_mission_args(ap)
     add_sim_args(ap)
+    ap.add_argument("--civilian", action="store_true", help="pr scenario: turn military mode off")
     args = ap.parse_args()
+    from fleet.scenario import apply_scenario_defaults
+    apply_scenario_defaults(args, sys.argv[1:])
     key = P.load_key(args.key)
     if args.military and not key:
         print("note: --military without --key: packets are NOT signed. Add --key to require signatures.")
-    if args.sim:
+    if args.sim and args.web:
+        from fleet.live import run_live_sim
+        run_live_sim(args, key)
+    elif args.sim:
         run_sim(args, key)
     else:
         run_hw(args, key)

@@ -89,6 +89,28 @@ def test_mission():
     check(r["deaths"] == 0, "no drone ran out of battery")
 
 
+def test_terrain():
+    print("terrain + personnel recovery")
+    from fleet.terrain import rasterize_osm, xy_to_ll, CLASSES, personnel_recovery
+    import fleet.terrain as T
+    origin, n, cell, home = (44.142, -71.681), 24, 25.0, (23, 0)
+    sq = lambda pts: [{"lat": a, "lon": b} for a, b in (xy_to_ll(x, y, origin) for x, y in pts)]
+    osm = {"elements": [
+        {"type": "way", "tags": {"landuse": "meadow"}, "geometry": sq([(100, 100), (300, 100), (300, 300), (100, 300), (100, 100)])},
+        {"type": "way", "tags": {"highway": "primary"}, "geometry": sq([(-20, 400), (620, 380)])},
+        {"type": "relation", "tags": {"type": "multipolygon", "natural": "water"},
+         "members": [{"role": "outer", "geometry": sq([(450, 450), (520, 450), (520, 520), (450, 520), (450, 450)])}]}]}
+    g = rasterize_osm(osm, origin, n, cell, home)
+    check(CLASSES[g[15, 8]] == "open" and CLASSES[g[7, 8]] == "road" and CLASSES[g[4, 19]] == "water"
+          and CLASSES[g[0, 0]] == "forest", "OpenStreetMap meadow / road / lake land in the right cells, the rest is forest")
+    T._OFFLINE = True                                    # don't touch the network in tests
+    sc = personnel_recovery(origin, n, cell, home, seed=0, quiet=True)
+    check(abs(sc.prior.sum() - 1) < 1e-9 and sc.prior[sc.nofly].sum() == 0, "evader prior is a distribution, zero inside hostile cores")
+    forest = sc.terrain == 1
+    check(sc.prior[forest].mean() > 3 * sc.prior[~forest & ~sc.nofly].mean(), "he is far likelier under trees than in the open")
+    check(sum(v for _, v in sc.regions(sc.prior)) > 99, "'where he likely is' shares add up to ~100%")
+
+
 def test_firmware_headers():
     print("firmware")
     src = os.path.join(ROOT, "firmware", "t15_protocol.h")
@@ -101,5 +123,6 @@ if __name__ == "__main__":
     test_planner()
     test_hub_inputs()
     test_firmware_headers()
+    test_terrain()
     test_mission()
     print("ALL FLEET TESTS PASSED")

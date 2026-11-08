@@ -3,3 +3,5 @@ __pycache__/
 results/casualties.json
 results/mission_log.jsonl
 results/.home_seq
+results/terrain_*.json
+results/.home_seq

@@ -18,6 +18,13 @@ DEFAULT_LOADOUT = "thermal,ble;thermal,mmwave;cv,mmwave"
 
 def add_mission_args(ap: argparse.ArgumentParser):
     g = ap.add_argument_group("mission (must match between homebase and fleet_sim)")
+    g.add_argument("--scenario", choices=["grid", "pr"], default=None,
+                   help="grid = toy map with walls; pr = personnel recovery on real terrain "
+                        "(default: pr with --web, grid otherwise)")
+    g.add_argument("--origin", default="44.1420,-71.6810",
+                   help="lat,lon of the homebase (default: Franconia Notch, NH)")
+    g.add_argument("--cover", choices=["forest", "open"], default="forest",
+                   help="pr: what land with no OpenStreetMap tag counts as")
     g.add_argument("--drones", type=int, default=3)
     g.add_argument("--n", type=int, default=24, help="grid is n x n cells")
     g.add_argument("--cell-m", type=float, default=20.0, help="cell size in metres (indoor: 0.5)")
@@ -49,9 +56,46 @@ def add_sim_args(ap: argparse.ArgumentParser):
     return ap
 
 
+def get_scenario(args):
+    """The personnel-recovery scenario (real terrain), built once per seed and shared
+    by the homebase and the simulator. None for the plain grid."""
+    if getattr(args, "scenario", None) != "pr":
+        return None
+    key = (args.seed, args.origin, args.n, args.cell_m, args.cover, getattr(args, "people", 1))
+    cache = getattr(args, "_scenario_cache", None)
+    if cache and cache[0] == key:
+        return cache[1]
+    from .terrain import personnel_recovery
+    from .web import parse_origin
+    sc = personnel_recovery(parse_origin(args.origin), args.n, args.cell_m, (args.n - 1, 0), args.seed,
+                            getattr(args, "people", 1), default_cover=args.cover,
+                            quiet=getattr(args, "quiet_terrain", False))
+    args._scenario_cache = (key, sc)
+    return sc
+
+
+def apply_scenario_defaults(args, argv):
+    """--scenario pr changes a few defaults (only those you didn't set yourself)."""
+    if args.scenario is None:
+        args.scenario = "pr" if getattr(args, "web", False) else "grid"
+    if args.scenario != "pr":
+        return args
+    given = " ".join(argv)
+    for flag, attr, val in (("--people", "people", 1), ("--cell-m", "cell_m", 25.0), ("--endurance", "endurance", 600.0),
+                            ("--loss", "loss", 0.15), ("--loadout", "loadout", "thermal,ble;thermal,mmwave;cv,mmwave")):
+        if flag not in given and hasattr(args, attr):
+            setattr(args, attr, val)
+    if "--civilian" not in given:
+        args.military = True
+    if not getattr(args, "key", None) and "--key" not in given:
+        args.key = "team15-pr-demo-key"
+    return args
+
+
 def build_world(args, hidden=False):
     w = GridWorld(n=args.n, cell_m=args.cell_m, prior=args.prior,
-                  n_people=getattr(args, "people", 1), seed=args.seed, walls=not args.no_walls)
+                  n_people=getattr(args, "people", 1), seed=args.seed, walls=not args.no_walls,
+                  scenario=get_scenario(args))
     if hidden:
         w.people = []            # the homebase never knows where anyone really is
     return w
@@ -61,17 +105,21 @@ def hub_config(args) -> HubConfig:
     indoor = args.cell_m < 3
     base = args.base_alt if args.base_alt is not None else (1.0 if indoor else 30.0)
     step = args.alt_step if args.alt_step is not None else (0.4 if indoor else 5.0)
+    pr = getattr(args, "scenario", None) == "pr"
     return HubConfig(endurance_s=args.endurance, speed_mps=args.speed, base_alt=base, alt_step=step,
                      confirm_alt=min(base, 1.0) if indoor else 1.5,
-                     military=args.military, exposure=0.02 if args.military else 0.0,
+                     military=args.military, exposure=(0.12 if pr else 0.02) if args.military else 0.0,
                      n_sims=args.sims, allocate=not getattr(args, "no_allocate", False),
                      share_map=not getattr(args, "no_share", False))
 
 
-def load_allies(path):
-    if not path:
-        return set()
+def load_allies(path, args=None):
     out = set()
+    sc = get_scenario(args) if args is not None else None
+    if sc:
+        out |= sc.allies                       # the isolated soldier's beacon id (from his ISOPREP)
+    if not path:
+        return out
     with open(path) as f:
         for line in f:
             line = line.split("#")[0].strip()
@@ -84,7 +132,8 @@ def build_sim(args, key):
     truth = build_world(args)
     grid = Grid(truth)
     rng = np.random.default_rng(args.seed + 1)
-    people = make_people(truth, grid, rng)
+    sc = get_scenario(args)
+    people = make_people(truth, grid, rng, tags=sc.tags if sc else None)
     loadout = [s.split(",") for s in args.loadout.split(";")]
     drones = [SimDrone(i + 1, loadout[i % len(loadout)], truth, grid, people,
                        np.random.default_rng(args.seed + 10 + i), key=key,

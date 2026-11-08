@@ -31,6 +31,8 @@ def main():
     add_mission_args(ap)
     add_sim_args(ap)
     args = ap.parse_args()
+    from fleet.scenario import apply_scenario_defaults
+    apply_scenario_defaults(args, sys.argv[1:])
     key = P.load_key(args.key)
     truth, grid, people, drones, gw = build_sim(args, key)
 
