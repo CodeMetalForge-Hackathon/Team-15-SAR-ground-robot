@@ -2,6 +2,8 @@
 
 Date: 2026-11-07. Branch `feature/rover-navigation`.
 
+> **Update, 2026-11-08 (docs audit):** this report predates PR #14 (fail-closed forward motion) and PR #15 (USB-serial StickC bridge plus a **draft** firmware that has never been compiled or flashed). `POST /rover/estop` is defined in `rover/status_api.py`, but `dashboard/app.py` does not mount it, so there is no dashboard e-stop button today. For the current picture, see [17_SAFETY_ARCHITECTURE.md](../17_SAFETY_ARCHITECTURE.md).
+
 ## 0. Gate status
 | Gate | Status | Evidence |
 |---|---|---|
@@ -28,7 +30,7 @@ Verified from M5Stack documentation (not from our unit):
 
 Not verified, so each one blocks Gate 5:
 1. **Exact controller model and firmware.** We don't yet know whether it is a StickC or a StickC Plus, nor what sketch is flashed. Nothing on this Mac shows a USB serial device for it (only Bluetooth and debug ports).
-2. **The Pi-to-RoverC link does not exist.** Inspected over Tailscale (100.97.93.118): no USB devices, no serial devices, and the header I²C bus is not enabled. See `HARDWARE_READINESS.md`.
+2. **The Pi-to-RoverC link does not exist.** Inspected over Tailscale ($PI_HOST): no USB devices, no serial devices, and the header I²C bus is not enabled. See `HARDWARE_READINESS.md`.
    - The RoverC bus is mastered by the StickC.
    - Wiring the Pi into a Grove I²C port would put two masters on one bus. That is unsupported.
    - **Recommendation:** add StickC bridge firmware that takes commands over USB serial (or Wi-Fi UDP) and **zeroes the motors when commands stop arriving** (for example after 300 ms). Then measure that timeout and record it in `HardwareVerification.stop_on_link_loss_ms`.
@@ -68,7 +70,7 @@ Not verified, so each one blocks Gate 5:
 - The e-stop is latched and independent of the supervisor. It works three ways:
   - every registered stop runs even if another raises;
   - an optional stop file lets any process trip it;
-  - `POST /rover/estop` trips it from the dashboard.
+  - `POST /rover/estop` trips it, once the router is mounted (it is not mounted in `dashboard/app.py` at the time of the audit).
   The physical stop (power switch, or lifting the robot) always comes first; see the runbook.
 - `MOVE_BACKWARD` and `STRAFE_*` are refused unless an operator gives fresh evidence, because no sensor covers those directions. The detour "retreat" is a rotate-then-drive-forward, never blind reversing.
 - `auto_approve` is refused when the driver is physical.
@@ -96,6 +98,6 @@ Not verified, so each one blocks Gate 5:
 
 ## 4. Not done / out of scope
 - No concrete hardware transport. `RecordingTransport` is a dry-run recorder only.
-- No StickC bridge firmware, which the next step needs.
+- No StickC bridge firmware, which the next step needs. (Since then, PR #15 added a draft `.ino` that has never been compiled or flashed.)
 - No AprilTag localization, no 0.25 m coverage grid, and no occlusion modelling. These are optional research, and none of them is claimed.
 - Not mounted into `dashboard/app.py`. That's the dashboard owner's call; see `contracts/ROVER_NAV_CONTRACT.md`.

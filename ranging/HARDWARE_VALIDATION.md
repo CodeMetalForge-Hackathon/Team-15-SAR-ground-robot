@@ -8,7 +8,7 @@ a config where the two names are the same.
 
 Print this sheet, or copy it to `~/Team15_evidence/range/signoff.md`. Keep it out of Git.
 
-## A. Platform (no wiring needed). Already run 2026-11-07 on 100.97.93.118
+## A. Platform (no wiring needed). Already run 2026-11-07 on $PI_HOST
 
 `python3 -m ranging preflight --config <cfg>` is read-only and requests no line.
 

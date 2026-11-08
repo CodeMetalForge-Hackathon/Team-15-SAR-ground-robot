@@ -38,6 +38,11 @@ def main(argv=None) -> int:
     p.add_argument("--robot-url", default=None,
                    help="live robot API, no default; e.g. http://127.0.0.1:8770/robot/status")
     p.add_argument("--responder", default="A", help="responder's current node (default A)")
+    p.add_argument("--qwen-url", default=None,
+                   help="Team-15-Qwen advisory service for the /rescue report, e.g. http://127.0.0.1:8090 "
+                        "(optional; without it the report is DETERMINISTIC)")
+    p.add_argument("--rescue-evidence-dir", default=None,
+                   help="folder of REAL RECORDED camera frames (*_annotated.jpg) shown on /rescue")
     p.add_argument("--host", default="127.0.0.1")
     p.add_argument("--port", type=int, default=8000)
     a = p.parse_args(argv)
@@ -52,9 +57,12 @@ def main(argv=None) -> int:
         os.environ[var] = str(Path(val).expanduser().resolve()) if val else ""
     os.environ["TEAM15_RANGE_URL"] = a.range_url or ""
     os.environ["TEAM15_ROBOT_URL"] = a.robot_url or ""
+    os.environ["TEAM15_QWEN_URL"] = a.qwen_url or ""
+    os.environ["TEAM15_RESCUE_EVIDENCE_DIR"] = str(Path(a.rescue_evidence_dir).expanduser()) if a.rescue_evidence_dir else ""
 
     import uvicorn
     print(f"Dashboard: http://{'localhost' if a.host == '127.0.0.1' else a.host}:{a.port}/")
+    print(f"Dual-robot rescue SIMULATION: http://{'localhost' if a.host == '127.0.0.1' else a.host}:{a.port}/rescue")
     print("Evidence dirs: " + ", ".join(dirs))
     print("Forward obstacle range: " + (f"SIMULATED fixture {a.range_fixture or a.robot_fixture}"
                                         if (a.range_fixture or a.robot_fixture)

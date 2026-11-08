@@ -5,10 +5,10 @@ Inspection date: 2026-11-07. Method: **read-only**. No motor command, firmware f
 ## 1. Connectivity
 | Check | Result |
 |---|---|
-| Tailscale | Up. `raspberrypi` is 100.97.93.118, and the Mac is `mohammeds-macbook-pro-539` (100.83.176.118) |
-| SSH `team15@100.97.93.118`, key `~/.ssh/team15_pi_ed25519` | **Works**, BatchMode |
-| Old hotspot 10.42.0.1 | Not used any more (it refused SSH earlier) |
-| Pi | Raspberry Pi 5 Model B Rev 1.1, kernel 6.18.60+rpt-rpi-2712, Wi-Fi `BASE-X Guest` 10.1.200.235/23, eth0 down |
+| Tailscale | Up. the Pi and the Mac are both on the team tailnet (addresses redacted; use `$PI_HOST`) |
+| SSH `$PI_USER@$PI_HOST` with a dedicated key | **Works**, BatchMode |
+| Old Pi hotspot address | Not used any more (it refused SSH earlier) |
+| Pi | Raspberry Pi 5 Model B Rev 1.1, kernel 6.18.60+rpt-rpi-2712, venue guest Wi-Fi (address redacted), eth0 down |
 
 ## 2. What is detected on the Pi
 | Interface | Detected | Notes |

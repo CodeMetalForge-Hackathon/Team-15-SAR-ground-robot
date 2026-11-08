@@ -1,5 +1,7 @@
 # Grove Ultrasonic Ranger → Raspberry Pi 5: hardware connection guide
 
+> **Update, 2026-11-08 (docs audit):** wiring was attempted and the electrical gate passed, but both real diagnostic runs returned 0/50 VALID (all NO_ECHO, no echo edges). The wiring is therefore still **not verified as working**. See [RNG-HW-01](../docs/experiments/reports/RNG-HW-01-grove-real-hardware-diagnose.md).
+
 **Status: NOT YET VERIFIED.** No GPIO line has been configured (GPIO5 still reads
 `pinctrl` function `none`). The hardware driver stays locked until every
 checklist item in section 5 is recorded in the config (section 6).

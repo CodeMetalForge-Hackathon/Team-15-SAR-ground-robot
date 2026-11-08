@@ -8,6 +8,16 @@ A teleoperated wheeled rescue robot (M5Stack RoverC-Pro with a Raspberry Pi 5 an
 
 **Safety model:** people stay in the loop. The operator confirms or rejects every person candidate. The motion code is deterministic, and the safety supervisor and e-stop are deterministic. **Qwen has no autonomous rover-motion authority.**
 
+## Documentation
+
+**Start at [docs/README.md](docs/README.md).** It indexes 29 numbered engineering documents (00–28), from the project overview and architecture to a 17-module learning guide. It also links the evidence audit: the [experiment registry](docs/experiments/EXPERIMENT_REGISTRY.md), [benchmark results](docs/experiments/BENCHMARK_RESULTS.md), [dataset inventory](docs/experiments/DATASET_INVENTORY.md) and [experiment summary](docs/experiments/EXPERIMENT_SUMMARY.md).
+
+**Status at a glance:**
+- The camera pipeline ran live on the Pi 5 and IMX708, with detection on the Mac. Camera distances are **uncalibrated**.
+- Rover navigation, the safety supervisor and the StickC bridge are tested in **simulation and with mocks only**. Real wheel movement is **not tested**.
+- The real Grove ultrasonic gave **0/50 valid readings, twice**. A real LiDAR scan is **not verified**.
+- The live demo uses **base Qwen with RAG**. The published LoRA is not deployed. Qwen has **no motor authority**.
+
 ## Repository layout
 
 | Path | What |
@@ -27,10 +37,10 @@ Run the tests with `pip install -r requirements.txt && pytest -q`.
 | | |
 |---|---|
 | Base model | [Qwen/Qwen3.5-2B](https://huggingface.co/Qwen/Qwen3.5-2B) (Apache-2.0), revision `15852e8c` |
-| Fine-tuning | LoRA (r 16, α 32), vision frozen, 15.63 M parameters. SFT on 689 synthetic mission records plus 7 public Co-GLANCE frames |
-| RAG | SQLite FTS5 over 47 verified documents with provenance and an injection quarantine |
+| Fine-tuning | LoRA (r 16, α 32), vision frozen, 15.63 M parameters. SFT on 689 records: synthetic mission steps, 7 public Co-GLANCE frames and 4 metadata-only bench-camera rows |
+| RAG | SQLite FTS5 over 47 documents (2 marked "cite only") with provenance and an injection quarantine |
 | Tool use | one read-only tool request per step, validated by a deterministic safety gate. Guard and deterministic fallback |
-| Result | **218/230** correct mission steps on a frozen simulated benchmark, **0** unsafe motion requests (base model: 0/230). Measured with RAG context |
+| Result | **218/230** correct mission steps on a frozen simulated benchmark, **0** unsafe motion requests (base model under Hugging Face without an output grammar: 0/230, because no output parsed; with Ollama's JSON grammar: 56/230 with RAG). Measured with RAG context |
 | Limitations | synthetic, in-distribution benchmark; no hardware evaluation; 2 missed sensor-timeout stops; no transfer to the LiDAR or delivery tasks. The LiDAR LoRA pilot was **not promoted** |
 
 ### Model weights / Hugging Face

@@ -28,3 +28,6 @@ id_rsa*
 hf_token*
 private/
 evidence_images/
+
+# dual-rescue benchmark output (regenerate with python3 -m simulation.dual_rescue.benchmark)
+benchmark_results/
