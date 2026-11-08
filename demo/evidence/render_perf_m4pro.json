@@ -1,0 +1,327 @@
+{
+ "perf_1080_high": {
+  "viewport": [
+   1920,
+   1080
+  ],
+  "perf": {
+   "fps": 60.0075009376172,
+   "avg": 16.664583333333333,
+   "p95": 17.299999952316284,
+   "calls": 154,
+   "tris": 20806,
+   "res": [
+    1190,
+    823
+   ],
+   "scale": 1,
+   "preset": "high",
+   "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Pro, Unspecified Version)"
+  },
+  "state": {
+   "t": 184,
+   "phase": "ROVER_REROUTED"
+  },
+  "errors": []
+ },
+ "perf_1440_high": {
+  "viewport": [
+   2560,
+   1440
+  ],
+  "perf": {
+   "fps": 59.83246908584637,
+   "avg": 16.713333333532017,
+   "p95": 16.800000071525574,
+   "calls": 154,
+   "tris": 20806,
+   "res": [
+    1587,
+    1101
+   ],
+   "scale": 1,
+   "preset": "high",
+   "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Pro, Unspecified Version)"
+  },
+  "state": {
+   "t": 184,
+   "phase": "ROVER_REROUTED"
+  },
+  "errors": []
+ },
+ "perf_2160_high": {
+  "viewport": [
+   3840,
+   2160
+  ],
+  "perf": {
+   "fps": 59.01445854303483,
+   "avg": 16.94499999980132,
+   "p95": 16.800000071525574,
+   "calls": 154,
+   "tris": 20806,
+   "res": [
+    2600,
+    1675
+   ],
+   "scale": 1,
+   "preset": "high",
+   "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Pro, Unspecified Version)"
+  },
+  "state": {
+   "t": 180,
+   "phase": "ROVER_REROUTED"
+  },
+  "errors": []
+ },
+ "perf_2160_ultra": {
+  "viewport": [
+   3840,
+   2160
+  ],
+  "perf": {
+   "fps": 60.012002399764555,
+   "avg": 16.663333333532016,
+   "p95": 17.600000023841858,
+   "calls": 154,
+   "tris": 20806,
+   "res": [
+    2600,
+    1675
+   ],
+   "scale": 1,
+   "preset": "ultra",
+   "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Pro, Unspecified Version)"
+  },
+  "state": {
+   "t": 182,
+   "phase": "ROVER_REROUTED"
+  },
+  "errors": []
+ },
+ "perf_2160_ultra_present": {
+  "viewport": [
+   3840,
+   2160
+  ],
+  "perf": {
+   "fps": 59.99999999999999,
+   "avg": 16.666666666666668,
+   "p95": 16.800000071525574,
+   "calls": 111,
+   "tris": 18956,
+   "res": [
+    3840,
+    2086
+   ],
+   "scale": 1,
+   "preset": "ultra",
+   "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Pro, Unspecified Version)"
+  },
+  "state": {
+   "t": 184,
+   "phase": "ROVER_REROUTED"
+  },
+  "errors": []
+ },
+ "shot_A_cinematic": {
+  "viewport": [
+   1920,
+   1080
+  ],
+  "perf": {
+   "fps": 60.01050183674836,
+   "avg": 16.663750000298023,
+   "p95": 17.5,
+   "calls": 38,
+   "tris": 16812,
+   "res": [
+    1190,
+    823
+   ],
+   "scale": 1,
+   "preset": "high",
+   "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Pro, Unspecified Version)"
+  },
+  "state": {
+   "t": 56,
+   "phase": "ROVER_EN_ROUTE"
+  },
+  "errors": []
+ },
+ "shot_C_roof": {
+  "viewport": [
+   1920,
+   1080
+  ],
+  "perf": {
+   "fps": 60.004500336809954,
+   "avg": 16.665416666865347,
+   "p95": 17.5,
+   "calls": 125,
+   "tris": 18270,
+   "res": [
+    1190,
+    823
+   ],
+   "scale": 1,
+   "preset": "high",
+   "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Pro, Unspecified Version)"
+  },
+  "state": {
+   "t": 124,
+   "phase": "INSUFFICIENT_INFORMATION"
+  },
+  "errors": []
+ },
+ "shot_D_multi": {
+  "viewport": [
+   1920,
+   1080
+  ],
+  "perf": {
+   "fps": 60.004500336809954,
+   "avg": 16.665416666865347,
+   "p95": 17.299999952316284,
+   "calls": 132,
+   "tris": 18451,
+   "res": [
+    1190,
+    823
+   ],
+   "scale": 1,
+   "preset": "high",
+   "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Pro, Unspecified Version)"
+  },
+  "state": {
+   "t": 244,
+   "phase": "MISSION_COMPLETE"
+  },
+  "errors": []
+ },
+ "shot_K_corridors": {
+  "viewport": [
+   1920,
+   1080
+  ],
+  "perf": {
+   "fps": 59.8712767546207,
+   "avg": 16.70250000009934,
+   "p95": 17.5,
+   "calls": 37,
+   "tris": 8454,
+   "res": [
+    1190,
+    823
+   ],
+   "scale": 1,
+   "preset": "high",
+   "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Pro, Unspecified Version)"
+  },
+  "state": {
+   "t": 160,
+   "phase": "ROVER_EN_ROUTE"
+  },
+  "errors": []
+ },
+ "shot_O_outdoor": {
+  "viewport": [
+   1920,
+   1080
+  ],
+  "perf": {
+   "fps": 60.012002399764555,
+   "avg": 16.663333333532016,
+   "p95": 16.800000071525574,
+   "calls": 128,
+   "tris": 24592,
+   "res": [
+    1190,
+    823
+   ],
+   "scale": 1,
+   "preset": "high",
+   "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Pro, Unspecified Version)"
+  },
+  "state": {
+   "t": 112,
+   "phase": "ROVER_EN_ROUTE"
+  },
+  "errors": []
+ },
+ "shot_M_maze": {
+  "viewport": [
+   1920,
+   1080
+  ],
+  "perf": {
+   "fps": 59.83396075853841,
+   "avg": 16.71291666676601,
+   "p95": 17.399999976158142,
+   "calls": 166,
+   "tris": 12251,
+   "res": [
+    1190,
+    823
+   ],
+   "scale": 1,
+   "preset": "high",
+   "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Pro, Unspecified Version)"
+  },
+  "state": {
+   "t": 140,
+   "phase": "ROVER_EN_ROUTE"
+  },
+  "errors": []
+ },
+ "shot_E_fault": {
+  "viewport": [
+   1920,
+   1080
+  ],
+  "perf": {
+   "fps": 60.01500375093773,
+   "avg": 16.6625,
+   "p95": 17.299999952316284,
+   "calls": 37,
+   "tris": 17068,
+   "res": [
+    1190,
+    823
+   ],
+   "scale": 1,
+   "preset": "high",
+   "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Pro, Unspecified Version)"
+  },
+  "state": {
+   "t": 156,
+   "phase": "FAULT"
+  },
+  "errors": []
+ },
+ "shot_W_onboard": {
+  "viewport": [
+   1920,
+   1080
+  ],
+  "perf": {
+   "fps": 59.99700014927731,
+   "avg": 16.667500000198682,
+   "p95": 16.899999976158142,
+   "calls": 19,
+   "tris": 34494,
+   "res": [
+    1190,
+    823
+   ],
+   "scale": 1,
+   "preset": "high",
+   "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Pro, Unspecified Version)"
+  },
+  "state": {
+   "t": 28,
+   "phase": "ROUTE_SCOUTING"
+  },
+  "errors": []
+ }
+}

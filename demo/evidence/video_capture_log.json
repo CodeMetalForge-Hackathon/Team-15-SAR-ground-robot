@@ -1,0 +1,63 @@
+{
+ "video": "demo/videos/Team15_Dual_Robot_Rescue_Demo.mp4",
+ "scenario": "B - Dynamic debris (collapsed building)",
+ "browser": "Google Chrome (headless, ANGLE Metal, Apple M4 Pro), viewport 1920x1080, CDP screencast JPEG q88",
+ "frames_captured": 3857,
+ "capture_seconds": 74.35,
+ "capture_fps": 51.9,
+ "final_state": {
+  "t": 301.3,
+  "phase": "MISSION_COMPLETE",
+  "report": "QWEN_GUARDED (RAG) authority: NONE"
+ },
+ "captions": [
+  {
+   "video_s": 0.0,
+   "caption": "Team-15 dual-robot search & rescue \u2014 a collapsed building (synthetic 48 m site). AIR-1 aerial scout + GND-1 RoverC-Pro, both running our real planners. Corridors start UNKNOWN (hatched amber)."
+  },
+  {
+   "video_s": 4.5,
+   "caption": "1 \u00b7 Aerial search \u2014 AIR-1 plans every move with our PR #17 Monte-Carlo tree search over a probability map. The cyan square is its real camera footprint."
+  },
+  {
+   "video_s": 9.3,
+   "caption": "2 \u00b7 Survivor candidate \u2014 reported only because it fell inside the footprint. AIR-1 hovers three looks to confirm (Bayes confidence)."
+  },
+  {
+   "video_s": 10.3,
+   "caption": "3 \u00b7 Shared map + route check \u2014 before dispatch, the coordinator has the drone observe the rover's route. Debris it saw on M1-N1 is avoided."
+  },
+  {
+   "video_s": 13.9,
+   "caption": "4 \u00b7 Handoff \u2014 GND-1 drives with our real Navigator + safety supervisor, on corridors observed CLEAR only (blue chevrons = its Dijkstra route)."
+  },
+  {
+   "video_s": 21.2,
+   "caption": "5 \u00b7 Dynamic event \u2014 the simulator drops debris on the planned corridor. The agents are not told (grey = ground truth, shown to the viewer only)."
+  },
+  {
+   "video_s": 29.6,
+   "caption": "6 \u00b7 Obstacle \u2014 the rover's ultrasonic stops it: STOP \u2192 VERIFY (3 readings) \u2192 MARK BLOCKED \u2192 SCAN. The drone is tasked to re-check the block."
+  },
+  {
+   "video_s": 40.1,
+   "caption": "7 \u00b7 Cooperation \u2014 no KNOWN-clear detour (its observations are stale), so the rover holds and requests sensing. AIR-1 observes the detour."
+  },
+  {
+   "video_s": 45.4,
+   "caption": "8 \u00b7 Replan \u2014 the Navigator replans with Dijkstra over corridors now observed CLEAR, then retreats along a verified path."
+  },
+  {
+   "video_s": 48.5,
+   "caption": "9 \u00b7 Rescue approach \u2014 GND-1 follows the detour to the survivor's room."
+  },
+  {
+   "video_s": 58.9,
+   "caption": "10 \u00b7 Safety decision \u2014 at the standoff the rover's camera (simulated) sees the survivor. The rover stops: the sighting stays UNCONFIRMED until a human reviews it."
+  },
+  {
+   "video_s": 62.9,
+   "caption": "11 \u00b7 Rescue intelligence (right panel) \u2014 Qwen3.5-2B + RAG explains the mission from timestamped observation ids. Advisory only: no motor authority."
+  }
+ ]
+}

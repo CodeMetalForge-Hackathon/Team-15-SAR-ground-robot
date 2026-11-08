@@ -31,3 +31,10 @@ evidence_images/
 
 # dual-rescue benchmark output (regenerate with python3 -m simulation.dual_rescue.benchmark)
 benchmark_results/
+
+# Exception: demo/evidence/ holds PUBLIC, REDACTED copies only (raw evidence stays in local evidence/ folders).
+!demo/evidence/
+# Exception: synthetic SIMULATION renders for the judge demo (no camera capture, no person; see demo/VIDEO_INDEX.md)
+!demo/videos/Team15_Dual_Robot_Rescue_Demo.mp4
+!demo/evidence/sim_3d_reroute.jpg
+!demo/evidence/sim_mission_complete_qwen.jpg

@@ -1,5 +1,10 @@
 # Team-15: search-and-rescue ground robot (CodeMetal Forge 2026)
 
+> **▶ [Watch the Demo](demo/videos/Team15_Dual_Robot_Rescue_Demo.mp4)**: 75-second dual-robot rescue
+> **simulation** (aerial scout + ground rover; no physical robot movement).
+> **[Judge demo and evidence package →](demo/README.md)**: test results, benchmarks, hardware status
+> and AI model evaluation, each with its sources.
+
 A teleoperated wheeled rescue robot (M5Stack RoverC-Pro with a Raspberry Pi 5 and camera; RPLIDAR C1 in progress).
 
 - **Perception:** a camera-based person-candidate detector, with results shown on an operator dashboard.
