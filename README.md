@@ -23,6 +23,8 @@ A teleoperated wheeled rescue robot (M5Stack RoverC-Pro with a Raspberry Pi 5 an
 
 **Safety model:** people stay in the loop. The operator confirms or rejects every person candidate. The motion code is deterministic, and the safety supervisor and e-stop are deterministic. **Qwen has no autonomous rover-motion authority.**
 
+https://youtu.be/laJDtQfXWBU
+
 ## Documentation
 
 **Start at [docs/README.md](docs/README.md).** It indexes 29 numbered engineering documents (00–28), from the project overview and architecture to a 17-module learning guide. It also links the evidence audit: the [experiment registry](docs/experiments/EXPERIMENT_REGISTRY.md), [benchmark results](docs/experiments/BENCHMARK_RESULTS.md), [dataset inventory](docs/experiments/DATASET_INVENTORY.md) and [experiment summary](docs/experiments/EXPERIMENT_SUMMARY.md).
