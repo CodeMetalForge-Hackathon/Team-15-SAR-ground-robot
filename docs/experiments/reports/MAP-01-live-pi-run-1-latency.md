@@ -52,7 +52,7 @@ Throughput: 117 frames in 24.8 s = **4.68 fps**. Assessment `UNKNOWN` ×117. Rou
 
 | File | Where | SHA-256 |
 |---|---|---|
-| `live_pi1.jsonl` (117 lines, states only) | **A temporary session scratch directory on the Mac, not in `$TEAM15_EVIDENCE`.** It may be lost on reboot; copy it into the evidence store if it is to be kept | `a4c2a8e4199514d9c7ec0b6f75fb9941e128395e2c7fa6c560fa8e4946e6cb63` |
+| `live_pi1.jsonl` (117 lines, states only) | `$TEAM15_EVIDENCE/camera_mapping/eval_run1_recovered/live_pi1.jsonl`. The docs audit recovered it on 2026-11-08 from a temporary session scratch directory; the SHA-256 is unchanged. The replay smoke `replay1.jsonl` (sha256 `c0ea733c…851efc`) sits beside it | `a4c2a8e4199514d9c7ec0b6f75fb9941e128395e2c7fa6c560fa8e4946e6cb63` |
 | Session console log | 2026-11-08 ~11:22–11:27 UTC | — |
 | [EVALUATION.md](../../camera_mapping/EVALUATION.md) §3 | repo | — |
 
