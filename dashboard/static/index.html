@@ -1,0 +1,432 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Team 15 Base Station</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --panel: #ffffff; --ink: #1b1f24; --muted: #5b6573; --line: #d5dae1;
+    --cell: #eef1f5; --cell-d1: #e8f0fb; --cell-d2: #eef7ee; --cell-d3: #f3f0f7;
+    --trail: #9aa5b4; --route: #1f6feb; --cand: #d1242f; --resp: #1a7f37;
+    --live: #1a7f37; --live-bg: #dafbe1; --sim: #b42318; --sim-bg: #ffe4e1;
+    --warn: #9a6700; --warn-bg: #fff8c5;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0d1117; --panel: #161b22; --ink: #e6edf3; --muted: #9aa4b1; --line: #30363d;
+      --cell: #1c222b; --cell-d1: #18263a; --cell-d2: #182a1f; --cell-d3: #241d30;
+      --trail: #5d6875; --route: #4493f8; --cand: #ff6b6b; --resp: #3fb950;
+      --live: #3fb950; --live-bg: #12321d; --sim: #ff8b80; --sim-bg: #3d1614;
+      --warn: #e3b341; --warn-bg: #3a2e0a;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+         font: 15px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  header { padding: 14px 16px; border-bottom: 1px solid var(--line); background: var(--panel);
+           display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: baseline; }
+  header h1 { font-size: 18px; margin: 0; }
+  header .sub { color: var(--muted); font-size: 13px; }
+  main { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(280px, 1fr); gap: 16px;
+         padding: 16px; max-width: 1280px; margin: 0 auto; }
+  @media (max-width: 820px) { main { grid-template-columns: 1fr; } }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px; }
+  .panel h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted);
+              margin: 0 0 10px; font-weight: 600; }
+  svg { width: 100%; height: auto; display: block; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+  .badge.live { color: var(--live); background: var(--live-bg); }
+  .badge.sim { color: var(--sim); background: var(--sim-bg); }
+  .badge.warn { color: var(--warn); background: var(--warn-bg); }
+  .badge.neutral { color: var(--muted); border: 1px solid var(--line); }
+  .cand-title { font-size: 20px; font-weight: 700; margin: 6px 0 2px; }
+  .age { font-size: 28px; font-variant-numeric: tabular-nums; font-weight: 700; margin: 4px 0 0; }
+  dl { display: grid; grid-template-columns: max-content 1fr; gap: 4px 12px; margin: 10px 0 0; font-size: 14px; }
+  dt { color: var(--muted); }
+  dd { margin: 0; overflow-wrap: anywhere; }
+  .photo { margin-top: 12px; border-radius: 8px; overflow: hidden; border: 1px solid var(--line);
+           background: var(--cell); min-height: 60px; }
+  .photo img { width: 100%; height: auto; display: block; }
+  .photo .none { padding: 18px; color: var(--muted); font-size: 13px; }
+  .route-line { font-size: 18px; font-weight: 700; margin: 4px 0; }
+  .banner { padding: 10px 12px; border-radius: 8px; background: var(--sim-bg); color: var(--sim);
+            font-weight: 600; margin-bottom: 12px; }
+  .note { color: var(--muted); font-size: 12px; margin-top: 10px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12px; color: var(--muted); margin-top: 8px; }
+  .sw { display: inline-block; width: 12px; height: 12px; border-radius: 3px; vertical-align: -2px; margin-right: 4px; }
+  #status { font-size: 12px; color: var(--muted); }
+  .badge.ok { color: var(--live); background: var(--live-bg); }
+  .badge.bad { color: var(--sim); background: var(--sim-bg); }
+  .alert { display: flex; gap: 10px; align-items: center; justify-content: space-between; flex-wrap: wrap;
+           padding: 10px 16px; background: var(--warn-bg); color: var(--warn); font-weight: 600;
+           border-bottom: 1px solid var(--line); }
+  [hidden] { display: none !important; }   /* .badge/.alert set display and would override it */
+  b.bad { color: var(--sim); }
+  button { font: inherit; font-size: 14px; padding: 6px 12px; border-radius: 6px; cursor: pointer;
+           border: 1px solid var(--line); background: var(--panel); color: var(--ink); }
+  button.confirm { border-color: var(--live); color: var(--live); }
+  button.reject { border-color: var(--sim); color: var(--sim); }
+  .decide { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 12px; }
+  .decide input { font: inherit; font-size: 14px; padding: 5px 8px; border-radius: 6px; width: 9em;
+                  border: 1px solid var(--line); background: var(--bg); color: var(--ink); }
+  .hist { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; }
+  .hist li { display: grid; grid-template-columns: 64px 1fr; gap: 10px; align-items: start; font-size: 13px;
+             padding-bottom: 8px; border-bottom: 1px solid var(--line); opacity: .85; }
+  .hist img { width: 64px; height: 48px; object-fit: cover; border-radius: 4px; background: var(--cell); }
+  .hist .noimg { width: 64px; height: 48px; border-radius: 4px; background: var(--cell); }
+  a { color: var(--route); }
+  .range-value { font-size: 26px; font-weight: 700; font-variant-numeric: tabular-nums; margin: 6px 0 2px; }
+  .range-status { font-weight: 700; }
+  .range-card.greyed .range-value, .range-card.greyed .range-status { color: var(--muted); opacity: .6; }
+  .range-card.greyed .range-value { text-decoration: line-through; text-decoration-thickness: 1px; }
+  .qual { cursor: help; border-bottom: 1px dotted var(--muted); }
+</style>
+</head>
+<body>
+<header>
+  <h1>Team 15 base station</h1>
+  <span class="sub">Responder route on the <b>SYNTHETIC</b> trail map · location is the assigned sector, not a measured position</span>
+  <span id="status">connecting…</span>
+</header>
+<div id="alert" class="alert" role="alert" hidden></div>
+<main>
+  <section class="panel" aria-labelledby="map-h">
+    <h2 id="map-h">Sector map &amp; walking route</h2>
+    <div id="banner"></div>
+    <svg id="map" viewBox="0 0 580 340" role="img" aria-label="Sector grid with trail edges and route"></svg>
+    <div class="legend">
+      <span><span class="sw" style="background:var(--cell-d1)"></span>D1 sector A–G</span>
+      <span><span class="sw" style="background:var(--cell-d2)"></span>D2 sector H–P</span>
+      <span><span class="sw" style="background:var(--cell-d3)"></span>D3 sector Q–Z (no known trails)</span>
+      <span><span class="sw" style="background:var(--route)"></span>active route</span>
+      <span><span class="sw" style="background:var(--resp)"></span>responder</span>
+      <span><span class="sw" style="background:var(--cand)"></span>candidate</span>
+    </div>
+    <div class="note" id="graph-label"></div>
+  </section>
+  <aside style="display:grid; gap:16px; align-content:start">
+    <section class="panel" aria-labelledby="cand-h">
+      <h2 id="cand-h">Candidate</h2>
+      <div id="cand"><span class="note">No sighting yet.</span></div>
+    </section>
+    <section class="panel" aria-labelledby="route-h">
+      <h2 id="route-h">Route</h2>
+      <div id="route"><span class="note">No route yet.</span></div>
+    </section>
+    <section class="panel range-card greyed" id="range-card" aria-labelledby="range-h">
+      <h2 id="range-h"><span class="qual" id="range-title" title="">Forward obstacle range</span></h2>
+      <div id="range"><span class="note">Waiting for /api/range…</span></div>
+    </section>
+    <section class="panel" aria-labelledby="hist-h">
+      <h2 id="hist-h">Earlier sightings (history)</h2>
+      <div id="history"><span class="note">None.</span></div>
+    </section>
+  </aside>
+</main>
+<script>
+"use strict";
+const CELL = 80, PAD = 10;
+const D1 = "ABCDEFG", D2 = "HIJKLMNOP";
+let last = null, fetchedAt = 0, candKey = null, histKey = null;
+let seenAlert = null;          // highest alert_id already shown (null = first load)
+let busy = false;
+
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const center = n => [PAD + n.col * CELL + CELL / 2, PAD + n.row * CELL + CELL / 2];
+const store = {
+  get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
+  set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} },
+};
+
+function fmtAge(s) {
+  if (s < 0) return "0 s (clock skew)";
+  s = Math.floor(s);
+  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
+  if (h) return `${h} h ${String(m).padStart(2, "0")} min ${String(sec).padStart(2, "0")} s`;
+  if (m) return `${m} min ${String(sec).padStart(2, "0")} s`;
+  return `${sec} s`;
+}
+function fmtTime(L) {
+  const local = new Date(L.obs_time * 1000).toLocaleString();
+  const iso = L.obs_time_iso || new Date(L.obs_time * 1000).toISOString();
+  return `${local} <span class="note">(${esc(iso)})</span>`;
+}
+function badgeClass(b) { return b.startsWith("LIVE-HW") ? "live" : b === "SIMULATED" ? "sim" : "neutral"; }
+function badgeIcon(b) { return b.startsWith("LIVE-HW") ? "🟩 " : b === "SIMULATED" ? "🟥 " : ""; }
+function confChip(L) {
+  if (L.confirmation === "confirmed") return `<span class="badge ok">CONFIRMED by ${esc(L.decided_by)}</span>`;
+  if (L.confirmation === "rejected") return `<span class="badge bad">REJECTED by ${esc(L.decided_by)}</span>`;
+  return `<span class="badge warn">UNCONFIRMED: operator review needed</span>`;
+}
+function detectorText(L) {
+  const fam = L.detector_family ? esc(L.detector_family) : "family not reported";
+  return `${fam} · ${esc(L.detector ?? "n/a")}`;
+}
+function scoreText(L) {
+  if (L.confidence != null) return `confidence ${esc(L.confidence)}`;
+  if (L.detector_score != null)
+    return `n/a (detector score ${Number(L.detector_score).toFixed(L.detector_score < 1 ? 4 : 2)}, ${esc(L.detector_score_kind)}; not a probability)`;
+  return "n/a";
+}
+function cameraChip(L) {
+  const c = L.camera || {};
+  const icon = c.kind === "PI" ? "📷 " : c.kind === "LOCAL" ? "💻 " : "";
+  return `<span class="badge neutral" id="camera-chip" data-camera="${esc(c.kind || "")}">${icon}${esc(c.label || "camera not reported")}</span>`;
+}
+function cameraText(L) {
+  const c = L.camera || {};
+  if (!c.source) return "not reported (sighting made before camera provenance was added)";
+  const parts = [esc(c.label)];
+  if (c.pi_model) parts.push(esc(c.pi_model));
+  if (c.sensor_model) parts.push(`sensor ${esc(c.sensor_model)}`);
+  if (c.device && c.kind !== "PI") parts.push(esc(c.device));
+  if (c.transport) parts.push(`transport ${esc(c.transport)}`);
+  if (c.rotation_deg) parts.push(`rotated ${esc(c.rotation_deg)}°${c.rotation_applied_by ? ` by ${esc(c.rotation_applied_by)}` : ""}`);
+  if (c.frame_seq != null) parts.push(`Pi frame #${esc(c.frame_seq)}`);
+  return parts.join(" · ");
+}
+function timingText(L) {
+  const c = L.camera || {};
+  const rx = c.capture_to_rx_s != null ? ` · capture→Mac ${(c.capture_to_rx_s * 1000).toFixed(0)} ms` : "";
+  const skew = L.clock_skew ? ' · <b class="bad">CLOCK SKEW: capture time is in the future</b>' : "";
+  return `${esc(c.capture_clock_label || "not reported")}${rx} · capture→dashboard ${L.capture_to_ingest_s.toFixed(2)} s${skew}`;
+}
+const newest = st => st.tracks.length ? st.tracks.reduce((a, b) => (b.latest.obs_time > a.latest.obs_time ? b : a)) : null;
+
+function drawMap(st) {
+  const nodes = Object.fromEntries(st.graph.nodes.map(n => [n.id, n]));
+  const route = st.routes.find(r => r.active);
+  const onRoute = new Set(route && route.status === "OK" ? route.edges : []);
+  const out = [];
+  for (const n of st.graph.nodes) {
+    const fill = D1.includes(n.id) ? "var(--cell-d1)" : D2.includes(n.id) ? "var(--cell-d2)" : "var(--cell-d3)";
+    out.push(`<rect x="${PAD + n.col * CELL + 1}" y="${PAD + n.row * CELL + 1}" width="${CELL - 2}" height="${CELL - 2}" rx="6" fill="${fill}" stroke="var(--line)"/>`);
+  }
+  for (const e of st.graph.edges) {
+    const [x1, y1] = center(nodes[e.a]), [x2, y2] = center(nodes[e.b]);
+    const key = [e.a, e.b].sort().join("-");
+    const hot = onRoute.has(`${e.a}-${e.b}`) || onRoute.has(`${e.b}-${e.a}`);
+    out.push(`<line data-edge="${key}" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${hot ? "var(--route)" : "var(--trail)"}" stroke-width="${hot ? 6 : 2}" stroke-linecap="round"/>`);
+    const mx = (x1 + x2) / 2, my = (y1 + y2) / 2, horiz = y1 === y2;
+    out.push(`<text x="${mx + (horiz ? 0 : 6)}" y="${my + (horiz ? -6 : 4)}" font-size="11" fill="var(--muted)" text-anchor="${horiz ? "middle" : "start"}">${e.m} m</text>`);
+  }
+  for (const n of st.graph.nodes) {
+    const [x, y] = center(n);
+    out.push(`<text x="${PAD + n.col * CELL + 8}" y="${PAD + n.row * CELL + 18}" font-size="13" font-weight="700" fill="var(--muted)">${n.id}</text>`);
+    out.push(`<circle cx="${x}" cy="${y}" r="4" fill="var(--trail)"/>`);
+  }
+  for (const t of st.tracks) {
+    const [x, y] = center(nodes[t.cell]);
+    const rej = t.latest.confirmation === "rejected";
+    const col = rej ? "var(--trail)" : "var(--cand)";
+    out.push(`<g data-track="${esc(t.track_id)}"><circle cx="${x}" cy="${y}" r="20" fill="none" stroke="${col}" stroke-width="4"${t.latest.stale || rej ? ' stroke-dasharray="6 4"' : ""}/>` +
+      `<text x="${x}" y="${y + 36}" font-size="12" font-weight="700" fill="${col}" text-anchor="middle">${esc(t.track_id)} · sector ${esc(t.cell)}</text></g>`);
+  }
+  const r = nodes[st.responder.node];
+  if (r) {
+    const [x, y] = center(r);
+    out.push(`<circle cx="${x}" cy="${y}" r="12" fill="var(--resp)"/><text x="${x}" y="${y + 4}" font-size="11" font-weight="700" fill="#fff" text-anchor="middle">R</text>`);
+  }
+  document.getElementById("map").innerHTML = out.join("");
+  document.getElementById("graph-label").textContent = st.graph.label + ` · cells ${st.graph.cell_size_m} m × ${st.graph.cell_size_m} m`;
+}
+
+function photoHtml(L) {
+  if (!L.photo_url) return '<div class="none">No photo attached.</div>';
+  return `<img src="${esc(L.photo_url)}" alt="Bench camera evidence for ${esc(L.obs_id)}" onerror="this.parentNode.innerHTML='<div class=none>Photo not available on this machine (kept outside Git).</div>'">`;
+}
+
+function drawCandidate(st) {
+  const el = document.getElementById("cand");
+  const t = newest(st);
+  if (!t) { el.innerHTML = '<span class="note">No sighting yet.</span>'; candKey = null; return; }
+  const L = t.latest;
+  const key = [L.obs_id, L.confirmation, L.decided_by, t.n_observations].join("|");
+  if (key === candKey) return;           // keep the photo and the operator field steady
+  candKey = key;
+  const op = esc(store.get("team15.operator") || "");
+  el.innerHTML = `
+    <span class="badge ${badgeClass(t.badge)}">${badgeIcon(t.badge)}${esc(t.badge)}</span>
+    ${confChip(L)}
+    ${cameraChip(L)}
+    <span class="badge neutral" id="stale-chip" hidden>STALE</span>
+    <div class="cand-title" id="cand-label">${esc(t.label)}</div>
+    <div class="note">${esc(t.track_id)} · ${t.n_observations} sighting(s) in this sector · sources: ${esc(t.sources.join(", "))} · bench camera has no identity</div>
+    <div class="age" id="age"></div>
+    <div class="note">evidence age (now − obs_time)</div>
+    <dl>
+      <dt>Captured</dt><dd>${fmtTime(L)}</dd>
+      <dt>Time source</dt><dd>${timingText(L)}</dd>
+      <dt>Camera</dt><dd id="camera-detail">${cameraText(L)}</dd>
+      <dt>Observation</dt><dd>${esc(L.obs_id)} · ${esc(L.kind)} · ${esc(L.sensor.toUpperCase())}</dd>
+      <dt>Provenance</dt><dd>${esc(L.source_mode)} / ${esc(L.platform ?? "n/a")}: not an aerial detection</dd>
+      <dt>Location</dt><dd>${esc(t.how)}: sector ${esc(t.cell)} was <b>assigned</b>${L.cell_source ? ` (${esc(L.cell_source)})` : ""}, not measured</dd>
+      <dt>Detector</dt><dd>${detectorText(L)}</dd>
+      <dt>Confidence</dt><dd>${scoreText(L)}</dd>
+      ${L.count_in_frame != null ? `<dt>Boxes in frame</dt><dd>${esc(L.count_in_frame)} (may include bystanders or reflections)</dd>` : ""}
+    </dl>
+    <div class="photo" id="photo">${photoHtml(L)}</div>
+    <div class="note">${L.photo_name ? `Photo: ${esc(L.photo_name)} (local only, not in Git)` : ""}
+      ${L.frame_url ? ` · <a href="${esc(L.frame_url)}" target="_blank" rel="noopener">exact evidence frame</a>` : ""}</div>
+    ${L.confirmation === "unconfirmed" ? `
+    <div class="decide">
+      <label for="operator">Operator</label>
+      <input id="operator" placeholder="your name" value="${op}" autocomplete="off">
+      <button class="confirm" data-decision="CONFIRM" data-obs="${esc(L.obs_id)}">Confirm person</button>
+      <button class="reject" data-decision="REJECT" data-obs="${esc(L.obs_id)}">Reject (false alert)</button>
+    </div>
+    <div class="note" id="decide-msg">Check the photo first: reflections and bystanders are detected too.</div>` : ""}`;
+}
+
+function drawHistory(st) {
+  const el = document.getElementById("history");
+  const cur = newest(st);
+  const items = [];
+  for (const t of st.tracks) {
+    if (t !== cur) items.push({ ...t.latest, track_id: t.track_id });
+    for (const h of t.history) items.push({ ...h, track_id: t.track_id });
+  }
+  items.sort((a, b) => b.obs_time - a.obs_time);
+  const key = items.map(h => h.obs_id + h.confirmation).join("|");
+  if (key === histKey) return;
+  histKey = key;
+  if (!items.length) { el.innerHTML = '<span class="note">None.</span>'; return; }
+  el.innerHTML = `<ul class="hist">${items.map(h => `
+    <li data-obs="${esc(h.obs_id)}">
+      ${h.photo_url ? `<img src="${esc(h.photo_url)}" alt="" loading="lazy" onerror="this.outerHTML='<div class=noimg></div>'">` : '<div class="noimg"></div>'}
+      <div><b>${esc(h.obs_id)}</b> · ${esc(h.track_id)} sector ${esc(h.cell)} · ${esc(h.badge)} · ${esc((h.camera && h.camera.label) || "camera not reported")}<br>
+        ${fmtTime(h)}<br>${detectorText(h)} · ${esc(h.confirmation.toUpperCase())}${h.decided_by ? ` by ${esc(h.decided_by)}` : ""}</div>
+    </li>`).join("")}</ul>`;
+}
+
+function drawRoute(st) {
+  const el = document.getElementById("route"), banner = document.getElementById("banner");
+  const r = st.routes.find(x => x.active);
+  if (!r) {
+    el.innerHTML = st.routes.length ? '<span class="note">No active route: every sighting was rejected.</span>' : '<span class="note">No route yet.</span>';
+    banner.innerHTML = ""; return;
+  }
+  if (r.status !== "OK") {
+    banner.innerHTML = `<div class="banner">NO KNOWN ROUTE to ${esc(r.to)}: ${esc(r.reason)}. Aerial view does not certify passability.</div>`;
+    el.innerHTML = `<div class="route-line">v${r.version} ${esc(r.from)}→${esc(r.to)}: ${esc(r.status)}</div><div class="note">${esc(r.reason)}</div>`;
+    return;
+  }
+  banner.innerHTML = "";
+  el.innerHTML = `
+    <div class="route-line" id="route-line">Route v${r.version}: ${esc(r.from)}→${esc(r.to)} · ${r.length_m} m</div>
+    <div>${r.path.map(esc).join(" → ")}</div>
+    <dl><dt>To</dt><dd>${esc(r.track_id)} (sector ${esc(r.to)}), candidate still needs operator review unless confirmed</dd>
+        <dt>Status</dt><dd>${esc(r.status)} · ${esc(r.reason)}</dd>
+        <dt>Blocked</dt><dd>${r.blocked.length ? r.blocked.map(esc).join(", ") : "none"}</dd>
+        <dt>Versions</dt><dd>${st.routes.length}</dd></dl>
+    <div class="note">Walking distance on the SYNTHETIC trail graph (Dijkstra, planner/route.py). Known trail edges only.</div>`;
+}
+
+function drawAlert(st) {
+  const box = document.getElementById("alert");
+  const maxId = st.alerts.length ? st.alerts[st.alerts.length - 1].alert_id : 0;
+  if (seenAlert === null) { seenAlert = maxId; return; }   // don't re-alert what was already there on load
+  if (maxId <= seenAlert) return;
+  const fresh = st.alerts.filter(a => a.alert_id > seenAlert);
+  seenAlert = maxId;
+  const a = fresh[fresh.length - 1];
+  box.innerHTML = `<span>🔔 New sighting ${esc(a.obs_id)}: candidate in sector ${esc(a.cell)} (assigned) · ${esc(a.badge)} · ${esc(a.camera)} · UNCONFIRMED. Review the photo.${fresh.length > 1 ? ` (+${fresh.length - 1} more)` : ""}</span><button id="alert-x">Dismiss</button>`;
+  box.hidden = false;
+}
+
+function tick() {
+  if (!last) return;
+  const t = newest(last);
+  const ageEl = document.getElementById("age");
+  if (!t || !ageEl) return;
+  const age = t.latest.age_s + (performance.now() - fetchedAt) / 1000;
+  ageEl.textContent = fmtAge(age);
+  const chip = document.getElementById("stale-chip");
+  if (chip) {
+    chip.hidden = age <= t.latest.stale_after_s;
+    chip.textContent = `STALE (older than ${t.latest.stale_after_s} s ${t.latest.sensor.toUpperCase()} TTL)`;
+  }
+}
+
+async function poll() {
+  try {
+    const res = await fetch("/state", { cache: "no-store" });
+    if (!res.ok) throw new Error(res.status);
+    const st = await res.json();
+    last = st; fetchedAt = performance.now();
+    drawMap(st); drawCandidate(st); drawRoute(st); drawHistory(st); drawAlert(st); tick();
+    document.getElementById("status").textContent = "live · polling /state every 0.5 s";
+  } catch (e) {
+    document.getElementById("status").textContent = "base station unreachable: retrying";
+  }
+}
+
+document.addEventListener("click", async ev => {
+  const b = ev.target.closest("button");
+  if (!b) return;
+  if (b.id === "alert-x") { document.getElementById("alert").hidden = true; return; }
+  if (!b.dataset.decision || busy) return;
+  const operator = (document.getElementById("operator").value || "").trim();
+  const msg = document.getElementById("decide-msg");
+  if (!operator) { msg.textContent = "Enter the operator's name first."; return; }
+  store.set("team15.operator", operator);
+  busy = true;
+  try {
+    const res = await fetch("/operator_decision", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ obs_id: b.dataset.obs, decision: b.dataset.decision, operator }) });
+    if (!res.ok) msg.textContent = "Not saved: " + ((await res.json()).detail || res.status);
+    await poll();
+  } catch (e) { msg.textContent = "Not saved: base station unreachable."; }
+  finally { busy = false; }
+});
+
+// Forward obstacle range: a separate card. It never refers to the person candidate,
+// and it only ever shows forward motion when it is NOT allowed.
+let rangeAt = 0;
+const RANGE_CLIENT_STALE_S = 1.0;   // no fresh /api/range answer → grey out locally too
+function drawRange(v) {
+  const card = document.getElementById("range-card"), el = document.getElementById("range");
+  document.getElementById("range-title").title = v.qualification;
+  const late = (performance.now() - rangeAt) / 1000 > RANGE_CLIENT_STALE_S;
+  const usable = v.usable && !late;
+  card.classList.toggle("greyed", !usable);
+  card.dataset.status = late ? "UNKNOWN" : v.status;
+  const badge = v.simulated
+    ? '<span class="badge sim" id="range-badge">🟥 SIMULATED</span>'
+    : '<span class="badge live" id="range-badge">🟩 HARDWARE</span>';
+  const status = late ? `unknown (no answer from /api/range for ${RANGE_CLIENT_STALE_S} s)` : v.status_text;
+  const frame = v.frame ? (v.frame.of ? ` · frame ${v.frame.index}/${v.frame.of}` : ` · scenario ${esc(v.frame.scenario)}`) : "";
+  const th = v.thresholds_m && v.thresholds_m.blocked_m != null
+    ? `blocked &lt; ${v.thresholds_m.blocked_m} m · caution &lt; ${v.thresholds_m.caution_m} m` : "n/a";
+  el.innerHTML = `
+    ${badge} <span class="badge neutral">${esc(v.source)}${frame}</span>
+    <div class="range-value" id="range-value">${v.value_text ? esc(v.value_text) : "—"}</div>
+    <div>Status: <span class="range-status" id="range-status">${esc(late ? "UNKNOWN" : v.status)}</span> · ${esc(status)}</div>
+    ${(late || v.motion_text) ? `<div>Forward motion: <b id="range-motion">${esc(late ? "UNKNOWN" : v.motion_text)}</b></div>` : ""}
+    <dl>
+      <dt>Reading</dt><dd>${esc(v.measurement_status ?? "none")}${v.age_s != null ? ` · age ${Number(v.age_s).toFixed(2)} s (limit ${v.stale_after_s} s)` : ""}</dd>
+      <dt>Thresholds</dt><dd>${th}</dd>
+      <dt>Sensor</dt><dd>${esc(v.sensor_id ?? "n/a")} · ${esc((v.provenance && v.provenance.source_mode) || "n/a")}${v.robot_mode ? ` · robot ${esc(v.robot_mode)}` : ""}</dd>
+      ${v.reason ? `<dt>Detail</dt><dd>${esc(v.reason)}</dd>` : ""}
+    </dl>
+    <div class="note">Nearest reflecting surface in a ~15° forward cone (ultrasonic). Display only.</div>`;
+}
+let lastRange = null;
+async function pollRange() {
+  try {
+    const res = await fetch("/api/range", { cache: "no-store" });
+    if (!res.ok) throw new Error(res.status);
+    lastRange = await res.json(); rangeAt = performance.now();
+  } catch (e) { /* keep lastRange; drawRange greys it out once it is late */ }
+  if (lastRange) drawRange(lastRange);
+}
+
+poll();
+setInterval(poll, 500);
+setInterval(tick, 250);
+pollRange();
+setInterval(pollRange, 250);
+</script>
+</body>
+</html>
