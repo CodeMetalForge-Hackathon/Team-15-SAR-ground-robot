@@ -1,0 +1,9 @@
+# Never commit camera captures (pictures of people).
+*.jpg
+*.jpeg
+*.png
+*.mp4
+*.mov
+evidence/
+__pycache__/
+*.pyc
