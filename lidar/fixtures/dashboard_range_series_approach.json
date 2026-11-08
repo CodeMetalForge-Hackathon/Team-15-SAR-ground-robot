@@ -1,0 +1,408 @@
+{
+ "label": "SIMULATED",
+ "note": "LiDAR FRONT sector as team15.range_snapshot/1 (display only)",
+ "series": [
+  {
+   "schema": "team15.range_snapshot/1",
+   "sensor_id": "rplidar-c1-top",
+   "sensor_type": "RPLIDAR_C1",
+   "measurement_type": "FORWARD_SECTOR_MIN_RANGE",
+   "sensor_mount": "TOP_360",
+   "published_at": "2026-11-09T04:53:21.120+00:00",
+   "published_time": 1794200001.12,
+   "published_mono_ns": 1120000000,
+   "obstacle_status": "CLEAR",
+   "forward_motion_allowed": false,
+   "range_m": 1.5449,
+   "valid": true,
+   "obs_time": 1794200001.0,
+   "stale_after_s": 0.5,
+   "latest": {
+    "schema": "team15.range_reading/1",
+    "sensor_type": "RPLIDAR_C1",
+    "measurement_type": "FORWARD_SECTOR_MIN_RANGE",
+    "sensor_id": "rplidar-c1-top",
+    "distance_m": 1.5449,
+    "valid": true,
+    "timestamp": "2026-11-09T04:53:21.000+00:00",
+    "obs_time": 1794200001.0,
+    "mono_ns": 1000000000,
+    "seq": 1,
+    "sensor_mount": "TOP_360",
+    "measurement_status": "VALID",
+    "echo_us": null,
+    "source": "SIMULATED",
+    "driver": "rplidar-c1",
+    "detail": "nearest 1.54 m, coverage 100%"
+   },
+   "assessment": {
+    "status": "CLEAR",
+    "forward_motion_allowed": false,
+    "reason": "LiDAR FRONT sector (0\u00b122.5\u00b0): nearest 1.54 m, coverage 100%; display only, forward_motion_allowed is never set by this compatibility snapshot",
+    "thresholds": {
+     "blocked_m": 0.35,
+     "caution_m": 0.75
+    },
+    "range_semantics": "nearest LiDAR return in the FRONT 45\u00b0 sector; NOT a person distance"
+   },
+   "health": {
+    "state": "OK",
+    "connection": "SCANNING"
+   },
+   "provenance": {
+    "source_mode": "SIMULATED",
+    "platform": "SIM",
+    "source": "rplidar-c1",
+    "driver": "rplidar-c1",
+    "host": "Mohammeds-MacBook-Pro-2287.local",
+    "wiring_verified_by": null,
+    "service_boot_id": null
+   },
+   "lidar": {
+    "schema": "team15.lidar_sectors/1",
+    "connection": "SCANNING",
+    "alignment_verified": true
+   },
+   "freshness": {
+    "age_s": 0.12,
+    "stale": false,
+    "stale_after_s": 0.5
+   }
+  },
+  {
+   "schema": "team15.range_snapshot/1",
+   "sensor_id": "rplidar-c1-top",
+   "sensor_type": "RPLIDAR_C1",
+   "measurement_type": "FORWARD_SECTOR_MIN_RANGE",
+   "sensor_mount": "TOP_360",
+   "published_at": "2026-11-09T04:53:21.220+00:00",
+   "published_time": 1794200001.22,
+   "published_mono_ns": 1220000000,
+   "obstacle_status": "CLEAR",
+   "forward_motion_allowed": false,
+   "range_m": 1.1423,
+   "valid": true,
+   "obs_time": 1794200001.1,
+   "stale_after_s": 0.5,
+   "latest": {
+    "schema": "team15.range_reading/1",
+    "sensor_type": "RPLIDAR_C1",
+    "measurement_type": "FORWARD_SECTOR_MIN_RANGE",
+    "sensor_id": "rplidar-c1-top",
+    "distance_m": 1.1423,
+    "valid": true,
+    "timestamp": "2026-11-09T04:53:21.100+00:00",
+    "obs_time": 1794200001.1,
+    "mono_ns": 1100000000,
+    "seq": 2,
+    "sensor_mount": "TOP_360",
+    "measurement_status": "VALID",
+    "echo_us": null,
+    "source": "SIMULATED",
+    "driver": "rplidar-c1",
+    "detail": "nearest 1.14 m, coverage 100%"
+   },
+   "assessment": {
+    "status": "CLEAR",
+    "forward_motion_allowed": false,
+    "reason": "LiDAR FRONT sector (0\u00b122.5\u00b0): nearest 1.14 m, coverage 100%; display only, forward_motion_allowed is never set by this compatibility snapshot",
+    "thresholds": {
+     "blocked_m": 0.35,
+     "caution_m": 0.75
+    },
+    "range_semantics": "nearest LiDAR return in the FRONT 45\u00b0 sector; NOT a person distance"
+   },
+   "health": {
+    "state": "OK",
+    "connection": "SCANNING"
+   },
+   "provenance": {
+    "source_mode": "SIMULATED",
+    "platform": "SIM",
+    "source": "rplidar-c1",
+    "driver": "rplidar-c1",
+    "host": "Mohammeds-MacBook-Pro-2287.local",
+    "wiring_verified_by": null,
+    "service_boot_id": null
+   },
+   "lidar": {
+    "schema": "team15.lidar_sectors/1",
+    "connection": "SCANNING",
+    "alignment_verified": true
+   },
+   "freshness": {
+    "age_s": 0.12,
+    "stale": false,
+    "stale_after_s": 0.5
+   }
+  },
+  {
+   "schema": "team15.range_snapshot/1",
+   "sensor_id": "rplidar-c1-top",
+   "sensor_type": "RPLIDAR_C1",
+   "measurement_type": "FORWARD_SECTOR_MIN_RANGE",
+   "sensor_mount": "TOP_360",
+   "published_at": "2026-11-09T04:53:21.320+00:00",
+   "published_time": 1794200001.32,
+   "published_mono_ns": 1320000000,
+   "obstacle_status": "CLEAR",
+   "forward_motion_allowed": false,
+   "range_m": 0.8432,
+   "valid": true,
+   "obs_time": 1794200001.2,
+   "stale_after_s": 0.5,
+   "latest": {
+    "schema": "team15.range_reading/1",
+    "sensor_type": "RPLIDAR_C1",
+    "measurement_type": "FORWARD_SECTOR_MIN_RANGE",
+    "sensor_id": "rplidar-c1-top",
+    "distance_m": 0.8432,
+    "valid": true,
+    "timestamp": "2026-11-09T04:53:21.200+00:00",
+    "obs_time": 1794200001.2,
+    "mono_ns": 1200000000,
+    "seq": 3,
+    "sensor_mount": "TOP_360",
+    "measurement_status": "VALID",
+    "echo_us": null,
+    "source": "SIMULATED",
+    "driver": "rplidar-c1",
+    "detail": "nearest 0.84 m, coverage 100%"
+   },
+   "assessment": {
+    "status": "CLEAR",
+    "forward_motion_allowed": false,
+    "reason": "LiDAR FRONT sector (0\u00b122.5\u00b0): nearest 0.84 m, coverage 100%; display only, forward_motion_allowed is never set by this compatibility snapshot",
+    "thresholds": {
+     "blocked_m": 0.35,
+     "caution_m": 0.75
+    },
+    "range_semantics": "nearest LiDAR return in the FRONT 45\u00b0 sector; NOT a person distance"
+   },
+   "health": {
+    "state": "OK",
+    "connection": "SCANNING"
+   },
+   "provenance": {
+    "source_mode": "SIMULATED",
+    "platform": "SIM",
+    "source": "rplidar-c1",
+    "driver": "rplidar-c1",
+    "host": "Mohammeds-MacBook-Pro-2287.local",
+    "wiring_verified_by": null,
+    "service_boot_id": null
+   },
+   "lidar": {
+    "schema": "team15.lidar_sectors/1",
+    "connection": "SCANNING",
+    "alignment_verified": true
+   },
+   "freshness": {
+    "age_s": 0.12,
+    "stale": false,
+    "stale_after_s": 0.5
+   }
+  },
+  {
+   "schema": "team15.range_snapshot/1",
+   "sensor_id": "rplidar-c1-top",
+   "sensor_type": "RPLIDAR_C1",
+   "measurement_type": "FORWARD_SECTOR_MIN_RANGE",
+   "sensor_mount": "TOP_360",
+   "published_at": "2026-11-09T04:53:21.420+00:00",
+   "published_time": 1794200001.42,
+   "published_mono_ns": 1420000000,
+   "obstacle_status": "CAUTION",
+   "forward_motion_allowed": false,
+   "range_m": 0.5406,
+   "valid": true,
+   "obs_time": 1794200001.3,
+   "stale_after_s": 0.5,
+   "latest": {
+    "schema": "team15.range_reading/1",
+    "sensor_type": "RPLIDAR_C1",
+    "measurement_type": "FORWARD_SECTOR_MIN_RANGE",
+    "sensor_id": "rplidar-c1-top",
+    "distance_m": 0.5406,
+    "valid": true,
+    "timestamp": "2026-11-09T04:53:21.300+00:00",
+    "obs_time": 1794200001.3,
+    "mono_ns": 1300000000,
+    "seq": 4,
+    "sensor_mount": "TOP_360",
+    "measurement_status": "VALID",
+    "echo_us": null,
+    "source": "SIMULATED",
+    "driver": "rplidar-c1",
+    "detail": "nearest 0.54 m <= 0.75 m"
+   },
+   "assessment": {
+    "status": "CAUTION",
+    "forward_motion_allowed": false,
+    "reason": "LiDAR FRONT sector (0\u00b122.5\u00b0): nearest 0.54 m <= 0.75 m; display only, forward_motion_allowed is never set by this compatibility snapshot",
+    "thresholds": {
+     "blocked_m": 0.35,
+     "caution_m": 0.75
+    },
+    "range_semantics": "nearest LiDAR return in the FRONT 45\u00b0 sector; NOT a person distance"
+   },
+   "health": {
+    "state": "OK",
+    "connection": "SCANNING"
+   },
+   "provenance": {
+    "source_mode": "SIMULATED",
+    "platform": "SIM",
+    "source": "rplidar-c1",
+    "driver": "rplidar-c1",
+    "host": "Mohammeds-MacBook-Pro-2287.local",
+    "wiring_verified_by": null,
+    "service_boot_id": null
+   },
+   "lidar": {
+    "schema": "team15.lidar_sectors/1",
+    "connection": "SCANNING",
+    "alignment_verified": true
+   },
+   "freshness": {
+    "age_s": 0.12,
+    "stale": false,
+    "stale_after_s": 0.5
+   }
+  },
+  {
+   "schema": "team15.range_snapshot/1",
+   "sensor_id": "rplidar-c1-top",
+   "sensor_type": "RPLIDAR_C1",
+   "measurement_type": "FORWARD_SECTOR_MIN_RANGE",
+   "sensor_mount": "TOP_360",
+   "published_at": "2026-11-09T04:53:21.520+00:00",
+   "published_time": 1794200001.52,
+   "published_mono_ns": 1520000000,
+   "obstacle_status": "BLOCKED",
+   "forward_motion_allowed": false,
+   "range_m": 0.3396,
+   "valid": true,
+   "obs_time": 1794200001.4,
+   "stale_after_s": 0.5,
+   "latest": {
+    "schema": "team15.range_reading/1",
+    "sensor_type": "RPLIDAR_C1",
+    "measurement_type": "FORWARD_SECTOR_MIN_RANGE",
+    "sensor_id": "rplidar-c1-top",
+    "distance_m": 0.3396,
+    "valid": true,
+    "timestamp": "2026-11-09T04:53:21.400+00:00",
+    "obs_time": 1794200001.4,
+    "mono_ns": 1400000000,
+    "seq": 5,
+    "sensor_mount": "TOP_360",
+    "measurement_status": "VALID",
+    "echo_us": null,
+    "source": "SIMULATED",
+    "driver": "rplidar-c1",
+    "detail": "valid return at 0.34 m <= 0.35 m"
+   },
+   "assessment": {
+    "status": "BLOCKED",
+    "forward_motion_allowed": false,
+    "reason": "LiDAR FRONT sector (0\u00b122.5\u00b0): valid return at 0.34 m <= 0.35 m; display only, forward_motion_allowed is never set by this compatibility snapshot",
+    "thresholds": {
+     "blocked_m": 0.35,
+     "caution_m": 0.75
+    },
+    "range_semantics": "nearest LiDAR return in the FRONT 45\u00b0 sector; NOT a person distance"
+   },
+   "health": {
+    "state": "OK",
+    "connection": "SCANNING"
+   },
+   "provenance": {
+    "source_mode": "SIMULATED",
+    "platform": "SIM",
+    "source": "rplidar-c1",
+    "driver": "rplidar-c1",
+    "host": "Mohammeds-MacBook-Pro-2287.local",
+    "wiring_verified_by": null,
+    "service_boot_id": null
+   },
+   "lidar": {
+    "schema": "team15.lidar_sectors/1",
+    "connection": "SCANNING",
+    "alignment_verified": true
+   },
+   "freshness": {
+    "age_s": 0.12,
+    "stale": false,
+    "stale_after_s": 0.5
+   }
+  },
+  {
+   "schema": "team15.range_snapshot/1",
+   "sensor_id": "rplidar-c1-top",
+   "sensor_type": "RPLIDAR_C1",
+   "measurement_type": "FORWARD_SECTOR_MIN_RANGE",
+   "sensor_mount": "TOP_360",
+   "published_at": "2026-11-09T04:53:21.620+00:00",
+   "published_time": 1794200001.62,
+   "published_mono_ns": 1620000000,
+   "obstacle_status": "BLOCKED",
+   "forward_motion_allowed": false,
+   "range_m": 0.2418,
+   "valid": true,
+   "obs_time": 1794200001.5,
+   "stale_after_s": 0.5,
+   "latest": {
+    "schema": "team15.range_reading/1",
+    "sensor_type": "RPLIDAR_C1",
+    "measurement_type": "FORWARD_SECTOR_MIN_RANGE",
+    "sensor_id": "rplidar-c1-top",
+    "distance_m": 0.2418,
+    "valid": true,
+    "timestamp": "2026-11-09T04:53:21.500+00:00",
+    "obs_time": 1794200001.5,
+    "mono_ns": 1500000000,
+    "seq": 6,
+    "sensor_mount": "TOP_360",
+    "measurement_status": "VALID",
+    "echo_us": null,
+    "source": "SIMULATED",
+    "driver": "rplidar-c1",
+    "detail": "valid return at 0.24 m <= 0.35 m"
+   },
+   "assessment": {
+    "status": "BLOCKED",
+    "forward_motion_allowed": false,
+    "reason": "LiDAR FRONT sector (0\u00b122.5\u00b0): valid return at 0.24 m <= 0.35 m; display only, forward_motion_allowed is never set by this compatibility snapshot",
+    "thresholds": {
+     "blocked_m": 0.35,
+     "caution_m": 0.75
+    },
+    "range_semantics": "nearest LiDAR return in the FRONT 45\u00b0 sector; NOT a person distance"
+   },
+   "health": {
+    "state": "OK",
+    "connection": "SCANNING"
+   },
+   "provenance": {
+    "source_mode": "SIMULATED",
+    "platform": "SIM",
+    "source": "rplidar-c1",
+    "driver": "rplidar-c1",
+    "host": "Mohammeds-MacBook-Pro-2287.local",
+    "wiring_verified_by": null,
+    "service_boot_id": null
+   },
+   "lidar": {
+    "schema": "team15.lidar_sectors/1",
+    "connection": "SCANNING",
+    "alignment_verified": true
+   },
+   "freshness": {
+    "age_s": 0.12,
+    "stale": false,
+    "stale_after_s": 0.5
+   }
+  }
+ ]
+}

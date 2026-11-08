@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LiDAR Scan Replay</title>
+<style>
+  :root { --bg:#f6f7f9; --card:#fff; --fg:#1b1f24; --muted:#667085; --line:#d0d5dd;
+          --blocked:#c0362c; --caution:#b7791f; --clear:#2f855a; --unknown:#7a7f87; --sim:#6b46c1; --pt:#1d4ed8; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+    --bg:#0f1115; --card:#181b21; --fg:#e6e8eb; --muted:#9aa1ab; --line:#2c313a; --pt:#60a5fa; } }
+  :root[data-theme="dark"] { --bg:#0f1115; --card:#181b21; --fg:#e6e8eb; --muted:#9aa1ab; --line:#2c313a; --pt:#60a5fa; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:14px/1.4 system-ui, sans-serif; }
+  main { max-width:880px; margin:0 auto; padding:16px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:14px; }
+  .row { display:flex; flex-wrap:wrap; gap:12px; align-items:flex-start; }
+  .badge { font-weight:700; padding:2px 8px; border-radius:6px; background:var(--sim); color:#fff; }
+  .muted { color:var(--muted); } .grey { opacity:.45; }
+  svg { width:100%; max-width:420px; height:auto; }
+  table { border-collapse:collapse; } td { padding:2px 8px; border-bottom:1px solid var(--line); }
+  .BLOCKED{color:var(--blocked);font-weight:700} .CAUTION{color:var(--caution)} .CLEAR{color:var(--clear)}
+  .UNKNOWN{color:var(--unknown)}
+  select { max-width:100%; }
+</style>
+</head>
+<body>
+<main>
+  <h1 style="font-size:18px">LiDAR obstacle scan (RPLIDAR C1) <span id="badge" class="badge">SIMULATED</span></h1>
+  <p class="muted" id="qual"></p>
+  <p><label>Scenario <select id="sc"></select></label> <span class="muted" id="frame"></span></p>
+  <div class="row">
+    <div class="card" id="radarCard"><svg id="radar" viewBox="-110 -110 220 220" role="img" aria-label="top-down scan view"></svg>
+      <div class="muted" id="fw"></div></div>
+    <div class="card" style="flex:1;min-width:240px">
+      <div>Connection: <b id="conn"></b> · scan #<span id="seq"></span> · <span id="age"></span></div>
+      <div>Front: <span id="front"></span> · Left: <span id="left"></span> · Right: <span id="right"></span></div>
+      <div>Closest surface: <span id="closest"></span></div>
+      <div>Forward motion: <b id="motion"></b> <span class="muted">(rover safety layer decides; Issue #9)</span></div>
+      <div class="muted">Last valid scan: <span id="last"></span></div>
+      <table id="sectors" style="margin-top:8px"></table>
+      <p class="muted" id="reason"></p>
+    </div>
+  </div>
+</main>
+<script>
+const SC = ["FRONT","FRONT_LEFT","LEFT","REAR_LEFT","REAR","REAR_RIGHT","RIGHT","FRONT_RIGHT"];
+const COL = s => getComputedStyle(document.documentElement).getPropertyValue("--" + s.toLowerCase()) || "#888";
+const R = 100, MAXM = 3.0;
+let scenario = new URLSearchParams(location.search).get("scenario");
+function fmt(m){ return m == null ? "—" : (m*100).toFixed(0) + " cm"; }
+function wedge(c, st){
+  // robot frame: 0 = up (forward), CCW positive => screen angle = -(c) from up
+  const a0 = (c - 22.5) * Math.PI/180, a1 = (c + 22.5) * Math.PI/180;
+  const p = a => [-R*Math.sin(a), -R*Math.cos(a)];
+  const [x0,y0] = p(a0), [x1,y1] = p(a1);
+  return `<path d="M0 0 L${x0} ${y0} A${R} ${R} 0 0 0 ${x1} ${y1} Z" fill="${COL(st)}" fill-opacity="0.13" stroke="var(--line)"/>`;
+}
+async function tick(){
+  let v;
+  try { const q = scenario ? "?scenario=" + encodeURIComponent(scenario) : "";
+        v = await (await fetch("api/lidar" + q)).json(); } catch(e){ return; }
+  document.getElementById("badge").textContent = v.badge;
+  document.getElementById("qual").textContent = v.qualification;
+  document.getElementById("frame").textContent = v.frame ? `frame ${v.frame.index}/${v.frame.of}` : "";
+  document.getElementById("conn").textContent = v.connection;
+  document.getElementById("seq").textContent = v.scan_seq ?? "—";
+  document.getElementById("age").textContent = v.scan_age_s == null ? "age —" : `age ${v.scan_age_s.toFixed(2)} s (limit ${v.stale_after_s} s)`;
+  for (const k of ["front","left","right"]) {
+    const e = document.getElementById(k); e.className = v[k].status; e.textContent = `${v[k].status} ${fmt(v[k].min_range_m)}`;
+  }
+  const c = v.closest;
+  document.getElementById("closest").textContent = c ? `${fmt(c.range_m)} at sensor bearing ${c.sensor_bearing_deg}°` +
+      (c.robot_sector ? ` (${c.robot_sector})` : " (robot direction unknown)") + " — not a person distance" : "—";
+  document.getElementById("motion").textContent = v.motion_text ?? "not blocked by LiDAR (simulation)";
+  document.getElementById("last").textContent = v.last_valid_scan_wall ? new Date(v.last_valid_scan_wall*1000).toISOString().slice(11,23)+"Z" : "—";
+  document.getElementById("reason").textContent = v.reason || "";
+  document.getElementById("fw").textContent = v.frame_warning || "points in robot frame (forward = up)";
+  document.getElementById("sectors").innerHTML = v.sectors.map(s =>
+    `<tr><td>${s.name}</td><td class="${s.status}">${s.status}</td><td>${fmt(s.min_range_m)}</td><td class="muted">${Math.round(s.coverage*100)}% cov</td></tr>`).join("");
+  const svg = document.getElementById("radar");
+  let h = "";
+  if (v.points_frame === "ROBOT") for (const s of v.sectors) h += wedge(s.center_deg, s.status);
+  for (const r of [1,2,3]) h += `<circle r="${r/MAXM*R}" fill="none" stroke="var(--line)"/>`;
+  h += `<line x1="0" y1="0" x2="0" y2="-${R}" stroke="var(--muted)" stroke-dasharray="3 3"/>`;
+  for (const [x,y] of v.points) {
+    // ROBOT frame: x forward (up), y left. SENSOR frame drawn the same way, labelled as such.
+    const px = -y/MAXM*R, py = -x/MAXM*R;
+    if (Math.abs(px) <= R && Math.abs(py) <= R) h += `<circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="1.2" fill="var(--pt)"/>`;
+  }
+  h += `<rect x="-5" y="-7" width="10" height="14" fill="none" stroke="var(--fg)"/>`;
+  svg.innerHTML = h;
+  document.getElementById("radarCard").classList.toggle("grey", v.greyed);
+}
+async function init(){
+  try {
+    const s = await (await fetch("api/scenarios")).json();
+    const sel = document.getElementById("sc");
+    sel.innerHTML = s.scenarios.map(n => `<option ${n===s.current?"selected":""}>${n}</option>`).join("");
+    sel.onchange = () => { scenario = sel.value; };
+  } catch(e) {}
+  tick(); setInterval(tick, 150);
+}
+init();
+</script>
+</body>
+</html>

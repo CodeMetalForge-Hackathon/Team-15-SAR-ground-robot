@@ -1,0 +1,25 @@
+{
+  "label": "SIMULATED",
+  "seed": 15,
+  "scenarios": {
+    "01_empty_incomplete_returns": "01_empty_incomplete_returns.json",
+    "02_obstacle_ahead": "02_obstacle_ahead.json",
+    "03_obstacle_behind": "03_obstacle_behind.json",
+    "04_obstacle_left": "04_obstacle_left.json",
+    "05_multiple_obstacles": "05_multiple_obstacles.json",
+    "06_narrow_doorway": "06_narrow_doorway.json",
+    "07_wall_one_side": "07_wall_one_side.json",
+    "08_obstacle_approaching": "08_obstacle_approaching.json",
+    "09_invalid_range_values": "09_invalid_range_values.json",
+    "10_missing_angular_sectors": "10_missing_angular_sectors.json",
+    "11_partial_scan": "11_partial_scan.json",
+    "12_stale_timestamps": "12_stale_timestamps.json",
+    "15_incorrect_orientation": "15_incorrect_orientation.json",
+    "16_unexpected_scan_frequency": "16_unexpected_scan_frequency.json",
+    "17_reflective_transparent": "17_reflective_transparent.json",
+    "18_moving_robot_stationary_obstacle": "18_moving_robot_stationary_obstacle.json",
+    "20_unsafe_forward_clearance": "20_unsafe_forward_clearance.json",
+    "00_clear_room_control": "00_clear_room_control.json",
+    "dashboard_range_series_approach": "dashboard_range_series_approach.json"
+  }
+}

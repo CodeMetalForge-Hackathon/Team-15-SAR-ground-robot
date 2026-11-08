@@ -1,0 +1,38 @@
+{
+  "_comment": "Pi 5 hardware template. UNVERIFIED: every checklist field is empty, so the hardware gate REFUSES to open the port. Fill only from real measurements (LIDAR_C1_HARDWARE_CHECKLIST.md).",
+  "mode": "hardware",
+  "sensor_id": "rplidar-c1-top",
+  "frame_id": "lidar_c1_sensor",
+  "device": null,
+  "baudrate": 460800,
+  "expected_model_id": null,
+  "mount": {
+    "forward_offset_deg": null,
+    "sensor_rotation": "CW",
+    "alignment_verified_by": null,
+    "alignment_verified_at": null,
+    "alignment_method": null,
+    "height_above_floor_m": null,
+    "self_occlusion_deg": []
+  },
+  "checklist": {
+    "model_label_read": null,
+    "model_evidence_ref": null,
+    "adapter_identified": null,
+    "adapter_pinout_verified": null,
+    "adapter_usb_vid_pid": null,
+    "supply_voltage_measured_v": null,
+    "startup_current_measured_a": null,
+    "pi_supply_headroom_ok": null,
+    "pi_throttled_after_test": null,
+    "mount_scan_plane_clear": null,
+    "cable_strain_relief_ok": null,
+    "usb_enumeration_ok": null,
+    "device_path_by_id": null,
+    "independent_wiring_inspection_by": null,
+    "emergency_power_cutoff_ok": null,
+    "stationary_test_location": null,
+    "verified_by": null,
+    "verified_at": null
+  }
+}
