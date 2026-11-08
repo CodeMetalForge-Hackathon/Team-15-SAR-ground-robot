@@ -18,7 +18,9 @@ import time
 from .log import Caller
 
 LOG_NAMES = {"stateEstimate.x", "stateEstimate.y", "stateEstimate.z", "stateEstimate.yaw",
-             "pm.vbat", "kalman.varPX", "kalman.varPY", "kalman.varPZ"}
+             "pm.vbat", "kalman.varPX", "kalman.varPY", "kalman.varPZ",
+             "supervisor.info", "stabilizer.thrust", "stabilizer.roll", "stabilizer.pitch",
+             "motor.m1", "motor.m2", "motor.m3", "motor.m4"}
 SCAN_PARAMS = ("minRssi", "advHz", "capPps", "focusA", "focusB", "wdMs")
 SCAN_DEFAULTS = dict(minRssi=-100, advHz=5, capPps=60, focusA=0, focusB=0, wdMs=3000)
 
@@ -40,6 +42,8 @@ class World:
         self.relay_so = None            # compiled relay; None = no scanner traffic
         self.drop_link_at = None        # monotonic time the radio link dies
         self.log_rate = 1.0             # >1 sends logs faster than asked (shorter tests)
+        self.info = 14                  # supervisor.info: 14 = armed, auto-arm, can fly; 68 = locked
+        self.tilt = 0.0                 # degrees of roll the drone reports
         self.drones = []
         self.__dict__.update(kw)
 
@@ -99,6 +103,25 @@ class _HighLevel:
         self.cf._command("stop", None, 0)
 
 
+class _Commander:
+    """Low-level setpoints (used by sar_sim/cf_handtest.py). Recorded, never flown."""
+
+    def __init__(self, cf):
+        self.cf = cf
+
+    def send_setpoint(self, roll, pitch, yawrate, thrust):
+        if self.cf.linked:
+            self.cf.setpoints.append(("setpoint", roll, pitch, yawrate, int(thrust)))
+
+    def send_stop_setpoint(self):
+        if self.cf.linked:
+            self.cf.setpoints.append(("stop",))
+
+    def send_notify_setpoint_stop(self, remain_valid_milliseconds=0):
+        if self.cf.linked:
+            self.cf.setpoints.append(("notify",))
+
+
 class _AppChannel:
     def __init__(self, cf):
         self.cf, self.packet_received = cf, Caller()
@@ -120,6 +143,8 @@ class Crazyflie:
         self.param, self.log = _Param(self), _Log(self)
         self.high_level_commander, self.appchannel = _HighLevel(self), _AppChannel(self)
         self.supervisor = _Supervisor(self)
+        self.commander = _Commander(self)
+        self.setpoints = []
         self.platform = object()
         self.connection_lost, self.disconnected = Caller(), Caller()
         self.lock = threading.Lock()
@@ -249,8 +274,13 @@ class Crazyflie:
             for lc in list(self.logs):
                 if lc.started and now - lc.last >= lc.period_in_ms / 1000 / WORLD.log_rate:
                     lc.last = now
+                    thrust = next((p[4] for p in reversed(self.setpoints) if p[0] == "setpoint"), 0)
+                    motor = thrust if WORLD.info & 8 else 0
                     vals = {"stateEstimate.x": self.pos[0], "stateEstimate.y": self.pos[1],
                             "stateEstimate.z": self.pos[2], "stateEstimate.yaw": 0.0,
                             "pm.vbat": self.vbat, "kalman.varPX": 1e-4, "kalman.varPY": 1e-4,
-                            "kalman.varPZ": 1e-4}
+                            "kalman.varPZ": 1e-4, "supervisor.info": WORLD.info,
+                            "stabilizer.thrust": float(thrust), "stabilizer.roll": WORLD.tilt,
+                            "stabilizer.pitch": 0.0, "motor.m1": motor, "motor.m2": motor,
+                            "motor.m3": motor, "motor.m4": motor}
                     lc.data_received_cb.call(int(now * 1000), {v: vals[v] for v in lc.variables}, lc)

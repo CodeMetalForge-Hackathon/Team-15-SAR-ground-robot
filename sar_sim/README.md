@@ -53,6 +53,20 @@ python3 -m cfloader flash build/cf2.bin stm32-fw -w radio://0/80/2M/E7E7E7E7E7
 
 To check it worked, connect with the cfclient app. A `t15scan` group should appear under Parameters.
 
+## Bluetooth (no Crazyradio)
+
+`sar_sim/ble_link.py` lets cflib talk to the drone over Bluetooth, the same way the phone app does. Any `--uri` in these tools can be `ble://Crazyflie`, including the bridge, the lift test and `CfDrone`.
+
+```bash
+python3 -m pip install --user --break-system-packages bleak
+python3 -m sar_sim.ble_link                          # list drones in range
+python3 -m sar_sim.cf_lift --uri ble://Crazyflie     # lift test over Bluetooth
+```
+
+- **Before connecting:** close the phone app first, since the drone takes one Bluetooth connection at a time. The Mac may ask to let Terminal use Bluetooth: allow it in System Settings, under Privacy & Security, then Bluetooth.
+- **Speed:** Bluetooth is slower than the Crazyradio, about 30-60 packets a second each way. The first connection takes about 30 s, and later ones use a cache.
+- **Crazyradio conflict:** if the drone hears a Crazyradio, its firmware turns Bluetooth off until it restarts.
+
 ## Test without flying (bench mode)
 
 The drone sits on the table on its USB cable. It needs no Flow deck, and every flight command is refused.
@@ -61,7 +75,10 @@ The drone sits on the table on its USB cable. It needs no Flow deck, and every f
 python3 -m sar_sim.cf_bridge --bench --uri usb://0
 ```
 
-Every 5 s it prints battery, decks and scanner-line counts. With the scanner wired and the drone app flashed, Mabelle's discovery server works too: `python3 -m discovery.server --serial /tmp/t15-scanner-1`.
+Every 5 s it prints battery, decks and scanner-line counts.
+
+To spin the motors very slowly in your hand or on the table (never enough to lift off):
+`python3 -m sar_sim.cf_handtest --uri usb://0`. The default thrust is 6000 of 65535, about a sixth of hover. Step up with `--thrust 8000` if a motor doesn't start. Stop the bench bridge first, because only one program can use the cable at a time. With the scanner wired and the drone app flashed, Mabelle's discovery server works too: `python3 -m discovery.server --serial /tmp/t15-scanner-1`.
 
 ## 3. Run it (one terminal each, from the repo root)
 

@@ -15,8 +15,11 @@ import time
 from collections import deque
 
 POSITION_DECKS = ("bcFlow2", "bcFlow", "bcLighthouse4", "bcLoco")
-POSE_VARS = ("stateEstimate.x", "stateEstimate.y", "stateEstimate.z", "stateEstimate.yaw")
-STATUS_VARS = ("pm.vbat", "kalman.varPX", "kalman.varPY", "kalman.varPZ")
+# Log blocks of at most 3 floats: each answer stays under 20 bytes, which every radio
+# link carries in one piece (radio firmware 2024.2 damages longer Bluetooth answers).
+LOG_BLOCKS = (("t15xyz", 100, ("stateEstimate.x", "stateEstimate.y", "stateEstimate.z")),
+              ("t15bat", 200, ("stateEstimate.yaw", "pm.vbat")),
+              ("t15var", 200, ("kalman.varPX", "kalman.varPY", "kalman.varPZ")))
 FRESH_POSE_S = 0.5      # pose older than this is "no pose"
 FRESH_BAT_S = 1.0
 
@@ -50,6 +53,9 @@ class CfDrone:
         from cflib.crazyflie.syncCrazyflie import SyncCrazyflie
 
         cflib.crtp.init_drivers()
+        if self.uri.startswith("ble://"):
+            from sar_sim import ble_link
+            ble_link.register()
         self.cf = Crazyflie(rw_cache=self.cache)
         self.scf = SyncCrazyflie(self.uri, cf=self.cf)
         self.scf.open_link()
@@ -106,23 +112,21 @@ class CfDrone:
             self.cf.log.add_config(lc)
             return lc
 
-        pose = block("t15pose", 100, POSE_VARS)
-        status = block("t15status", 200, STATUS_VARS)
-        pose.data_received_cb.add_callback(self._pose)
-        status.data_received_cb.add_callback(self._status)
-        for lc in (pose, status):
+        self.logs = []
+        for name, period, names in LOG_BLOCKS:
+            lc = block(name, period, names)
+            lc.data_received_cb.add_callback(self._data)
             lc.start()
-        self.logs = [pose, status]
+            self.logs.append(lc)
 
-    def _pose(self, _ts, d, _lc):
+    def _data(self, _ts, d, _lc):
         with self.lock:
-            self.x, self.y = d.get("stateEstimate.x", math.nan), d.get("stateEstimate.y", math.nan)
-            self.z = d.get("stateEstimate.z", math.nan)
-            self.yaw = math.radians(d.get("stateEstimate.yaw", math.nan))
-            self.t_pose = time.monotonic()
-
-    def _status(self, _ts, d, _lc):
-        with self.lock:
+            if "stateEstimate.x" in d:
+                self.x, self.y = d.get("stateEstimate.x", math.nan), d.get("stateEstimate.y", math.nan)
+                self.z = d.get("stateEstimate.z", math.nan)
+                self.t_pose = time.monotonic()
+            if "stateEstimate.yaw" in d:
+                self.yaw = math.radians(d["stateEstimate.yaw"])
             if "pm.vbat" in d:
                 self.vbat, self.t_bat = float(d["pm.vbat"]), time.monotonic()
             if "kalman.varPX" in d:
@@ -165,12 +169,18 @@ class CfDrone:
                 flying=self.flying)
 
     # ---- flight -----------------------------------------------------------
+    def protocol(self):
+        get = getattr(getattr(self.cf, "platform", None), "get_protocol_version", None)
+        return get() if get else -1
+
     def _arm(self, on):
+        # Firmware before CRTP protocol 12 (e.g. 2023.11) arms itself on brushed drones,
+        # and locks itself if it is disarmed while it still counts as flying.
+        if self.protocol() < 12:
+            return
         sup = getattr(self.cf, "supervisor", None)
         if sup is not None and hasattr(sup, "send_arming_request"):
             sup.send_arming_request(on)
-        elif hasattr(self.cf.platform, "send_arming_request"):
-            self.cf.platform.send_arming_request(on)
 
     def takeoff(self, height, duration):
         self._need_link()
@@ -188,10 +198,25 @@ class CfDrone:
             self.cf.high_level_commander.land(0.0, duration)
 
     def stop(self):
+        """Motors off after landing. Keeps sending zero thrust for 2.5 s first:
+        older firmware locks itself if commands stop while it still counts as flying."""
         if self.connected:
             self.cf.high_level_commander.stop()
-            self._arm(False)
+            self._tail = threading.Thread(target=self._zero_tail, daemon=True)
+            self._tail.start()
         self.flying = False
+
+    def _zero_tail(self, seconds=2.5):
+        end = time.monotonic() + seconds
+        try:
+            while time.monotonic() < end and self.connected:
+                self.cf.commander.send_setpoint(0, 0, 0, 0)
+                time.sleep(0.05)
+            if self.connected:
+                self.cf.commander.send_notify_setpoint_stop()
+                self._arm(False)
+        except Exception:
+            pass
 
     def send_app(self, data: bytes):
         if self.connected and self.has_app:
@@ -206,6 +231,9 @@ class CfDrone:
             raise RuntimeError(f"{self.uri}: no radio link")
 
     def close(self):
+        tail = getattr(self, "_tail", None)
+        if tail is not None:
+            tail.join(timeout=3.0)              # let the zero-thrust tail finish first
         for lc in self.logs:
             try:
                 lc.stop()

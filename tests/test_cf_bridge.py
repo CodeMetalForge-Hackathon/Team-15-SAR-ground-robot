@@ -117,6 +117,11 @@ class BridgeTest(unittest.TestCase):
         self.wait_for(lambda: not self.cf.motors, 6, "motors still on after landing")
         self.assertFalse(self.cf.crashed)
         self.assertEqual([c[0] for c in self.cf.commands], ["takeoff", "go_to", "land", "stop"])
+        # older firmware locks if commands just stop: zero thrust for a while, then hand back
+        self.wait_for(lambda: self.cf.setpoints and self.cf.setpoints[-1] == ("notify",), 5, "no zero tail")
+        zeros = [p for p in self.cf.setpoints if p[0] == "setpoint"]
+        self.assertGreater(len(zeros), 20)
+        self.assertTrue(all(p[4] == 0 for p in zeros))
 
     def test_exception_inside_flight_still_lands(self):
         self.start()
