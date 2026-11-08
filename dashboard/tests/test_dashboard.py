@@ -173,7 +173,7 @@ def test_no_photos_tracked_in_git():
     files = subprocess.run(["git", "ls-files"], cwd=REPO, capture_output=True, text=True,
                            check=True).stdout.splitlines()
     photos = [f for f in files if Path(f).suffix.lower() in {".jpg", ".jpeg", ".png", ".heic", ".mp4", ".mov"}
-              and f not in VENDORED_ICONS]
+              and f not in VENDORED_ICONS | BRAND_ICONS | SOFTWARE_SCREENSHOTS]
     assert photos == []
 
 
@@ -181,3 +181,21 @@ def test_no_photos_tracked_in_git():
 # They are not photos. Listed by exact path: any other image anywhere still fails this test.
 VENDORED_ICONS = {f"team15_starter/fleet/web/leaflet/images/{n}" for n in
                   ("layers.png", "layers-2x.png", "marker-icon.png", "marker-icon-2x.png", "marker-shadow.png")}
+
+
+# Generated Rescue Signal branding contains no camera captures or people.
+# Keep exceptions exact so other photos and recordings remain prohibited.
+BRAND_ICONS = {
+    "ios/BeaconC1/BeaconC1/Assets.xcassets/AppIcon.appiconset/rescue-signal.png",
+    "ios/BeaconC1/BeaconC1/Assets.xcassets/RescueLogo.imageset/rescue-signal.png",
+    "mission_control/static/favicon.png",
+    "mission_control/static/apple-touch-icon.png",
+    "team15_starter/fleet/web/leaflet/rescue-favicon.png",
+}
+
+# Retained C3 screenshots show the simulated receiver dashboard, not camera photos.
+SOFTWARE_SCREENSHOTS = {
+    f"docs/ble-id/runs/c3-20261107T205707Z/browser/{name}"
+    for name in ("01_first_verified.png", "02_cycle_10s.png", "03_cycle_22s.png",
+                 "04_cycle_40s.png", "05_diagnostics.png")
+}

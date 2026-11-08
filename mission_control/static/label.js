@@ -1,0 +1,26 @@
+'use strict';
+(() => {
+  const $=id=>document.getElementById(id),canvas=$('label-canvas'),context=canvas.getContext('2d');
+  let token='',session=crypto.randomUUID(),image=null,jpeg='',boxes=[],drag=null,saving=false;
+  function message(text){$('label-message').textContent=text;}
+  async function request(path,body){const response=await fetch('/api/'+path,{method:body===undefined?'GET':'POST',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:body===undefined?undefined:JSON.stringify(body),cache:'no-store'});if(!response.ok){const error=await response.json();throw new Error(error.error||'Request failed');}return response;}
+  async function connect(value){token=value;try{await request('state');$('label-login-panel').hidden=true;$('label-token').value='';poll();}catch(error){message(error.message);}}
+  window.addEventListener('message',event=>{if(event.origin===location.origin&&event.source===parent&&event.data?.type==='workspace-auth'&&typeof event.data.token==='string')connect(event.data.token);});
+  if(parent!==window)parent.postMessage({type:'label-ready'},location.origin);
+  $('label-login').addEventListener('submit',event=>{event.preventDefault();connect($('label-token').value.trim());});
+  function paint(){context.clearRect(0,0,canvas.width,canvas.height);if(image)context.drawImage(image,0,0);for(const [i,box]of [...boxes,...(drag?[drag]:[])].entries()){const [x,y,w,h]=box.bbox;context.strokeStyle=box.label==='drone'?'#f0701e':'#4ade80';context.fillStyle=context.strokeStyle;context.lineWidth=3;context.strokeRect(x*canvas.width,y*canvas.height,w*canvas.width,h*canvas.height);context.font='16px system-ui';context.fillText((i+1)+' '+(box.label==='drone'?'CRAZYFLIE':'ROVERC'),x*canvas.width,Math.max(20,y*canvas.height-6));}$('label-save').disabled=!jpeg||!boxes.length||saving;$('label-background').disabled=!jpeg||!!boxes.length||saving;}
+  $('label-freeze').addEventListener('click',async()=>{try{if(!token)throw new Error('Connect first');const response=await request('camera/frame'),blob=await response.blob();const encoded=await new Promise(resolve=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result).split(',')[1]);reader.readAsDataURL(blob);});const next=new Image();next.src=URL.createObjectURL(blob);await next.decode();if(image)URL.revokeObjectURL(image.src);image=next;jpeg=encoded;boxes=[];drag=null;canvas.width=image.naturalWidth;canvas.height=image.naturalHeight;$('label-empty').hidden=true;paint();message('Drag a box around the '+$('label-class').selectedOptions[0].textContent+'.');}catch(error){message(error.message);}});
+  function position(event){const rect=canvas.getBoundingClientRect();return [Math.max(0,Math.min(1,(event.clientX-rect.left)/rect.width)),Math.max(0,Math.min(1,(event.clientY-rect.top)/rect.height))];}
+  let origin=null;
+  canvas.addEventListener('pointerdown',event=>{if(!image||saving)return;canvas.setPointerCapture(event.pointerId);origin=position(event);drag={label:$('label-class').value,bbox:[...origin,0,0]};paint();});
+  canvas.addEventListener('pointermove',event=>{if(!drag)return;const [x,y]=position(event);drag.bbox=[Math.min(origin[0],x),Math.min(origin[1],y),Math.abs(x-origin[0]),Math.abs(y-origin[1])];paint();});
+  function finish(){if(drag&&drag.bbox[2]>.002&&drag.bbox[3]>.002)boxes.push(drag);drag=null;origin=null;paint();}
+  canvas.addEventListener('pointerup',finish);canvas.addEventListener('pointercancel',()=>{drag=null;paint();});
+  $('label-undo').addEventListener('click',()=>{boxes.pop();paint();});
+  async function save(background=false){if(!jpeg||saving)return;saving=true;paint();try{await request('training/sample',{jpeg,boxes,session,background});jpeg='';boxes=[];paint();message('Saved locally. Change the angle or distance before the next frame.');await poll();}catch(error){message(error.message);}finally{saving=false;paint();}}
+  $('label-save').addEventListener('click',()=>save());$('label-background').addEventListener('click',()=>save(true));
+  $('label-session').addEventListener('click',()=>{session=crypto.randomUUID();jpeg='';boxes=[];paint();message('New capture session. Change the scene and freeze a fresh frame.');});
+  async function poll(){if(!token||document.hidden)return;try{const data=await (await request('training')).json();$('label-drone').textContent=data.counts.drone;$('label-rover').textContent=data.counts.rover;$('label-train').disabled=!data.ready||data.running;$('label-ready').textContent=data.ready?'Ready to train: '+data.ready_classes.map(name=>name==='drone'?'Crazyflie':'RoverC').join(' / '):'Need 20 labeled frames of a robot across at least two sessions.';$('label-job').textContent=data.job.status+(data.job.epoch?' · epoch '+data.job.epoch+'/'+data.job.epochs:'')+(data.job.error?' · '+data.job.error:'')+(data.job.metrics?' · '+Object.entries(data.job.metrics).map(([name,m])=>name+': '+Math.round(m.precision*100)+'% precision / '+Math.round(m.recall*100)+'% recall').join(' · '):'');}catch(error){message(error.message);}}
+  $('label-train').addEventListener('click',async()=>{try{await request('training/start',{});await poll();}catch(error){message(error.message);}});
+  window.addEventListener('pagehide',()=>{if(image)URL.revokeObjectURL(image.src);});setInterval(poll,1500);
+})();

@@ -1,0 +1,15 @@
+15:18:17  Acquired tunnel connection to device.
+15:18:17  Enabling developer disk image services.
+15:18:17  Acquired usage assertion.
+ERROR: Failed to install the app on the device. (com.apple.dt.CoreDeviceError error 3002 (0xBBA))
+       NSURL = file:///tmp/ble-c1-build/Build/Products/Debug-iphoneos/BeaconC1.app/
+       ----------------------------------------
+           Unable to Install “OLF C1” (IXUserPresentableErrorDomain error 14 (0x0E))
+           NSLocalizedFailureReason = This app cannot be installed because its integrity could not be verified.
+           NSLocalizedRecoverySuggestion = Failed to install embedded profile for com.culubo.olf.beaconc1 : 0xe8008012 (This provisioning profile cannot be installed on this device.)
+       ----------------------------------------
+               Failed to install embedded profile for com.culubo.olf.beaconc1 : 0xe8008012 (This provisioning profile cannot be installed on this device.) (MIInstallerErrorDomain error 13 (0x0D))
+               LibMISErrorNumber = -402620398
+               FunctionName = -[MIInstallableBundle _installEmbeddedProfilesWithError:]
+               LegacyErrorString = ApplicationVerificationFailed
+               SourceFileLine = 330

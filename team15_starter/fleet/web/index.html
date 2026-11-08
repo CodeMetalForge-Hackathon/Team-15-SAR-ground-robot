@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Team-15 · SAR Command</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect x='3' y='3' width='10' height='10' fill='none' stroke='%23f0701e' stroke-width='2.4'/%3E%3C/svg%3E">
+<link rel="icon" type="image/png" href="/leaflet/rescue-favicon.png">
 <link rel="stylesheet" href="/leaflet/leaflet.css">
 <style>
 :root, [data-theme="ops"] {
@@ -159,7 +159,7 @@ button { font: inherit; color: inherit; }
 .offline-note { position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%); z-index: 600; color: var(--faint); font-size: 11px; }
 @media (max-width: 1000px) { .main { grid-template-columns: 1fr; grid-template-rows: 60vh auto; } .side { overflow: visible; } }
 </style>
-</head>
+<script src="/embedded.js" defer></script></head>
 <body>
 <div class="app">
   <header class="top">
@@ -384,6 +384,7 @@ const mmss = (t) => { t = Math.max(0, Math.round(t)); return String(Math.floor(t
 // ------------------------------------------------------------ map setup
 function initMap() {
   map = L.map("map", { zoomControl: false, attributionControl: true, maxZoom: 26, zoomSnap: 0.25 });
+  new ResizeObserver(() => { map.invalidateSize(); if (areaRect) map.fitBounds(areaRect.getBounds(), {padding: [20, 20]}); }).observe(document.getElementById("map"));
   L.control.zoom({ position: "topright" }).addTo(map);
   const sat = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
     { maxNativeZoom: 19, maxZoom: 23, attribution: "Imagery © Esri, Maxar, Earthstar Geographics" });
@@ -448,7 +449,7 @@ function buildMission(s) {
   $("lg-wall").style.display = g.walls.length ? "" : "none";
   $("lg-lkp").style.display = sc ? "" : "none";
   $("lg-threat").style.display = sc ? "" : "none";
-  map.fitBounds(b, { paddingTopLeft: [40, 90], paddingBottomRight: [70, 50] });
+  map.fitBounds(b, { padding: [20, 20] });
   $("tl").innerHTML = "";
   $("reports").innerHTML = "";
   $("t-truth").checked = false;

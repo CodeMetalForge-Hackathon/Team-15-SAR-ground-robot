@@ -1,0 +1,69 @@
+{
+  "e2_discovery_1m": {
+    "status": "UNTESTED",
+    "target": ">=19/20 within 10.0 s"
+  },
+  "e3_distance_and_obstruction": {
+    "1m": {
+      "status": "UNTESTED",
+      "file": "e3_1m.tsv"
+    },
+    "3m": {
+      "status": "UNTESTED",
+      "file": "e3_3m.tsv"
+    },
+    "5m": {
+      "status": "UNTESTED",
+      "file": "e3_5m.tsv"
+    },
+    "obstruction": {
+      "status": "UNTESTED",
+      "file": "e3_obstruction.tsv"
+    }
+  },
+  "e4_lifecycle": {
+    "foreground": {
+      "status": "UNTESTED",
+      "file": "e4_foreground.tsv"
+    },
+    "background": {
+      "status": "UNTESTED",
+      "file": "e4_background.tsv"
+    },
+    "locked": {
+      "status": "UNTESTED",
+      "file": "e4_locked.tsv"
+    },
+    "force_quit": {
+      "status": "UNTESTED",
+      "file": "e4_force_quit.tsv"
+    }
+  },
+  "aging_and_recovery": {
+    "status": "PASSED",
+    "source": "SIMULATED",
+    "checks": {
+      "duplicate_does_not_reset_age": true,
+      "marks_stale_after_70s_and_keeps_card": true,
+      "receiver_loss_preserves_sighting": true,
+      "receiver_recovery_resumes_verification": true
+    },
+    "raw": {
+      "source": "SIMULATED",
+      "stale_after_s": 70,
+      "age_after_duplicates_s": 20.0,
+      "verified_tokens_after_duplicates": 1,
+      "duplicate_count_after_4_repeats": 4,
+      "stale_at_75s": true,
+      "age_at_75s": 75.0,
+      "sightings_at_75s": 1,
+      "loss_receiver_status": "disconnected",
+      "loss_beacon_status": "receiver_unavailable",
+      "loss_sightings": 1,
+      "recovered_beacon_status": "verifying",
+      "recovered_verified_tokens": 2,
+      "recovered_stale": false
+    }
+  },
+  "c4_hardware_complete": false
+}

@@ -1,0 +1,12 @@
+15:18:30  Acquired tunnel connection to device.
+15:18:30  Enabling developer disk image services.
+15:18:30  Acquired usage assertion.
+ERROR: The application failed to launch. (com.apple.dt.CoreDeviceError error 10002 (0x2712))
+       BundleIdentifier = com.culubo.olf.beaconc1
+       NSLocalizedRecoverySuggestion = Provide a valid bundle identifier.
+       NSLocalizedFailureReason = The requested application com.culubo.olf.beaconc1 is not installed.
+       ----------------------------------------
+           The operation couldn’t be completed. (OSStatus error -10814.) (NSOSStatusErrorDomain error -10814 (0xFFFFD5C2))
+           _LSLine = 1938
+           _LSFunction = runEvaluator
+           _LSFile = LSBindingEvaluator.mm

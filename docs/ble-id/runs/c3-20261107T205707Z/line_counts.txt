@@ -1,0 +1,11 @@
+  149 ble_id.py
+  104 ble_keys.py
+  118 ble_sim.py
+   52 discovery/beacons.py
+   99 discovery/static/beacons.js
+  100 tests/test_ble_keys.py
+  147 tests/test_ble_id_monitor.py
+  130 tests/test_ble_c3_integration.py
+   77 tools/c3/browser_proof.py
+   67 tools/c3/latency_probe.py
+ 1043 total

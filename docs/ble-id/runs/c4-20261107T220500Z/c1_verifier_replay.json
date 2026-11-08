@@ -1,0 +1,120 @@
+{
+  "A_stopped": {
+    "status": "MEASURED",
+    "file": "capture_A_stopped.tsv",
+    "duration_s": 30.004556,
+    "duration_ok": true,
+    "heartbeats": 29,
+    "scan_errors": 0,
+    "bad_tsv_lines": 0,
+    "protocol_rows": 0,
+    "verified_windows": 0,
+    "verified_counters": [],
+    "rssi_dbm": null,
+    "decision_counts": {
+      "drop:unsupported_version": 25
+    },
+    "halted": null,
+    "persisted_high_water": {}
+  },
+  "B_static": {
+    "status": "MEASURED",
+    "file": "capture_B_static.tsv",
+    "duration_s": 60.000782,
+    "duration_ok": true,
+    "heartbeats": 60,
+    "scan_errors": 0,
+    "bad_tsv_lines": 0,
+    "protocol_rows": 1665,
+    "verified_windows": 0,
+    "verified_counters": [],
+    "rssi_dbm": {
+      "count": 1665,
+      "min_dbm": -99,
+      "p10_dbm": -84,
+      "median_dbm": -80,
+      "p90_dbm": -78,
+      "max_dbm": -76
+    },
+    "decision_counts": {
+      "drop:unsupported_version": 1,
+      "ignored:receiver_not_ready": 20,
+      "replay:stale": 1645
+    },
+    "halted": null,
+    "persisted_high_water": {}
+  },
+  "C_rotating_retry": {
+    "status": "MEASURED",
+    "file": "capture_C_rotating.tsv",
+    "duration_s": 120.000709,
+    "duration_ok": true,
+    "heartbeats": 119,
+    "scan_errors": 0,
+    "bad_tsv_lines": 0,
+    "protocol_rows": 3273,
+    "verified_windows": 5,
+    "verified_counters": [
+      59802784,
+      59802785,
+      59802786,
+      59802787,
+      59802788
+    ],
+    "rssi_dbm": {
+      "count": 3273,
+      "min_dbm": -99,
+      "p10_dbm": -88,
+      "median_dbm": -86,
+      "p90_dbm": -83,
+      "max_dbm": -74
+    },
+    "decision_counts": {
+      "drop:unsupported_version": 178,
+      "ignored:receiver_not_ready": 28,
+      "replay:duplicate": 3240,
+      "verified:fresh": 5
+    },
+    "halted": null,
+    "persisted_high_water": {
+      "1": 59802788
+    }
+  },
+  "C_attempt1_failed": {
+    "status": "MEASURED",
+    "file": "attempt1_capture_C_rotating.tsv",
+    "duration_s": 120.004265,
+    "duration_ok": true,
+    "heartbeats": 119,
+    "scan_errors": 0,
+    "bad_tsv_lines": 0,
+    "protocol_rows": 3284,
+    "verified_windows": 5,
+    "verified_counters": [
+      59802778,
+      59802779,
+      59802780,
+      59802781,
+      59802782
+    ],
+    "rssi_dbm": {
+      "count": 3284,
+      "min_dbm": -99,
+      "p10_dbm": -87,
+      "median_dbm": -83,
+      "p90_dbm": -80,
+      "max_dbm": -78
+    },
+    "decision_counts": {
+      "drop:unsupported_version": 85,
+      "ignored:receiver_not_ready": 31,
+      "replay:duplicate": 3250,
+      "verified:fresh": 5
+    },
+    "halted": null,
+    "persisted_high_water": {
+      "1": 59802782
+    }
+  },
+  "provenance_note": "Real C1 hardware captures (iPhone 14 Pro iOS 26.0 -> passive ESP32-C5, pre-discovery heartbeat format) replayed through C2/C3 BeaconMonitor + ble_state."
+}

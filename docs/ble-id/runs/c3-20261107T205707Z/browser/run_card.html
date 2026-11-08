@@ -1,0 +1,31 @@
+<!doctype html><meta charset=utf-8><title>C3 run card</title>
+<style>body{background:#0c1215;color:#edf3ee;font:15px/1.5 -apple-system,Segoe UI,sans-serif;padding:40px 60px}
+h1{color:#b8ef93;margin:0 0 6px}pre{background:#121b20;border:1px solid #29373e;padding:14px;border-radius:8px;white-space:pre-wrap}
+.sim{background:#4a1d1d;color:#ffb4a8;border:1px solid #ff8a7a;padding:10px 14px;border-radius:6px;font-weight:700}</style>
+<p class=sim>SIMULATED · software proof only · not hardware</p>
+<h1>C3 software proof · run c3-20261107T205707Z</h1>
+<p>Source revision <b>f104439</b> on culubo/sensor-id-specs · clean (files verified byte-identical to the commit).
+This card shows the actual log of the test run below; it was not edited.</p>
+<pre>utc: 2026-11-07T21:11:33Z
+host: Claude cloud workspace (Linux x86_64), independent of the user&#x27;s Mac VM
+Python 3.13.18
+pytest 9.1.1
+files: byte-identical to commit f104439 (sha256 -c against the HEAD blobs: 22/22 OK)
+$ python3 -B -m pytest -v -p no:cacheprovider tests
+...
+============================= 186 passed in 8.78s ==============================
+exit=0</pre>
+<p>Next: the dashboard served by <code>python3 -m ble_sim serve</code> (private pseudo-terminal, simulator keys, separate state). Fixed schedule:</p>
+<pre>SIMULATED serial source for the BLE-ID dashboard. Never opens real hardware.
+
+    python3 -m ble_sim serve [--port 8766] [--state-dir NEW_EMPTY_DIR]
+
+Writes a fixed 40-second schedule into a private pseudo-terminal that the real
+reader (discovery.server.serial_worker) consumes, so the full serial -&gt; verifier
+-&gt; state -&gt; API -&gt; browser path runs. Simulator keys, a SIMULATED- scope and a
+fresh state file in its own directory keep it apart from any live mission; the
+API and page label everything SIMULATED. Schedule (seconds within each cycle):
+  0-9, 20-39  alias 1 every second (one verified per 30 s window, then duplicates)
+              and alias 2 every 3 s
+  3 stale replay · 4 forged · 5 unknown alias · 6 malformed rows · 7 future token
+  10-19       packet loss: no beacon rows at all (heartbeats continue)</pre>

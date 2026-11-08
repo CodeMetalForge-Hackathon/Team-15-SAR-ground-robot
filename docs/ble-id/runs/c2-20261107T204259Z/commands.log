@@ -1,0 +1,10 @@
+$ python -B -m pytest -v -p no:cacheprovider tests
+exit=0
+$ python -B -m pytest -q -p no:cacheprovider tests
+exit=0
+$ python -B -m pytest -q -p no:cacheprovider tests
+exit=0
+$ python -I -B tools/c2/mutation_check.py . /sessions/rcw-01mltomtfqcprbfmhevkrmxj/c2mut
+exit=0
+$ python -I -B tools/c2/e0_experiment.py . /sessions/rcw-01mltomtfqcprbfmhevkrmxj/mnt/Team-15/docs/ble-id/runs/c2-20261107T204259Z/e0 100
+exit=0

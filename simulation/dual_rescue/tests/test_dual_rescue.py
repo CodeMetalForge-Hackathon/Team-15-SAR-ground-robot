@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import ast
 import math
+import subprocess
 import sys
 from pathlib import Path
 
@@ -209,9 +210,18 @@ def test_simulation_never_imports_hardware_modules():
                 [node.module or ""] if isinstance(node, ast.ImportFrom) else []
             for n in names:
                 assert not any(n == h or n.startswith(h + ".") for h in HW), f"{f.name} imports {n}"
-    finished("A")
-    loaded = [m for m in sys.modules if any(m == h or m.startswith(h + ".") for h in HW)]
-    assert loaded == [] or all(not m.startswith(("serial", "RPi", "gpiozero", "lgpio", "smbus", "pigpio")) for m in loaded)
+    # Other test modules exercise serial drivers; check this mission in a fresh
+    # interpreter so their imports cannot contaminate the isolation assertion.
+    code = (
+        "import sys; from simulation.dual_rescue.mission import Mission; "
+        "m = Mission('A'); m.run_until(lambda m: m.done()); "
+        f"hw = {HW!r}; "
+        "loaded = [m for m in sys.modules if any(m == h or m.startswith(h + '.') for h in hw)]; "
+        "assert not loaded or all(not m.startswith(('serial', 'RPi', 'gpiozero', 'lgpio', 'smbus', 'pigpio')) for m in loaded), loaded"
+    )
+    subprocess.run([sys.executable, "-c", code], cwd=PKG.parents[1], check=True,
+                   capture_output=True, text=True, timeout=30)
+
 
 
 def test_rover_uses_simulated_driver_only():

@@ -5,7 +5,8 @@
 *.heic
 *.mp4
 *.mov
-evidence/
+evidence/*
+!evidence/c0-20261107T1914Z/
 __pycache__/
 .pytest_cache/
 .venv/
@@ -31,3 +32,37 @@ evidence_images/
 
 # dual-rescue benchmark output (regenerate with python3 -m simulation.dual_rescue.benchmark)
 benchmark_results/
+
+# BLE keys, replay state, and local build artifacts
+__pycache__/
+*.py[cod]
+.DS_Store
+
+# BLE-ID local secrets: production key files must never be committed
+keys.json
+*keys.json
+*.keys.json
+olf-keys*
+secrets/
+# BLE-ID local runtime state (replay state and owner lock files)
+*.json.lock
+*replay_state*.json
+olf-*-state.json
+firmware/roverc_usb/build/
+
+# Tracked UI assets and software-only dashboard evidence
+!docs/ble-id/runs/c3-20261107T205707Z/browser/01_first_verified.png
+!docs/ble-id/runs/c3-20261107T205707Z/browser/02_cycle_10s.png
+!docs/ble-id/runs/c3-20261107T205707Z/browser/03_cycle_22s.png
+!docs/ble-id/runs/c3-20261107T205707Z/browser/04_cycle_40s.png
+!docs/ble-id/runs/c3-20261107T205707Z/browser/05_diagnostics.png
+!ios/BeaconC1/BeaconC1/Assets.xcassets/AppIcon.appiconset/rescue-signal.png
+!ios/BeaconC1/BeaconC1/Assets.xcassets/RescueLogo.imageset/rescue-signal.png
+!mission_control/static/apple-touch-icon.png
+!mission_control/static/favicon.png
+!team15_starter/fleet/web/leaflet/images/layers-2x.png
+!team15_starter/fleet/web/leaflet/images/layers.png
+!team15_starter/fleet/web/leaflet/images/marker-icon-2x.png
+!team15_starter/fleet/web/leaflet/images/marker-icon.png
+!team15_starter/fleet/web/leaflet/images/marker-shadow.png
+!team15_starter/fleet/web/leaflet/rescue-favicon.png

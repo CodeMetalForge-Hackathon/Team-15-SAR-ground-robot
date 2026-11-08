@@ -1,0 +1,8 @@
+run: c2-20261107T204259Z
+utc: 2026-11-07T20:42:59Z
+tested_commit: ec19d1aef0b82bc5955babcf2d23f2d69884b517
+clean_clone_status: ''
+host: Claude desktop Linux VM on the user's Mac (Linux aarch64); not native macOS, not CI
+Python 3.10.12
+pluggy            1.7.0
+pytest            8.3.4

@@ -1,0 +1,10 @@
+15:19:42  Acquired tunnel connection to device.
+15:19:42  Enabling developer disk image services.
+15:19:42  Acquired usage assertion.
+App installed:
+• bundleID: com.culubo.olf.beaconc1
+• installationURL: file:///private/var/containers/Bundle/Application/<UUID-masked>/BeaconC1.app/
+• launchServicesIdentifier: unknown
+• databaseUUID: <UUID-masked>
+• databaseSequenceNumber: 7772
+• options:

@@ -1,0 +1,13 @@
+test_actual_serial_reader_with_fragmented_input (test_discovery.DiscoveryTests.test_actual_serial_reader_with_fragmented_input) ... ok
+test_ad_fields_and_no_uuid_required (test_discovery.DiscoveryTests.test_ad_fields_and_no_uuid_required) ... ok
+test_addresses_not_exposed_and_sessions_not_linkable (test_discovery.DiscoveryTests.test_addresses_not_exposed_and_sessions_not_linkable) ... ok
+test_aggregation_staleness_and_expiry (test_discovery.DiscoveryTests.test_aggregation_staleness_and_expiry) ... ok
+test_capacity_and_history_bounds (test_discovery.DiscoveryTests.test_capacity_and_history_bounds) ... ok
+test_heartbeat_required_and_legacy_receiver_rejected (test_discovery.DiscoveryTests.test_heartbeat_required_and_legacy_receiver_rejected) ... ok
+test_http_live_state_and_fixed_asset_paths (test_discovery.DiscoveryTests.test_http_live_state_and_fixed_asset_paths) ... ok
+test_malformed_data_never_becomes_a_signal (test_discovery.DiscoveryTests.test_malformed_data_never_becomes_a_signal) ... ok
+
+----------------------------------------------------------------------
+Ran 8 tests in 2.741s
+
+OK

@@ -1,0 +1,24 @@
+esptool v5.3.1
+Serial port /dev/cu.usbmodem2101:
+Connecting...
+Detecting chip type... ESP32-C5
+Connected to ESP32-C5 on /dev/cu.usbmodem2101:
+Chip type:          ESP32-C5 (revision v1.0)
+Features:           Wi-Fi 6 (dual-band), BT 5 (LE), IEEE802.15.4, Single Core + LP Core, 240MHz
+Crystal frequency:  48MHz
+USB mode:           USB-Serial/JTAG
+MAC:                <MAC masked>
+BASE MAC:           <MAC masked>
+MAC_EXT:            ff:fe
+
+Uploading stub flasher...
+Running stub flasher...
+Stub flasher running.
+
+Flash Memory Information:
+=========================
+Manufacturer: 85
+Device: 2017
+Detected flash size: 8MB
+
+Hard resetting via RTS pin...
