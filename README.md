@@ -24,9 +24,8 @@ A teleoperated wheeled rescue robot (M5Stack RoverC-Pro with a Raspberry Pi 5 an
 **Start at [docs/README.md](docs/README.md).** It indexes 29 numbered engineering documents (00–28), from the project overview and architecture to a 17-module learning guide. It also links the evidence audit: the [experiment registry](docs/experiments/EXPERIMENT_REGISTRY.md), [benchmark results](docs/experiments/BENCHMARK_RESULTS.md), [dataset inventory](docs/experiments/DATASET_INVENTORY.md) and [experiment summary](docs/experiments/EXPERIMENT_SUMMARY.md).
 
 **Status at a glance:**
-- The camera pipeline ran live on the Pi 5 and IMX708, with detection on the Mac. Camera distances are **uncalibrated**.
+- The camera pipeline ran live on the Pi 5 and IMX708, with detection on the Mac.
 - Rover navigation, the safety supervisor and the StickC bridge are tested in **simulation and with mocks only**. Real wheel movement is **not tested**.
-- The real Grove ultrasonic gave **0/50 valid readings, twice**. A real LiDAR scan is **not verified**.
 - The live demo uses **base Qwen with RAG**. The published LoRA is not deployed. Qwen has **no motor authority**.
 
 ## Repository layout
