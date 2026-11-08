@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>T15 · Control</title><link rel="stylesheet" href="/style.css"><script src="/app.js" defer></script><script src="/media.js" defer></script></head>
+<body>
+<header class="topbar"><strong class="brand">T<span>15</span></strong><span id="connection" class="connection">Offline</span><span id="mode" class="tag">LOCAL</span><span class="top-spacer"></span><button id="focus-toggle" class="quiet" aria-pressed="false">Hide panels</button><button id="fullscreen" class="quiet">Fullscreen</button><button id="pause" disabled>Pause</button><button id="stop" disabled class="danger">Stop + land</button></header>
+<main id="workspace">
+  <section class="camera-stage" aria-label="Rover camera">
+    <img id="camera-frame" alt="Live rover Pi camera" hidden>
+    <video id="playback" controls playsinline hidden></video>
+    <div id="camera-empty"><svg viewBox="0 0 64 48" width="48" height="36" aria-hidden="true"><rect x="3" y="9" width="42" height="32" rx="6"/><path d="m45 20 15-8v30l-15-8M15 9l4-6h13l4 6"/><circle cx="24" cy="25" r="9"/></svg><span id="camera-status">Pi camera offline</span></div>
+    <div class="camera-label"><span id="camera-indicator" class="dot"></span><span id="camera-source">ROVER / PI CAMERA</span><span id="recording-indicator" hidden>● REC</span></div>
+    <div id="detections" class="detections"></div>
+    <div class="camera-tools"><button id="live-view" hidden>Back to live</button><button id="camera-record" disabled>Record camera</button><button id="open-video">Open video</button><input id="video-file" type="file" accept="video/*" hidden></div>
+  </section>
+  <aside class="rail left-rail" aria-label="Robot controls">
+    <section id="login" class="panel"><form id="login-form"><label for="token">Operator token</label><input id="token" type="password" autocomplete="off" placeholder="Token" required><button class="primary full" type="submit">Connect</button></form></section>
+    <section class="panel"><div class="section-head"><h1 id="mission-state">Disconnected</h1><span id="ownership" class="muted">—</span></div><div class="two-buttons"><button id="claim" disabled>Take control</button><button id="resume" disabled class="primary">Resume</button></div></section>
+    <section class="panel"><div class="section-head"><h2>Devices</h2><span class="muted">3</span></div><div id="nodes" class="nodes"><p class="empty">Not connected</p></div></section>
+    <section class="panel"><details open><summary>Manual control</summary><form id="action-form"><div class="form-grid"><label>Device<select id="device"><option value="rover">RoverC</option><option value="crazyflie">Crazyflie</option></select></label><label>Action<select id="action"><option value="pulse">Pulse · 250 ms</option></select></label></div><div id="rover-fields" class="form-grid"><label>Direction<select id="direction"><option value="w">Forward</option><option value="s">Backward</option><option value="a">Left</option><option value="d">Right</option><option value="z">Rotate left</option><option value="c">Rotate right</option></select></label><label>Power<input id="power" type="number" min="5" max="50" step="1" value="20" required></label></div><div id="flight-fields" hidden><div class="coordinates"><label id="x-label">X · m<input id="x" type="number" min="-1.5" max="1.5" step="0.05" value="0"></label><label id="y-label">Y · m<input id="y" type="number" min="-1.5" max="1.5" step="0.05" value="0"></label><label>Height · m<input id="z" type="number" min="0.2" max="1.2" step="0.05" value="0.5"></label></div></div><button id="propose" class="primary full" disabled>Request action</button></form></details></section>
+    <section class="panel"><div class="section-head"><h2>Approvals</h2></div><div id="commands"><p class="empty">No pending actions</p></div></section>
+    <section class="panel activity-panel"><details><summary>Activity</summary><ol id="events" class="events"></ol></details></section>
+  </aside>
+  <aside class="rail right-rail" aria-label="Bluetooth and recordings">
+    <section class="panel bluetooth-panel"><div class="section-head"><h2>Bluetooth</h2><span id="bluetooth-status" class="muted">Offline</span></div><div class="ble-stats"><span><strong id="ble-count">—</strong> signals</span><span><strong id="ble-packets">—</strong> packets</span><button id="ble-record" disabled>Record</button></div><div id="beacons"></div><div class="section-head signal-heading"><span class="muted">Nearby · unverified</span><span id="ble-source" class="muted"></span></div><div id="signals"><p class="empty">Receiver offline</p></div></section>
+    <section class="panel recordings-panel"><div class="section-head"><h2>Recordings</h2><label class="file-button" for="ble-file">Open BLE</label><input id="ble-file" type="file" accept="application/json,.json" hidden></div><div id="recordings"><p class="empty">No recordings</p></div><div id="ble-playback" hidden><div class="section-head"><h3 id="ble-playback-name">Bluetooth recording</h3><button id="close-ble-playback" class="quiet">Close</button></div><label class="sr-only" for="ble-timeline">Bluetooth recording sample</label><input id="ble-timeline" type="range" min="0" max="0" value="0"><p id="ble-playback-time" class="muted"></p><div id="ble-playback-signals"></div></div></section>
+  </aside>
+  <p id="notice" class="toast" role="status" aria-live="polite" hidden></p>
+</main>
+</body></html>

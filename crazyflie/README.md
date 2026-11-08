@@ -177,8 +177,9 @@ still depends on the backend's exception-safe context manager. Backend calls tha
 stall can delay key handling. The terminal settings are restored on exit.
 
 Manual mode is a separate flight session; it does not switch into autonomous
-search or operate the rover. It needs no BLE scanner. Rover WASD requires its
-motor-control API, which is not present in this repository. Keyboard control has
+search or operate the rover. It needs no BLE scanner. For standalone RoverC Pro WASD over USB with the CPlus SE, see
+[`../rover/README.md`](../rover/README.md). Rover driving is not integrated into
+the autonomous mission. Keyboard control has
 been tested in simulation only.
 
 ```sh

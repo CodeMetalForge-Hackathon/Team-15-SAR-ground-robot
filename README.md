@@ -1,5 +1,17 @@
 # Team-15 Authenticated BLE Sensor Module (`ble-id` & `discovery`)
 
+## Local robot network and operator interface
+
+Run `python3 -m mission_control.demo` from this repository to try the local
+Human-in-the-Loop dashboard with three simulated agents. Open
+<http://127.0.0.1:8080> and use the temporary operator token printed in the terminal.
+The coordinator, per-action approvals, device heartbeats, RoverC Wi-Fi adapter,
+Crazyflie backend adapter, Jetson telemetry publisher, and Pi deployment steps
+are documented in [mission_control/README.md](mission_control/README.md).
+No cloud hosting or internet connection is needed. Hardware operation requires
+explicit live agents; the external Crazyflie backend and airborne scanner link
+remain separate integration requirements.
+
 Offline search-and-rescue BLE beacon authentication and passive discovery module for Code Metal Forge 2026 (`culubo/sensor-id-specs`).
 
 A foreground iPhone app (`ios/BeaconC1`, installed as **OLF C1**) broadcasts one rotating 128-bit service UUID every 30 seconds containing protocol version `0x01`, a 1-byte enrollment alias (`1..255`), a 32-bit big-endian UTC window counter (`floor(unix_seconds / 30)`), and an 80-bit truncated `HMAC-SHA256` tag over `"OLF/BLE-ID/v1" || header`. A passive ESP32-C5 scanner (`firmware/esp32_scanner/esp32_scanner.ino`) forwards advertisements over USB serial (`115200` baud) to a single host serial reader (`discovery/server.py`) that feeds both unverified passive discovery and the authenticated verifier (`ble_id.py` → `ble_verify.py` → `ble_state.py`).
@@ -133,3 +145,197 @@ python3 -m discovery.server --serial /dev/cu.usbmodem2101
 - **RSSI is not distance or location:** Displayed RSSI (in dBm) is a noisy received signal strength hint affected by multipath, body absorption, and orientation. Never treat RSSI or a receiver's cell label as survivor coordinates or range.
 - **Receive-only passivity is configuration-verified only:** `esp32_scanner.ino` configures `setActiveScan(false)`, never advertises or connects, and never initializes Wi-Fi, but no independent RF spectrum/sniffer capture has been performed.
 - **State rollback:** Rollback of the host's replay-state file on disk is outside prototype protection.
+
+## Crazyflie Drone + Rover Demo
+
+The `crazyflie/` scripts provide a Bluetooth-guided search demo and separate manual
+keyboard control for the Crazyflie 2.1+. Both default to simulation. Full setup and
+implementation details are in [`crazyflie/README.md`](crazyflie/README.md).
+
+### Quick Start: No Hardware
+
+Run from the repository root with Python 3.10+; dry-runs use only the standard library:
+
+```sh
+# Bluetooth-guided search with simulated signal readings:
+python3 crazyflie/demo_mission.py --dry-run
+
+# Other visual outcomes: safe, hidden, phone-only, empty
+python3 crazyflie/demo_mission.py --dry-run --scenario safe
+
+# Two search rounds with shorter sampling windows:
+python3 crazyflie/demo_mission.py --dry-run --search-rounds 2 --sample-seconds 3
+
+# Interactive WASD control in a terminal:
+python3 crazyflie/keyboard_control.py --dry-run
+```
+
+Search simulation advances virtual time immediately; keyboard simulation runs at
+real keyboard speed. Use `python` or `py` instead of `python3` where appropriate.
+
+### Keyboard Controls and Speed
+
+| Key | Action |
+| --- | --- |
+| T | Take off |
+| W / S | Forward / backward |
+| A / D | Left / right |
+| R / F | Raise / lower altitude |
+| H | Return above the takeoff point at current altitude |
+| + or = | Increase movement speed by 0.05 m/s |
+| - | Decrease movement speed by 0.05 m/s |
+| Space, L, Q, Ctrl+C | Request landing and exit |
+
+Each accepted movement key sends a 10 cm step. Set a different step with
+`--step-m` (0.025–0.2 m). Speed starts at 0.20 m/s and is adjustable within
+0.05–0.30 m/s; set the initial value with `--speed-m-s 0.15`. Speed changes apply
+to the next move and preserve step distance. The terminal displays the selected
+speed. This controls waypoint duration; actual instantaneous speed depends on the
+flight controller, and short moves have a minimum 0.2-second duration.
+
+Keep the terminal focused. Movement keys entered during a move are discarded,
+while speed and landing keys remain active. Manual control is a separate flight
+session and does not operate the rover or switch into autonomous search.
+
+### Bluetooth Search Behavior
+
+The drone samples the origin and four nearby points, collecting five seconds of
+RSSI per point. It compares median signal strength, then revisits the baseline and
+strongest point to check that the improvement repeats. Both comparisons must
+improve by at least 3 dB; this is a configurable demo heuristic, not a confidence
+guarantee. A second round halves the search step.
+
+The default search step is 0.6 m. The existing discovery API is polled up to four
+times per second, yielding up to about 20 samples per five-second window; the
+minimum is eight fresh samples. Unchanged packet counts and readings older than
+0.5 seconds are excluded. Inconclusive readings, missing data, or flight safety
+failures cause return/landing without rover dispatch. A confirmed candidate can
+be retained if a later round gives no clearer direction.
+
+RSSI provides rough hot/cold guidance, not precise distance or survivor coordinates.
+The candidate sent to the rover is the strongest confirmed sample position.
+Camera inspection and operator observations determine the visual outcome.
+`--target-inches` sets only the simulated beacon's hidden location, not a live
+waypoint. Phone identity, human presence, injury and a cleared search area cannot
+be established from RSSI alone.
+
+### Hardware Setup and Live Use
+
+Before connecting, confirm the Crazyradio, actual radio URI, positioning deck,
+other decks, flight area and battery condition. A working position estimate is
+required for these position-command scripts. The guide's default radio URI is
+`radio://0/80/2M/E7E7E7E7E7`; confirm it in cfclient.
+
+For Windows radio setup, the supplied team guide specifies:
+
+```sh
+py -m pip install cflib cfclient numpy matplotlib
+```
+
+Install the Crazyradio libusb driver through Zadig as described in Bitcraze's
+Windows setup instructions, then use cfclient to scan and check the connection.
+Dry-runs do not require these packages or a Crazyradio.
+
+**Live flight additionally requires the team's
+`sar_sim.backends.crazyflie_backend.CrazyflieLink`, which is absent from this
+checkout.** Obtain that project, add its root to `PYTHONPATH`, and install its
+requirements. The backend must provide battery/position telemetry, takeoff and
+position commands, waits, and a context manager that lands and disconnects on
+normal exit and exceptions. Confirm that behavior before flying.
+
+```sh
+# Manual live drone control; no BLE scanner required:
+python3 crazyflie/keyboard_control.py --live-drone --height-m 0.5
+
+# For Bluetooth-guided flight, first start the existing receiver dashboard:
+python3 -m discovery.server --serial /dev/cu.usbmodem2101
+
+# In another terminal, after choosing the demo beacon's exact session ID:
+python3 crazyflie/demo_mission.py --live-drone --height-m 0.5 \
+  --signal-id REPLACE_WITH_EXACT_ID --scanner-on-drone \
+  --discovery-url http://127.0.0.1:8765
+```
+
+For live Bluetooth search, the **scanner must move with the drone**, with power
+and a working path for its readings to reach the host. The current scanner uses
+USB serial; these scripts do not add a wireless telemetry link. A stationary
+scanner beside the Jetson cannot measure the drone's changing proximity.
+
+Find the target's `id` in `http://127.0.0.1:8765/api/discovery`; use a controlled
+beacon on/off check to select it. This is an unverified session identifier and may
+change after server restart or entry expiry. The search never switches to another
+device simply because its signal is stronger. This proximity input is separate
+from the authenticated beacon panel and does not alter replay protection.
+
+Jetson boot, rover motors, camera/CV, colored condition indicators, and phone
+check-in remain operator steps. No phone messages are sent. Standalone rover WASD over USB is available, with receiver firmware installed on the CPlus SE; see
+[`rover/README.md`](rover/README.md) for receiver firmware and setup. It is not
+integrated into the autonomous mission. **Physical flight and live RSSI search remain untested.**
+
+### Coordinates and Flight Limits
+
+Coordinates sent to the drone use meters, seconds and radians. Its boot/takeoff
+point is the origin: +x follows its initial forward heading, +y points left and +z
+up. Place it at the same marked origin and heading before each session.
+
+For rover handoff, both vehicles share that heading and the rover starts at (0,0).
+The assumed drone placement is eight inches to its right; set the measured offset
+with `--drone-right-inches`. The event `rover_move.target_xy_inches` reports the
+candidate in the rover frame. The drone lands at its original takeoff point.
+
+Keep the default ±1.5 m XY flight envelope. Live altitude must be 0.2–1.2 m;
+`--height-m 0.5` is a valid starting setting. The screenshot's five-inch altitude
+is retained only in search simulation because it is below that live envelope.
+
+Run a dry-run first and inspect commands. Follow the team guide's first-flight
+procedure with Gavin present, an open area and nobody within 1.5 m. Battery below
+3.3 V or unavailable telemetry requests landing. Manual mode requests landing at
+120 airborne seconds; autonomous search uses a 120-second search budget and a
+140-second landing request cutoff. Landing timing and lost-radio handling depend
+on the backend; a stalled backend can also delay keyboard handling.
+
+### Checks
+
+```sh
+python3 -m unittest tests.test_demo_mission tests.test_rssi_search tests.test_keyboard_control -v
+```
+
+These tests cover search decisions, stale/duplicate readings, missing feeds,
+coordinate conversion, keyboard movement, speed changes and bounds, flight timing,
+battery handling and landing on errors. Hardware validation remains separate.
+
+## RoverC Pro Wireless and USB Controls
+
+The CPlus SE receiver supports both a rover-hosted Wi-Fi network and a shared
+2.4 GHz network. The M5 screen shows its network name, pairing key and IP addresses.
+Passwords and pairing keys are excluded from this README and repository.
+
+**Router-free demo:** join the M5's displayed Wi-Fi network, then run:
+
+```sh
+python3 rover/keyboard_control.py --wifi 192.168.4.1
+```
+
+**Shared-network demo:** with USB connected and the keyboard client closed, run:
+
+```sh
+~/.codex/venvs/roverc/bin/python rover/wifi_setup.py \
+  --serial /dev/cu.usbserial-7D520E63EE --join
+```
+
+Enter network credentials through its prompts. The setup command saves them on the
+M5 and prints its assigned LAN IP. Drive using that IP:
+
+```sh
+python3 rover/keyboard_control.py --wifi REPLACE_WITH_ROVER_LAN_IP
+```
+
+WASD moves, Z/C rotates, +/− changes motor power, I queries status, X stops, and
+Space/Q stops and exits. Wi-Fi requires pairing; setup keeps the pairing profile
+privately outside the repository. USB driving remains available as a fallback.
+With charged controller/base batteries and both powered on, the rover can be driven
+without the USB cable. It requests stop after 250 ms without movement commands.
+
+See [`rover/README.md`](rover/README.md) for connection steps, network requirements,
+USB fallback, firmware build instructions and validation limits. Wireless range and
+unplugged operation still require a physical check in the demo space.

@@ -12,3 +12,4 @@ secrets/
 *.json.lock
 *replay_state*.json
 olf-*-state.json
+firmware/roverc_usb/build/
