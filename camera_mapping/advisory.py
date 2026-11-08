@@ -26,7 +26,7 @@ RECON_ACTIONS = {
     "BLOCKED": "Hold position. Operator review of the obstacle; observe an alternate side before any motion.",
     "CAUTION": "Hold position. Re-observe the corridor edge; the obstacle is within estimate uncertainty.",
     "UNKNOWN": "Hold position. Gather more observation (rotate the camera view or wait for confirmed tracks).",
-    "CLEAR": "No detected obstacle in the observed corridor. Any motion still needs the rover's SafetySupervisor and range gate.",
+    "CLEAR": "No detected obstacle in the observed corridor. Any motion still needs the rover's safety supervisor and range gate.",
 }
 
 

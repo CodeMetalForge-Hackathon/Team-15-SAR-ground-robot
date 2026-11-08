@@ -1,6 +1,6 @@
 """Deterministic forward-corridor assessment and advisory route suggestion.
 
-Status (advisory only; the rover's SafetySupervisor and Grove gate decide motion):
+Status (advisory only; the rover's safety supervisor and Grove gate decide motion):
   BLOCKED  a confirmed obstacle with an ESTIMATED range overlaps the corridor
            within the lookahead, or its 2-sigma near edge is inside the stop
            distance, or a detection cut by the bottom frame edge (so nearer
