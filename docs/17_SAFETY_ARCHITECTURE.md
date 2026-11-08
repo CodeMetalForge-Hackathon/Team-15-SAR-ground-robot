@@ -50,7 +50,7 @@ Threats considered: software bugs, sensor failure modes, link failure, human err
 3. **One choke point.** Every motor command goes through `SafetySupervisor.command`, the only route to a driver's `apply`.
 4. **Latch, don't auto-recover.** Safety stops latch, revoke approval, and need a named operator to reset. The robot never restarts by itself when a fault clears.
 5. **Independent layers on independent clocks.** The Pi's supervisor and the StickC firmware each stop the motors without the other.
-6. **Advisory components have no authority.** Camera, LiDAR panels and Qwen produce display data. A static test proves they cannot import the motor path.
+6. **Advisory components have no authority.** Camera, LiDAR panels and Qwen produce display data. A static test proves that no module in this repository outside the allow-list imports the motor path. It is a substring scan of this repo only. The Qwen service itself lives in the private workspace, runs on the Mac, and has no route to the Pi motor path.
 7. **Hardware is locked until measured.** A gate object stays incomplete until a named person fills it in from a real measurement. Code refuses to drive hardware while any field is missing.
 8. **Honest labels.** Every status carries provenance (SIMULATED, SYNTHETIC, UNKNOWN), and claims flags are hard-coded false where nothing has been verified.
 
@@ -237,7 +237,7 @@ Advisory components may **inform** a human or a deterministic policy. They may *
 - `qwen_advisory.client.lidar_advisory` always returns a displayable advisory with `authority` "NONE". On timeout (8 s by default), any exception, an invalid schema or a critical guard finding, it falls back to the deterministic `reference_policy`.
 - The motion vocabulary is limited to `MOTION_REC`: `REQUEST_DETERMINISTIC_STOP`, `DO_NOT_REQUEST_MOTION`, and `OPERATOR_MAY_CONSIDER_BOUNDED_MOVE` ("operator still decides"). There is no "drive" action.
 - `qwen_advisory.lidar.guard` rejects outputs that state person distances or recommend over-permissive motion. `is_unsafe_request` flags questions asking it to drive, turn and so on.
-- The static allow-list test above proves no Qwen module imports the motor path.
+- The static allow-list test above covers the Qwen glue in this repository (`qwen_advisory/`, `camera_mapping/advisory.py`, `camera_mapping/qwen_launcher.py`). It does not scan the Qwen service, which lives in the private workspace and runs on the Mac with no route to the Pi motor path.
 - The live demo uses base Qwen + RAG rather than the LoRA adapter ([08](08_QWEN_MODEL.md)). That changes advisory quality, not authority: in either case Qwen has no motor authority.
 
 ## 9. Sensor UNKNOWN policies

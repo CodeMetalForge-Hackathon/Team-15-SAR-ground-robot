@@ -65,16 +65,16 @@ flowchart LR
   LIVE -- "POST /advisory" --> QL
   QL --> OLL
   RNG -. "ssh -L 18765 then --range-url" .-> DASH
-  RNG -- "team15.rover_range_fields/1" --> NAV
+  RNG -. "team15.rover_range_fields/1 (sim/tests only)" .-> NAV
   LID -. "team15.rover_range_fields/1 (rover rejects today)" .-> NAV
-  NAV --> BRG
+  NAV -. "mocked only" .-> BRG
   BRG -. "USB serial 115200, CRC-8 frames" .-> FW
   FW -. "I2C" .-> MCU
   DASH -- "HTTP :8000" --> BROWSER
   LR -- "HTTP :8775" --> BROWSER
 ```
 
-Solid arrows have run on real hardware or real processes (see the status column below). Dotted arrows exist in code and tests only.
+Solid arrows have run on real hardware or as real processes (see the status column below). Dotted arrows exist in code, simulation or mocked tests only. The navigator has only ever run in simulation, and the bridge transport only against a mock.
 
 ### 3.2 Process table
 
@@ -367,7 +367,7 @@ A camera estimate therefore cannot be displayed as a physical measurement, even 
 - **No localisation.** The planner graph is synthetic, and the camera map is robot-relative with no pose. The map is cleared, never shifted, when the robot moves.
 - **A single camera producer**, held in memory. A dashboard restart loses all state; sightings survive in the camera's `sightings.jsonl`.
 - **The rover status API is not wired into the dashboard**, and there is no robot-side HTTP service in this repo.
-- **Two parallel perception paths** (`perception/` bench sightings and `camera_mapping/`) share weights but not code paths. They should converge.
+- **Two parallel perception paths** (`perception/` bench sightings and `camera_mapping/`) share the camera sources (`open_camera`, `open_pi_camera`) and the model registry (`DNN_MODELS`), but have separate detection and gating pipelines. They should converge.
 - **The motor path has never run on hardware.** See [12](12_ROVERC_MOTOR_CONTROL.md) and [13](13_M5STICKC_BRIDGE.md).
 
 ## 12. How to extend

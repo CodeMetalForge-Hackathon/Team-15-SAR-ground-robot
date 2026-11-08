@@ -101,7 +101,7 @@ Mac: Apple M4 Pro, MPS. Each run is its own row. "Capture→Mac" is the delay fr
 | CAM-28 | 07:59 | Pi live, lying | — | — | — | capture→dashboard 593 ms | REAL HARDWARE |
 | CAM-29 | 08:07 | Pi live, lying side view | — | — | — | capture→dashboard 508 ms | REAL HARDWARE |
 | MAP-01 | 11:22, pre-commit `camera_mapping` | Pi live → detector → mapping | 4.68 | 186.5 / P90 203.9 / max 447.1 ms; mapping 1.9 ms | median 274.4 ms, P90 347.7 ms | median 479.8 / P90 563.3 / max 804.4 ms | REAL HARDWARE |
-| MAP-06 | 11:52, `c7ed6c5` | Pi live via `camera_demo.sh` (GPU shared with a stray runner) | 3.76 (max gap 0.80 s) | 245.9 ms | — | — | REAL HARDWARE |
+| MAP-06 | 11:52, `c7ed6c5` | Pi live via `camera_demo.sh` (GPU shared with a stray runner) | 3.76 (max gap 0.80 s) | median 245.9 / P90 332.3 / max 680.2 ms (inflated by the stray runner) | median 269.4 ms, P90 373.0 ms | capture→state posted: median 542.2 / P90 670.3 / max 1,004.9 ms | REAL HARDWARE |
 | MAP-02 | 11:19 | replay of bench frames | — | 178.2 ms; mapping 3.1 ms | — | — | RECORDED HARDWARE |
 | MAP-04 | 11:41, full stack on one Mac | replay + depth + Qwen + dashboard | — | 188.4 / 239.7 / 509.3 ms; depth 124.6 / 147.4 / 180 ms | — | Qwen 5.18–5.67 s per advisory | RECORDED HARDWARE |
 

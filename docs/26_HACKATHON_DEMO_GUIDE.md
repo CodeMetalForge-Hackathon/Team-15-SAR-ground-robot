@@ -29,7 +29,7 @@ Judges score mission relevance, a working live demonstration, and deployability 
 
 The script prints `calibration=UNCALIBRATED mount_measured=False`. At `d1b607a` that is expected, and it changes what the judges will see (§3).
 
-Optional and honest: if a teammate can **measure** the lens height above the floor and the camera pitch before the demo, record it with `python3 -m camera_mapping.calibrate set-mount --height-m <h> --pitch-deg <p> --by <name>`. That enables the ground-plane method and FREE cells. Distances stay `UNCALIBRATED_ESTIMATE` until the tape procedure in [CALIBRATION](camera_mapping/CALIBRATION.md) passes. Never enter guessed values.
+Optional and honest: if a teammate can **measure** the lens height above the floor and the camera pitch before the demo, record it with `python3 -m camera_mapping.calibrate set-mount --height-m <h> --pitch-deg <p> --by <name>`. That enables the ground-plane method and FREE cells. **This writes `mount.measured=true` into the Git-tracked `camera_mapping/configs/imx708_robot.json`.** Pass `--config` with a copy outside Git, or never commit that change: a committed `measured=true` would enable FREE cells, CLEAR verdicts and routes for every later run. Distances stay `UNCALIBRATED_ESTIMATE` until the tape procedure in [CALIBRATION](camera_mapping/CALIBRATION.md) passes. Never enter guessed values.
 
 ## 3. What the demo really shows at `d1b607a`
 
@@ -66,7 +66,7 @@ The LIVE-HW run is the one in [EVALUATION §3b](camera_mapping/EVALUATION.md): 2
 
 **Show:** Panel A shows a green `person 0.9x` box. Panel C shows "Potential person detected · UNCONFIRMED".
 
-**Say:** "This is COCO Faster R-CNN running on the Mac's GPU at about 4–5 frames a second. On the live Pi stream we measured a 186 ms median detector time and about 480 ms from capture to dashboard. A detection is a *candidate*. Only an operator can confirm it."
+**Say:** "This is COCO Faster R-CNN running on the Mac's GPU at about 4–5 frames a second. On the live Pi stream we measured a median detector time of about 190–250 ms and roughly half a second from capture to dashboard (MAP-01 and MAP-06). A detection is a *candidate*. Only an operator can confirm it."
 
 If the person is close, the distance reads **UNKNOWN** (`NO_METHOD_APPLICABLE`) because the box is cut by the frame edge. Point that out; it is the honest output.
 
@@ -90,11 +90,11 @@ If the person is close, the distance reads **UNKNOWN** (`NO_METHOD_APPLICABLE`) 
 
 **Show:** the "Qwen (guarded, RAG)" box in Panel C. It summarises the scene, flags the person for operator review, names the next observation, and cites knowledge-base chunks such as `team-ugv-guide#false-positives-at-ground-level-0`.
 
-**Say:** "This is Qwen3.5-2B running locally through Ollama, with retrieval over our rescue knowledge base and behind a guard. It takes about 4–6 seconds per advisory, asynchronously. It explains; it has no authority. Anything motor-like is discarded. We also trained a LoRA adapter. It scored 218 of 230 on our synthetic mission benchmark and is public on Hugging Face, but this demo runs the **base** model, because our serving path can't load the adapter yet."
+**Say:** "This is Qwen3.5-2B running locally through Ollama, with retrieval over our rescue knowledge base and behind a guard. It takes about 4–6 seconds per advisory, asynchronously. It explains; it has no authority. Text matching motor-command patterns is discarded, and nothing Qwen outputs can reach the motor path. We also trained a LoRA adapter. It scored 218 of 230 on our synthetic mission benchmark and is public on Hugging Face, but this demo runs the **base** model, because our serving path can't load the adapter yet."
 
 ### 3:30 Step 5: failure behaviour (30 s)
 
-**Do:** stop the camera runner. Easiest: unplug the Pi's network, or `pkill -f "camera_mapping.live"` from another terminal. Ctrl-C on the script would stop everything.
+**Do:** stop the camera runner. Easiest: unplug the Pi's network, or `pkill -f "camera_mapping.live"` from another terminal. Stopping the whole script is covered in §8.
 
 **Show:** Panel D goes **STALE**, the map empties to UNKNOWN, and the status becomes UNKNOWN within about 2 s. The script restarts the runner in about 10 s (up to 5 times).
 
@@ -120,7 +120,7 @@ If the person is close, the distance reads **UNKNOWN** (`NO_METHOD_APPLICABLE`) 
 | Ollama or Qwen down | `scripts/camera_demo.sh --no-qwen`, or let it degrade (the script warns, and Panel C shows the deterministic summary) | "The deterministic summary is always there; Qwen only adds explanation." |
 | Mac detector too slow | stop other GPU work; drop `--depth` | — |
 | Dashboard port taken | `PORT=8001 scripts/camera_demo.sh` | — |
-| Camera mapping broken | bench sightings path: `python3 -B -m perception.live_camera --source pi --sector G --duration-s 600 \| python3 -B -m core.camera_bridge`, plus `python3 -B -m dashboard.serve`; or use the Mac camera without `--source pi` | "This is the original person-sighting pipeline with operator confirm/reject and route A→G." |
+| Camera mapping broken | bench sightings path: `python3 -B -m perception.live_camera --source pi --pi-host "$PI_HOST" --sector G --duration-s 600 \| python3 -B -m core.camera_bridge`, plus `python3 -B -m dashboard.serve`; or use the Mac camera without `--source pi` | "This is the original person-sighting pipeline with operator confirm/reject and route A→G." |
 | Everything live fails | simulations only (§4 options) and the recorded evidence in [EVALUATION](camera_mapping/EVALUATION.md) | be explicit that this is simulation or recorded data |
 | Drone-fleet question | `cd team15_starter && python3 homebase.py --sim --web` → `http://localhost:8080` | "This is a separate SIMULATED drone-fleet planner from teammates; it shares no code with the robot." |
 
@@ -140,7 +140,7 @@ If the person is close, the distance reads **UNKNOWN** (`NO_METHOD_APPLICABLE`) 
 |---|---|---|
 | "How accurate are the distances?" | "Not measured yet. The tape calibration and mount measurement are the next step; the tooling and its pass/fail gate exist." | EVALUATION §1, [05](05_DEPTH_AND_DISTANCE_ESTIMATION.md) |
 | "Why run on the Mac, not the Pi?" | "About 186 ms per frame on the Mac GPU. The Pi streams JPEGs over SSH; nothing is installed on it." | [03](03_MAC_AI_INFERENCE.md) |
-| "What stops Qwen driving the robot?" | "Nothing it outputs reaches the motor path. A static test fails the build if non-allow-listed code imports the supervisor, driver, protocol or bridge, and the guard discards motion-like output." | [17](17_SAFETY_ARCHITECTURE.md), [11](11_AI_AGENT_AND_TOOLS.md) |
+| "What stops Qwen driving the robot?" | "Nothing it outputs reaches the motor path. A static test fails the build if non-allow-listed code imports the supervisor, driver, protocol or bridge, and the guard discards text that matches motor-command patterns." | [17](17_SAFETY_ARCHITECTURE.md), [11](11_AI_AGENT_AND_TOOLS.md) |
 | "What happens if the link to the motors dies?" | "In design: the host supervisor latches a fault, and the StickC firmware zeroes the motors after 250 ms without valid frames. That is tested against a model of the firmware only, not on hardware." | [13](13_M5STICKC_BRIDGE.md) |
 | "Why didn't the ultrasonic work?" | "Unknown. Two real 50-ping runs gave no echoes at all. Wiring, power, pin choice and level shifting are all candidates." | [14](14_GROVE_ULTRASONIC.md) |
 | "How many tests?" | "818 automated tests plus a 30-check protocol script, all passing at the final commit. They prove logic, not physical safety." | [19](19_TESTING_AND_BENCHMARKS.md) |
@@ -148,4 +148,4 @@ If the person is close, the distance reads **UNKNOWN** (`NO_METHOD_APPLICABLE`) 
 
 ## 8. After the demo
 
-Ctrl-C the script. It stops everything it started and prints the log folder. Then check the ports with `lsof` ([20 §9](20_DEPLOYMENT_AND_RUNBOOK.md#9-safe-shutdown-and-cleanup)). The run's `perception.jsonl` (state only, no images) stays in `~/Team15_evidence/camera_mapping/<timestamp>/`. Keep it out of Git.
+Stop the script with `pkill -TERM -f scripts/camera_demo.sh`. SIGTERM was verified to stop everything it started; interactive Ctrl-C is unverified. Then check for leftovers with `pgrep -fl camera_mapping.live` and check the ports with `lsof` ([20 §9](20_DEPLOYMENT_AND_RUNBOOK.md#9-safe-shutdown-and-cleanup)). The run's `perception.jsonl` (state only, no images) stays in `~/Team15_evidence/camera_mapping/<timestamp>/`. Keep it out of Git.

@@ -122,7 +122,7 @@ Exit codes: **0** a sighting was emitted, **1** bad sector or evidence directory
 
 ## 5. Camera mapping demo (`camera_mapping/`), one command
 
-`scripts/camera_demo.sh` starts the dashboard, the Qwen RAG advisor and the live Pi camera runner. It checks preconditions first and cleans up on Ctrl-C. Read it before running it; it is about 150 lines.
+`scripts/camera_demo.sh` starts the dashboard, the Qwen RAG advisor and the live Pi camera runner. It checks preconditions first and traps INT/TERM to clean up. SIGTERM cleanup is verified; interactive Ctrl-C is not (§9). Read it before running it; it is about 150 lines.
 
 ```bash
 scripts/camera_demo.sh                 # live Pi camera (default)
@@ -191,8 +191,8 @@ The dashboard labels these frames **RECORDED**. Say so out loud during a demo. T
 | Route A→G | `python3 -m planner.route A G` (also `--block J-K`, `--graph FILE`) | SYNTHETIC graph |
 | Rover scenarios | `python3 -m rover.simrun --list`; `python3 -m rover.simrun C` (prints the final `team15.rover_nav_status/1`) | SIMULATED |
 | Grove ranging, console | `python3 -m ranging read --count 10 --sim-scenario approach` (`--sim-scenario {static,approach,open,disconnected}`, `--sim-distance`, `--sim-noise`, `--sim-dropout`) | SIMULATED (default config `simulated`) |
-| Grove ranging, service | `python3 -m ranging serve --sim-scenario approach --no-evidence` → `http://127.0.0.1:8765/range` | SIMULATED |
-| Grove consumer view | `python3 -m ranging watch --url http://127.0.0.1:8765/range` | SIMULATED |
+| Grove ranging, service | `python3 -m ranging serve --sim-scenario approach --no-evidence --port 18766` → `http://127.0.0.1:18766/range`. The default port 8765 is taken by an unrelated app on the bench Mac | SIMULATED |
+| Grove consumer view | `python3 -m ranging watch --url http://127.0.0.1:18766/range` | SIMULATED |
 | LiDAR panel JSON | `python3 -m lidar replay --scenario 08_obstacle_approaching` | SIMULATED |
 | LiDAR replay server | `python3 -m lidar replay --scenario 08_obstacle_approaching --serve` → `http://127.0.0.1:8775/` | SIMULATED |
 | LiDAR on the dashboard card | `python3 -B -m dashboard.serve --range-fixture lidar/fixtures/dashboard_range_series_approach.json` | SIMULATED |
@@ -228,12 +228,12 @@ See [19](19_TESTING_AND_BENCHMARKS.md) for what skips without private data.
 
 ## 9. Safe shutdown and cleanup
 
-1. **Demo script:** press **Ctrl-C** in its terminal. The `INT` trap kills every PID it started (Qwen service, dashboard, camera runner), waits, prints the log folder and exits with code 130. Before `73539a7` the trap did not exit, so the restart loop carried on; the fix is on `main`.
+1. **Demo script:** stop it with **SIGTERM** (`pkill -TERM -f scripts/camera_demo.sh`), or press **Ctrl-C** in its terminal. The script's trap is meant to kill every PID it started (Qwen service, dashboard, camera runner), waits, prints the log folder and exits with code 130. Before `73539a7` the trap did not exit, so the restart loop carried on; the fix is on `main`. **Verification status:** SIGTERM was verified to leave 0 processes. A SIGINT sent to the script running as a background job left 3 processes, an inconclusive result. Interactive Ctrl-C is **UNVERIFIED** (MAP-07 in the [registry](experiments/EXPERIMENT_REGISTRY.md)). Always run the leftover check in step 3 afterwards.
 2. **Manual processes:** Ctrl-C each terminal. `camera_mapping.live` then posts `camera_status: STOPPED` to the dashboard. Stopping the runner first and the dashboard last lets panel D show the stop.
 3. **Leftovers.** The engineering session logs used these patterns. Each matches only Team-15 processes:
 
    ```bash
-   pkill -INT -f "scripts/camera_demo.sh"          # lets the trap clean up its children
+   pkill -TERM -f "scripts/camera_demo.sh"         # SIGTERM: the variant verified to leave 0 processes
    pkill -f "camera_mapping.live"                  # e.g. a stray --source replay runner (the 8 Nov double-producer case)
    pkill -f "dashboard.serve --port 8000"
    pkill -f "rescue_qwen"                          # only if a Qwen service was started outside the launcher
