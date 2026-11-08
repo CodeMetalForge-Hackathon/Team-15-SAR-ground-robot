@@ -14,3 +14,5 @@
 - Qwen workstream (team-15-qwen-11) asked for the contract; I sent the draft and then answered (a)–(c). As a result I added `mount` and `scan_capture_start_*` to `team15.lidar_sectors/1`. I asked them to validate against our fixtures rather than re-implement the rules. I did not touch the Qwen repo.
 - Tests: lidar 92 passed. Existing suites unchanged: default pytest 340, ranging 126, so the 466 baseline still holds. See LIDAR_C1_TEST_REPORT.md.
 - **Hardware: nothing powered, nothing scanned, no GPIO/motor/servo code paths added.** The gate refuses the unverified config; `scan-once` refuses without `--approved-by`.
+- Pushed 9041c05; **draft PR #11** opened; CI 6/6 pass (lidar, ci, perception × push/PR).
+- Merge audit (LIDAR_C1_MERGE_AUDIT.md): main + #11 merges clean; 558 passed combined; the only conflicts against active branches (`.gitignore` with aurora-integration / #6) already exist against main without LiDAR. 12 semantic items reviewed; none blocking Stage A/B. Temp worktree deleted.
