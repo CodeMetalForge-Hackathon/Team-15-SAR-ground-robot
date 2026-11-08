@@ -183,7 +183,7 @@ setInterval(poll,500);setInterval(pollCamera,200);setInterval(publishCamera,200)
     occluded:{human:false,phone:false,occluded:true,result:'Not found · spot cleared',tone:'unknown',release:null},
     battery:{human:false,phone:true,abort:true,result:'Low battery · drone returned',tone:'unknown',release:null}
   };
-  let elapsed=0,playing=!matchMedia('(prefers-reduced-motion: reduce)').matches,previous=0,lastText=null,spot=0,decision='',droneOnly=false,panelVisible=parent===window;
+  let stopAt=null,rateOverride=null,elapsed=0,playing=!matchMedia('(prefers-reduced-motion: reduce)').matches,previous=0,lastText=null,spot=0,decision='',droneOnly=false,panelVisible=parent===window;
   window.addEventListener('message',event=>{if(event.origin===location.origin&&event.source===parent&&event.data?.type==='workspace-visibility')panelVisible=event.data.visible===true;});
   const setText=(id,value)=>{const node=byId(id);if(node.textContent!==value)node.textContent=value;};
   const fmt=t=>`${Math.floor(t/60)}:${String(Math.floor(t%60)).padStart(2,'0')}`;
@@ -257,7 +257,7 @@ setInterval(poll,500);setInterval(pollCamera,200);setInterval(publishCamera,200)
     byId('mission-prev').disabled=t===0;byId('mission-next').disabled=step===8;
     byId('mission-drone-shadow').setAttribute('opacity',airborne?'.7':'.3');
   }
-  function seek(t){elapsed=Math.max(0,Math.min(duration,t));playing=false;decision='';controls();paint();}
+  function seek(t){stopAt=null;rateOverride=null;elapsed=Math.max(0,Math.min(duration,t));playing=false;decision='';controls();paint();}
   function replay(){elapsed=0;decision='';previous=0;playing=true;controls();paint();}
   byId('mission-case').addEventListener('change',()=>{spot=0;droneOnly=false;replay();});
   byId('animation-toggle').addEventListener('click',()=>{if(elapsed>=duration)elapsed=0;playing=!playing;controls();paint();});
@@ -272,8 +272,8 @@ setInterval(poll,500);setInterval(pollCamera,200);setInterval(publishCamera,200)
     if(action==='battery'){if(cases[byId('mission-case').value].abort)byId('mission-case').value='injured';spot=0;droneOnly=false;replay();decision='Battery swapped in the animation; new flight budget.';paint();return;}
     droneOnly=action==='release'&&cases[byId('mission-case').value].release==='drone';spot++;replay();decision=action==='release'&&cases[byId('mission-case').value].release==='drone'?'Drone released for the next search; rover stays home.':'Next search spot selected in the animation.';paint();
   });
-  function tick(now){if(previous&&playing&&panelVisible&&!document.hidden){elapsed=Math.min(duration,elapsed+Math.min(.1,(now-previous)/1000)*Number(byId('animation-speed').value));if(decision&&elapsed>15)decision='';paint();}previous=now;requestAnimationFrame(tick);}
-  window.addEventListener('mission-scene',event=>{const detail=event.detail||{};if(!cases[detail.case])return;byId('mission-case').value=detail.case;spot=0;droneOnly=false;decision='';seek(Number.isFinite(detail.time)?detail.time:185);});
+  function tick(now){if(previous&&playing&&panelVisible&&!document.hidden){elapsed=Math.min(duration,elapsed+Math.min(.1,(now-previous)/1000)*(rateOverride??Number(byId('animation-speed').value)));if(stopAt!==null&&elapsed>=stopAt){elapsed=stopAt;stopAt=null;rateOverride=null;playing=false;controls();}if(decision&&elapsed>15)decision='';paint();}previous=now;requestAnimationFrame(tick);}
+  window.addEventListener('mission-scene',event=>{const detail=event.detail||{};if(!cases[detail.case])return;byId('mission-case').value=detail.case;spot=0;droneOnly=false;decision='';const target=Number.isFinite(detail.time)?detail.time:185;if(Number.isFinite(detail.from)&&detail.from<target&&!matchMedia('(prefers-reduced-motion: reduce)').matches){seek(detail.from);stopAt=Math.min(duration,target);rateOverride=detail.rate||6;previous=0;playing=true;controls();}else seek(target);});
   byId('mission-practice').addEventListener('click',()=>{if(parent!==window)parent.postMessage({type:'mission-practice',case:byId('mission-case').value},location.origin);else location.href='/#decisions';});
   controls();paint();requestAnimationFrame(tick);
 })();
@@ -370,8 +370,26 @@ byId('trace-details').addEventListener('click',()=>{const open=document.body.cla
   let caseIndex=0,questionIndex=0;
   const select=byId('quiz-case');for(const scenario of scenarios){const item=html('option',scenario.name);item.value=scenario.id;select.append(item);}
   function entry(){const key=scenarios[caseIndex].id+':'+questionIndex;if(!records.has(key)){const order=scenarios[caseIndex].questions[questionIndex].choices.map((_,i)=>i);for(let i=order.length-1;i>0;i--){const random=new Uint32Array(1);crypto.getRandomValues(random);const j=random[0]%(i+1);[order[i],order[j]]=[order[j],order[i]];}records.set(key,{order,selected:null,tries:0,correct:false,first:false,feedback:null});}return records.get(key);}
-  function showScene(time){const scenario=scenarios[caseIndex];window.dispatchEvent(new CustomEvent('mission-scene',{detail:{case:scenario.scene,time:time??(questionIndex===0?scenario.time:scenario.id==='battery'?100:scenario.id==='radio'?45:220)}}));}
-  function renderQuizVisual(){
+  const reducedMotion=()=>matchMedia('(prefers-reduced-motion: reduce)').matches;
+  function showScene(time,lead=24,rate=6){const scenario=scenarios[caseIndex],target=time??(questionIndex===0?scenario.time:scenario.id==='battery'?100:scenario.id==='radio'?45:220),from=Math.max(0,target-lead);window.dispatchEvent(new CustomEvent('mission-scene',{detail:{case:scenario.scene,time:target,from,rate}}));return reducedMotion()?0:(target-from)/rate;}
+  function animateQuizVisual(environment,inset,scenario,lead){
+    const add=(parent,tag,attrs)=>{const node=svg(tag,attrs);parent.append(node);return node;};
+    const base=lead.toFixed(2)+'s';
+    [...environment.children].forEach((node,i)=>{node.classList.add('qa-in');node.style.setProperty('--d',(i*.06).toFixed(2)+'s');});
+    const camera=!(scenario.id==='battery'||scenario.id==='radio');
+    [...inset.children].forEach((node,i)=>{node.classList.add('qa-in');node.style.setProperty('--d',i<3?'0s':`calc(${base} + ${(.35+i*.12).toFixed(2)}s)`);});
+    if(camera){
+      add(inset,'rect',{x:0,y:24,width:2,height:96,fill:'#93c5fd',class:'qa-scan'}).style.setProperty('--d',base);
+      if(scenario.id==='injured'||scenario.id==='safe'){const ring=add(inset,'circle',{cx:96,cy:74,r:38,fill:'none',stroke:scenario.id==='safe'?'#4ade80':'#ff6476','stroke-width':1.5,class:'qa-pulse'});ring.style.setProperty('--d',`calc(${base} + 1.1s)`);}
+      if(['injured','safe','phone'].includes(scenario.id)){const ping=add(inset,'rect',{x:168,y:63,width:25,height:40,rx:5,fill:'none',stroke:'#60a5fa',class:'qa-pulse'});ping.style.setProperty('--d',`calc(${base} + 1.3s)`);}
+    }else if(scenario.id==='radio'){
+      for(let i=0;i<3;i++){const wave=add(inset,'circle',{cx:240,cy:72,r:10,fill:'none',stroke:'#93c5fd','stroke-width':1.5,class:'qa-wave'});wave.style.setProperty('--d',`${(i*.7).toFixed(1)}s`);}
+    }else{
+      const cell=add(inset,'g',{class:'qa-blink'});add(cell,'rect',{x:222,y:56,width:40,height:20,rx:3,fill:'none',stroke:'#ff8a80','stroke-width':1.5});add(cell,'rect',{x:262,y:62,width:4,height:8,fill:'#ff8a80'});add(cell,'rect',{x:225,y:59,width:7,height:14,fill:'#ff8a80'});
+    }
+    for(const group of [environment,inset]){group.classList.remove('qa-run');group.getBoundingClientRect();group.classList.add('qa-run');}
+  }
+  function renderQuizVisual(lead=0){
     const scenario=scenarios[caseIndex],scene=document.querySelector('.mission-scene');
     let environment=byId('quiz-environment'),inset=byId('quiz-visual-inset');
     if(!environment){environment=svg('g',{id:'quiz-environment'});scene.insertBefore(environment,byId('mission-radio-rings'));inset=svg('g',{id:'quiz-visual-inset',transform:'translate(685 275)'});scene.append(inset);}
@@ -418,6 +436,7 @@ byId('trace-details').addEventListener('click',()=>{const open=document.body.cla
       if(scenario.id==='no-phone'||scenario.id==='occluded'&&questionIndex===1){label(inset,49,78,'NO HUMAN / PHONE OBSERVED','#b5b5bf',10);}
       if(['injured','safe'].includes(scenario.id))label(inset,132,52,'CHECK-IN: '+(scenario.id==='safe'?'SAFE':'INJURED'),scenario.id==='safe'?'#4ade80':'#ff6476',10);
     }
+    animateQuizVisual(environment,inset,scenario,lead);
   }
   function render(){
     const scenario=scenarios[caseIndex],q=scenario.questions[questionIndex],record=entry();select.value=scenario.id;
@@ -441,14 +460,14 @@ byId('trace-details').addEventListener('click',()=>{const open=document.body.cla
     if(completed===total){byId('quiz-next').textContent='Review cases →';if(record.feedback)feedback.textContent+=' All '+total+' decisions completed. Reset exercise to start a new round.';}
     byId('quiz-progress').textContent=`Case ${caseIndex+1}/${scenarios.length} · Decision ${questionIndex+1}/${scenario.questions.length}`;
     byId('quiz-review').textContent=scenario.id==='battery'||scenario.id==='radio'?'Review drone visual':'Review inspection visual';
-    showScene();renderQuizVisual();
+    renderQuizVisual(showScene());
   }
   byId('quiz-form').addEventListener('submit',event=>{event.preventDefault();const record=entry();if(record.selected===null||record.correct)return;const selected=scenarios[caseIndex].questions[questionIndex].choices[record.selected];record.tries++;record.correct=selected.correct;record.first=selected.correct&&record.tries===1;record.feedback=(selected.correct?'Correct. ':'Review this choice. ')+selected.why;render();if(selected.correct&&questionIndex===0&&scenarios[caseIndex].id!=='radio')showScene(scenarios[caseIndex].id==='battery'?100:220);});
   select.addEventListener('change',()=>{caseIndex=scenarios.findIndex(s=>s.id===select.value);questionIndex=0;render();});
   byId('quiz-next').addEventListener('click',()=>{if(!entry().correct)return;if(questionIndex+1<scenarios[caseIndex].questions.length)questionIndex++;else{caseIndex=(caseIndex+1)%scenarios.length;questionIndex=0;}render();byId('quiz-question').scrollIntoView({block:'nearest'});});
   byId('quiz-random').addEventListener('click',()=>{caseIndex=(caseIndex+1+Math.floor(Math.random()*(scenarios.length-1)))%scenarios.length;questionIndex=0;render();});
   byId('quiz-reset').addEventListener('click',()=>{records.clear();caseIndex=0;questionIndex=0;render();});
-  byId('quiz-review').addEventListener('click',()=>showScene(scenarios[caseIndex].time));
+  byId('quiz-review').addEventListener('click',()=>renderQuizVisual(showScene(scenarios[caseIndex].time,75,10)));
   window.addEventListener('message',event=>{if(event.origin!==location.origin||event.source!==parent||event.data?.type!=='mission-quiz-case')return;const index=scenarios.findIndex(s=>s.id===event.data.case);if(index<0)return;caseIndex=index;questionIndex=0;render();});
   let controlFrame=null;
   const authenticateControls=()=>{if(controlFrame&&viewerToken)controlFrame.contentWindow.postMessage({type:'workspace-auth',token:viewerToken},location.origin);};
