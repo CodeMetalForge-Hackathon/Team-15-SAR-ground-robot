@@ -1,0 +1,716 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Team-15 · SAR Command</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect x='3' y='3' width='10' height='10' fill='none' stroke='%23f0701e' stroke-width='2.4'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="/leaflet/leaflet.css">
+<style>
+:root, [data-theme="ops"] {
+  --bg: #0b0b0c; --card: #131314; --card-hi: #18181a; --raised: #1f1f22;
+  --line: rgba(255,255,255,.07); --line-strong: rgba(255,255,255,.13);
+  --text: #ededee; --dim: #9d9da3; --faint: #66666d;
+  --accent: #f0701e; --accent-soft: rgba(240,112,30,.13);
+  --good: #22c55e; --warn: #f59e0b; --bad: #ef4444; --info: #3b82f6; --unk: #a1a1aa;
+  --radius: 14px; --radius-sm: 9px;
+  --font: Inter, "SF Pro Text", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --map-bg: #101012; --searched: 70,140,230; --wall: rgba(10,10,12,.78);
+  --banner-bg: rgba(24,10,10,.88); --banner-ink: #ff8a80;
+}
+[data-theme="field"] {
+  --bg: #cdd3c9; --card: #dbe0d7; --card-hi: #e3e7df; --raised: #c4cbbf;
+  --line: #a2ada0; --line-strong: #8d998b;
+  --text: #18241e; --dim: #3f4c44; --faint: #56635a;
+  --accent: #da291c; --accent-soft: rgba(218,41,28,.1);
+  --good: #1f8a3b; --warn: #b7791f; --bad: #da291c; --info: #2b6cb0; --unk: #56635a;
+  --radius: 3px; --radius-sm: 3px;
+  --font: Archivo, "Helvetica Neue", Arial, sans-serif;
+  --map-bg: #bec6ba; --searched: 60,120,200; --wall: rgba(24,36,30,.7);
+  --banner-bg: rgba(237,240,233,.96); --banner-ink: #b51f14;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font: 13px/1.4 var(--font); }
+[data-theme="field"] body {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='600' height='400' viewBox='0 0 600 400'%3E%3Cg fill='none' stroke='%2372857a' stroke-opacity='.35' stroke-width='1'%3E%3Cpath d='M-20 80 C120 20 220 140 360 90 S560 30 640 110'/%3E%3Cpath d='M-20 140 C100 90 240 200 380 150 S560 100 640 170'/%3E%3Cpath d='M-20 210 C130 160 230 270 370 220 S570 170 640 240'/%3E%3Cpath d='M-20 290 C110 240 250 340 390 290 S560 250 640 320'/%3E%3Cpath d='M-20 360 C140 320 240 400 380 360 S570 330 640 390'/%3E%3C/g%3E%3C/svg%3E");
+}
+button { font: inherit; color: inherit; }
+.app { display: grid; grid-template-rows: 56px 1fr; height: 100vh; }
+.top { display: flex; align-items: center; gap: 14px; padding: 0 18px; border-bottom: 1px solid var(--line); background: var(--card); }
+.brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 15px; letter-spacing: .01em; white-space: nowrap; }
+.brand i { width: 14px; height: 14px; border: 2.6px solid var(--accent); display: inline-block; }
+.brand small { color: var(--dim); font-weight: 500; }
+.chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.chip { padding: 3px 9px; border-radius: 999px; border: 1px solid var(--line-strong); color: var(--dim); font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; white-space: nowrap; }
+[data-theme="field"] .chip { border-radius: 3px; }
+.chip.on { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
+.chip.good { color: var(--good); border-color: var(--good); }
+.chip.bad { color: var(--bad); border-color: var(--bad); background: rgba(239,68,68,.1); animation: blink 1s steps(2) infinite; }
+@keyframes blink { 50% { opacity: .55; } }
+.spacer { flex: 1; }
+.ctrls { display: flex; gap: 6px; align-items: center; }
+.btn { padding: 6px 11px; border-radius: var(--radius-sm); border: 1px solid var(--line-strong); background: var(--raised); cursor: pointer; font-weight: 600; font-size: 12px; white-space: nowrap; }
+.btn:hover { border-color: var(--accent); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn.warn { color: var(--bad); border-color: var(--bad); }
+.btn[disabled] { opacity: .35; cursor: default; }
+.seg { display: flex; border: 1px solid var(--line-strong); border-radius: var(--radius-sm); overflow: hidden; }
+.seg button { border: 0; background: transparent; padding: 6px 9px; cursor: pointer; font-size: 12px; font-weight: 600; color: var(--dim); }
+.seg button.on { background: var(--accent-soft); color: var(--accent); }
+.main { display: grid; grid-template-columns: 1fr 410px; gap: 14px; padding: 14px; min-height: 0; }
+.mapwrap { position: relative; border-radius: var(--radius); overflow: hidden; border: 1px solid var(--line-strong); background: var(--map-bg); min-height: 0; }
+[data-theme="field"] .mapwrap { border: 2px solid var(--text); }
+#map { position: absolute; inset: 0; background: var(--map-bg); }
+.vf::before, .vf::after, .vf > i::before, .vf > i::after { content: ""; position: absolute; width: 22px; height: 22px; border: 2px solid var(--accent); z-index: 500; pointer-events: none; }
+.vf::before { top: 10px; left: 10px; border-right: 0; border-bottom: 0; }
+.vf::after { top: 10px; right: 10px; border-left: 0; border-bottom: 0; }
+.vf > i::before { bottom: 10px; left: 10px; border-right: 0; border-top: 0; }
+.vf > i::after { bottom: 10px; right: 10px; border-left: 0; border-top: 0; }
+[data-theme="field"] .vf::before, [data-theme="field"] .vf::after, [data-theme="field"] .vf > i::before, [data-theme="field"] .vf > i::after { display: none; }
+.hud { position: absolute; top: 18px; left: 22px; z-index: 600; pointer-events: none; }
+.hud .clock { font-size: 34px; font-weight: 700; letter-spacing: .02em; font-variant-numeric: tabular-nums; text-shadow: 0 1px 8px rgba(0,0,0,.6); color: #fff; }
+.hud .sub { color: #e5e5e5; font-weight: 600; text-shadow: 0 1px 6px rgba(0,0,0,.8); }
+.banner { position: absolute; top: 16px; left: 50%; transform: translateX(-50%); z-index: 650; padding: 8px 14px; border: 2px solid var(--bad); color: var(--banner-ink); background: var(--banner-bg); backdrop-filter: blur(6px); font-weight: 700; font-size: 14px; border-radius: var(--radius-sm); display: none; white-space: nowrap; }
+.legend { position: absolute; left: 0; right: 0; bottom: 0; z-index: 600; background: rgba(15,15,17,.86); color: #ececec; padding: 7px 14px; font-size: 11.5px; display: flex; flex-wrap: wrap; gap: 4px 16px; align-items: center; }
+[data-theme="field"] .legend { background: rgba(219,224,215,.95); color: var(--text); border-top: 1px solid var(--line-strong); }
+.legend .sp { flex: 1; }
+.legend label { display: flex; gap: 5px; align-items: center; cursor: pointer; white-space: nowrap; }
+.mapwrap .leaflet-bottom { bottom: 34px; }
+.legend span { display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+.sw { width: 12px; height: 12px; display: inline-block; border-radius: 3px; }
+.north { position: absolute; right: 20px; top: 150px; z-index: 600; width: 26px; height: 38px; pointer-events: none; }
+.side { display: flex; flex-direction: column; gap: 12px; min-height: 0; overflow-y: auto; padding-right: 2px; }
+.side .card { flex: 0 0 auto; }
+.brief { color: var(--dim); font-size: 12.5px; line-height: 1.5; }
+.brief b { color: var(--text); }
+.hyp { margin-top: 9px; }
+.hyp .row { display: flex; justify-content: space-between; font-size: 12.5px; }
+.hyp .row span:last-child { color: var(--bad); font-weight: 700; font-variant-numeric: tabular-nums; }
+.hyp .rb { height: 4px; background: var(--raised); border-radius: 2px; margin-top: 3px; }
+.hyp .rb > div { height: 100%; background: var(--bad); border-radius: 2px; transition: width .6s; }
+.report { border-left: 3px solid var(--bad); background: var(--accent-soft); padding: 8px 10px; margin: 6px 0 8px; font-size: 12.5px; line-height: 1.5; }
+.report b.h { color: var(--bad); display: block; margin-bottom: 2px; }
+.mg { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 11.5px; letter-spacing: .02em; }
+.setup input[type=text] { width: 100%; padding: 7px 9px; border-radius: var(--radius-sm); border: 1px solid var(--line-strong); background: var(--raised); color: var(--text); font: inherit; }
+.setup .lab { color: var(--faint); font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; margin: 10px 0 5px; }
+.setup .seg { width: fit-content; flex-wrap: wrap; }
+.setup .seg button { padding: 6px 10px; }
+.setup .note { color: var(--dim); font-size: 12px; margin-top: 6px; }
+.setup .row2 { display: flex; gap: 6px; align-items: center; }
+.setup .status { margin-top: 8px; font-size: 12px; color: var(--accent); min-height: 16px; }
+.vstar { font-size: 24px; line-height: 24px; text-shadow: 0 0 2px #000, 0 0 5px #000; cursor: pointer; }
+.cursor { position: absolute; left: 12px; bottom: 40px; z-index: 600; background: rgba(15,15,17,.8); color: #eee; padding: 3px 8px; border-radius: 6px; font-size: 11px; pointer-events: none; }
+[data-theme="field"] .cursor { background: rgba(219,224,215,.95); color: var(--text); }
+.lkp { color: #ff3b30; font-size: 26px; font-weight: 900; line-height: 26px; text-shadow: 0 0 3px #000, 0 0 6px #000; }
+.tlabel { white-space: nowrap; font-size: 11px; font-weight: 800; color: #ffd1cc; background: rgba(120,10,10,.7); padding: 1px 6px; border-radius: 4px; letter-spacing: .04em; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 14px; }
+[data-theme="field"] .card { border: 0; border-top: 3px solid var(--text); background: var(--card); }
+.card h3 { margin: 0 0 8px; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--dim); font-weight: 700; display: flex; justify-content: space-between; }
+[data-theme="field"] .card h3 { text-transform: none; letter-spacing: 0; font-size: 15px; color: var(--text); }
+.stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.stat b { display: block; font-size: 20px; font-variant-numeric: tabular-nums; }
+.stat small { color: var(--faint); font-size: 11px; }
+.bar { height: 6px; border-radius: 3px; background: var(--raised); overflow: hidden; margin-top: 8px; }
+.bar > div { height: 100%; background: var(--accent); width: 0; transition: width .4s; }
+.drone { display: grid; grid-template-columns: 26px 1fr auto; gap: 8px; align-items: center; padding: 6px 0; border-top: 1px solid var(--line); }
+.drone:first-of-type { border-top: 0; }
+.dot { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font-weight: 800; font-size: 11px; color: #111; }
+.drone .meta { color: var(--faint); font-size: 11px; }
+.task { font-size: 10.5px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; padding: 2px 7px; border-radius: 999px; background: var(--raised); color: var(--dim); }
+.task.search { color: var(--info); } .task.confirm { color: var(--accent); } .task.rtb { color: var(--warn); } .task.LOST { color: var(--bad); } .task.landed { color: var(--good); }
+.batt { width: 64px; height: 7px; border-radius: 4px; background: var(--raised); overflow: hidden; display: inline-block; vertical-align: middle; margin-left: 6px; }
+.batt > div { height: 100%; }
+.cas-list { overflow-y: auto; max-height: 260px; } .tl { overflow-y: auto; max-height: 420px; }
+.cas { display: grid; grid-template-columns: auto 1fr; gap: 8px; padding: 7px 0; border-top: 1px solid var(--line); cursor: pointer; }
+.cas:first-child { border-top: 0; }
+.cas:hover { background: var(--accent-soft); }
+.st { font-size: 10.5px; font-weight: 800; letter-spacing: .05em; padding: 3px 7px; border-radius: 6px; color: #fff; text-transform: uppercase; height: fit-content; }
+.st.critical { background: var(--bad); } .st.injured { background: var(--warn); } .st.ok { background: var(--good); } .st.unknown { background: var(--unk); }
+.cas small { color: var(--faint); }
+.grow { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+.tl-item { display: grid; grid-template-columns: 44px 12px 1fr; gap: 6px; padding: 5px 0; }
+.tl-item time { color: var(--dim); font-variant-numeric: tabular-nums; font-weight: 600; }
+.tl-item .o { width: 9px; height: 9px; border-radius: 50%; border: 2px solid var(--faint); margin-top: 4px; }
+.tl-item.good .o { border-color: var(--good); } .tl-item.bad .o { border-color: var(--bad); } .tl-item.warn .o { border-color: var(--warn); } .tl-item.accent .o { border-color: var(--accent); }
+.tl-item.bad .txt { color: var(--bad); } .tl-item.good .txt b { color: var(--good); }
+.empty { color: var(--faint); font-style: italic; }
+.leaflet-container { font: inherit; background: var(--map-bg); }
+.leaflet-control-attribution { font-size: 10px; }
+.dicon { width: 26px; height: 26px; border-radius: 50%; border: 2px solid #fff; display: grid; place-items: center; font-weight: 800; font-size: 12px; color: #111; box-shadow: 0 0 0 2px rgba(0,0,0,.35), 0 2px 10px rgba(0,0,0,.5); }
+.dlabel { position: absolute; left: 30px; top: 2px; white-space: nowrap; font-size: 11px; font-weight: 700; color: #fff; background: rgba(0,0,0,.62); padding: 1px 6px; border-radius: 4px; }
+.pulse { position: absolute; left: -9px; top: -9px; width: 44px; height: 44px; border-radius: 50%; border: 2px solid var(--accent); animation: pulse 1.4s ease-out infinite; }
+@keyframes pulse { 0% { transform: scale(.5); opacity: 1; } 100% { transform: scale(1.4); opacity: 0; } }
+.cicon { width: 20px; height: 20px; border: 3px solid; border-radius: 4px; display: grid; place-items: center; font-size: 10px; font-weight: 800; color: #fff; text-shadow: 0 0 3px #000; box-shadow: 0 0 0 1px rgba(0,0,0,.5); }
+.home { width: 20px; height: 20px; border: 3.5px solid var(--accent); background: rgba(0,0,0,.35); }
+.hlabel { position: absolute; left: 24px; top: 1px; white-space: nowrap; font-size: 11px; font-weight: 700; color: #fff; background: rgba(0,0,0,.62); padding: 1px 6px; border-radius: 4px; }
+.star { font-size: 22px; line-height: 22px; color: #fff; text-shadow: 0 0 2px #da291c, 0 0 2px #da291c, 0 0 6px #000; }
+.offline-note { position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%); z-index: 600; color: var(--faint); font-size: 11px; }
+@media (max-width: 1000px) { .main { grid-template-columns: 1fr; grid-template-rows: 60vh auto; } .side { overflow: visible; } }
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <div class="brand"><i></i>Team-15 <small>· SAR Command</small></div>
+    <div class="chips" id="chips"></div>
+    <div class="spacer"></div>
+    <div class="ctrls">
+      <button class="btn" id="b-pause">Pause</button>
+      <div class="seg" id="speed"><button data-s="1">×1</button><button data-s="4">×4</button><button data-s="10">×10</button></div>
+      <button class="btn warn" id="b-jam" title="Jam the radio for 30 s">Jam 30 s</button>
+      <button class="btn" id="b-recall" title="Send every drone home and land">Recall all</button>
+      <button class="btn" id="b-new" title="Same place, new random parts">New mission</button>
+      <button class="btn primary" id="b-setup" title="Pick the place and the victims yourself">Set up mission</button>
+      <div class="seg" id="theme"><button data-t="ops">Ops</button><button data-t="field">Field</button></div>
+    </div>
+  </header>
+  <div class="main">
+    <div class="mapwrap vf"><i></i>
+      <div id="map"></div>
+      <div class="hud"><div class="clock" id="clock">00:00</div><div class="sub" id="hudsub">waiting for homebase…</div></div>
+      <div class="banner" id="banner"></div>
+      <svg class="north" viewBox="0 0 26 38"><path d="M13 2 L22 26 L13 21 L4 26 Z" fill="#fff" stroke="#000" stroke-width="1"/><text x="13" y="36" text-anchor="middle" font-size="10" font-weight="800" fill="#fff" stroke="#000" stroke-width=".4">N</text></svg>
+      <div class="legend">
+        <span><i class="sw" style="background:#3b82f6;border-radius:50%"></i>Drone</span>
+        <span><i class="sw" style="background:rgba(var(--searched),.6)"></i>Searched</span>
+        <span><i class="sw" style="background:linear-gradient(90deg,#ffd54a,#ff7a1a,#e11d48)"></i>Likely here</span>
+        <span><i class="sw" style="border:3px solid #ef4444"></i>Contact</span>
+        <span><i class="sw" style="background:#000;border:2px solid var(--accent)"></i>Homebase</span>
+        <span id="lg-wall"><i class="sw" style="background:var(--wall)"></i>Obstacle</span>
+        <span id="lg-lkp" style="display:none"><b style="color:#ff3b30">✕</b>Last known position</span>
+        <span id="lg-threat" style="display:none"><i class="sw" style="border:2px dashed #ff3b30;background:rgba(255,59,48,.18);border-radius:50%"></i>Hostile (reported)</span>
+        <span id="lg-truth" style="display:none">★ Hidden (sim)</span>
+        <span class="sp"></span>
+        <label><input type="checkbox" id="t-heat" checked> Likelihood</label>
+        <label><input type="checkbox" id="t-cov" checked> Searched</label>
+        <label><input type="checkbox" id="t-trail" checked> Trails</label>
+        <label id="t-truth-l" style="display:none"><input type="checkbox" id="t-truth"> Reveal truth</label>
+      </div>
+      <div class="offline-note" id="offline"></div>
+      <div class="cursor mg" id="cursor"></div>
+    </div>
+    <aside class="side">
+      <section class="card setup" id="setup-card" style="display:none">
+        <h3>Mission setup <span><button class="btn" id="su-close" style="padding:2px 8px">Close</button></span></h3>
+        <div class="lab">Place</div>
+        <div class="row2"><input type="text" id="su-q" placeholder="Search a place, or paste lat, lon"><button class="btn" id="su-go">Go</button></div>
+        <div class="lab">Search area</div>
+        <div class="seg" id="su-span"><button data-v="300">300 m</button><button data-v="600">600 m</button><button data-v="1000">1 km</button><button data-v="1500">1.5 km</button></div>
+        <div class="lab">Mission</div>
+        <div class="seg" id="su-mode"><button data-v="mil">Military · hidden soldier</button><button data-v="civ">Civilian · lost hiker</button></div>
+        <div class="lab">Click the map to</div>
+        <div class="seg" id="su-tool"><button data-v="area">Move area</button><button data-v="victim">Add victim</button><button data-v="lkp">Last known position</button><button data-v="hostile">Hostile zone</button></div>
+        <div class="lab">Condition of the next victim you place</div>
+        <div class="seg" id="su-cond"><button data-v="random">Random</button><button data-v="ok">OK</button><button data-v="injured">Injured</button><button data-v="critical">Critical</button></div>
+        <div class="note" id="su-sum"></div>
+        <div class="row2" style="margin-top:8px">
+          <span class="note" style="margin:0">Random victims if none placed:</span>
+          <button class="btn" id="su-minus" style="padding:2px 9px">−</button><b id="su-count">1</b><button class="btn" id="su-plus" style="padding:2px 9px">+</button>
+          <label class="note" style="margin:0 0 0 8px"><input type="checkbox" id="su-nohost"> No hostiles</label>
+        </div>
+        <div class="row2" style="margin-top:10px"><button class="btn primary" id="su-start">Start mission</button><button class="btn" id="su-clear">Clear placements</button></div>
+        <div class="status" id="su-status"></div>
+      </section>
+      <section class="card" id="brief-card" style="display:none"><h3 id="brief-title">Brief</h3><div class="brief" id="brief"></div></section>
+      <section class="card" id="hyp-card" style="display:none"><h3>Where he likely is <span>live</span></h3><div class="hyp" id="hyp"></div></section>
+      <section class="card">
+        <h3>Mission <span id="m-mode"></span></h3>
+        <div class="stats">
+          <div class="stat"><b id="s-pos">0%</b><small>searched (POS)</small></div>
+          <div class="stat"><b id="s-con">0</b><small>contacts</small></div>
+          <div class="stat"><b id="s-vit">0</b><small>with vitals</small></div>
+          <div class="stat"><b id="s-loss">–</b><small>radio loss</small></div>
+        </div>
+        <div class="bar"><div id="posbar"></div></div>
+      </section>
+      <section class="card"><h3>Fleet <span id="f-sum"></span></h3><div id="fleet"></div></section>
+      <section class="card"><h3>Casualties <span>priority first</span></h3><div class="cas-list" id="cas"><div class="empty">No one found yet.</div></div></section>
+      <section class="card"><h3>What the team knows <span>newest first</span></h3><div id="reports"></div><div class="tl" id="tl"></div></section>
+    </aside>
+  </div>
+</div>
+<script src="/leaflet/leaflet.js"></script>
+<script>
+"use strict";
+const COLORS = ["#3b82f6", "#22c55e", "#facc15", "#e879f9", "#38bdf8", "#fb7185"];
+const STC = { critical: "#ef4444", injured: "#f59e0b", ok: "#22c55e", unknown: "#a1a1aa" };
+const $ = (id) => document.getElementById(id);
+const store = { get(k, d) { try { return localStorage.getItem(k) || d; } catch (e) { return d; } },
+                set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} } };
+let S = null, mission = null, origin = [0, 0], indoor = false;
+let map, heatOv, covOv, areaRect, wallLayer, homeMk, gridLayer, scLayer;
+const droneMk = {}, trail = {}, trailLine = {}, wpLine = {}, sigCirc = {}, conMk = {}, truthMk = [];
+
+function toUTM(lat, lon) {
+  const a = 6378137, f = 1 / 298.257223563, k0 = 0.9996, e2 = f * (2 - f), ep2 = e2 / (1 - e2);
+  let zone = Math.floor((lon + 180) / 6) + 1;
+  if (lat >= 56 && lat < 64 && lon >= 3 && lon < 12) zone = 32;
+  if (lat >= 72 && lat < 84 && lon >= 0 && lon < 42) zone = lon < 9 ? 31 : lon < 21 ? 33 : lon < 33 ? 35 : 37;
+  const lon0 = (zone - 1) * 6 - 180 + 3, p = lat * Math.PI / 180, l = (lon - lon0) * Math.PI / 180;
+  const N = a / Math.sqrt(1 - e2 * Math.sin(p) ** 2), T = Math.tan(p) ** 2, Cc = ep2 * Math.cos(p) ** 2, A = Math.cos(p) * l;
+  const M = a * ((1 - e2 / 4 - 3 * e2 ** 2 / 64 - 5 * e2 ** 3 / 256) * p - (3 * e2 / 8 + 3 * e2 ** 2 / 32 + 45 * e2 ** 3 / 1024) * Math.sin(2 * p)
+    + (15 * e2 ** 2 / 256 + 45 * e2 ** 3 / 1024) * Math.sin(4 * p) - (35 * e2 ** 3 / 3072) * Math.sin(6 * p));
+  const E = k0 * N * (A + (1 - T + Cc) * A ** 3 / 6 + (5 - 18 * T + T * T + 72 * Cc - 58 * ep2) * A ** 5 / 120) + 500000;
+  let Nn = k0 * (M + N * Math.tan(p) * (A * A / 2 + (5 - T + 9 * Cc + 4 * Cc * Cc) * A ** 4 / 24 + (61 - 58 * T + T * T + 600 * Cc - 330 * ep2) * A ** 6 / 720));
+  if (lat < 0) Nn += 10000000;
+  return { zone, E, N: Nn };
+}
+function mgrs(lat, lon) {
+  if (lat < -80 || lat > 84) return "outside MGRS";
+  const { zone, E, N } = toUTM(lat, lon);
+  const band = "CDEFGHJKLMNPQRSTUVWXX"[Math.floor((lat + 80) / 8)];
+  const col = ["ABCDEFGH", "JKLMNPQR", "STUVWXYZ"][(zone - 1) % 3][Math.floor(E / 100000) - 1];
+  const row = "ABCDEFGHJKLMNPQRSTUV"[(Math.floor(N / 100000) + (zone % 2 === 0 ? 5 : 0)) % 20];
+  const pad = (v) => String(Math.floor(v % 100000)).padStart(5, "0");
+  return `${zone}${band} ${col}${row} ${pad(E)} ${pad(N)}`;
+}
+
+const MG = (x, y) => { const p = ll(x, y); return mgrs(p[0], p[1]); };
+
+// ------------------------------------------------------------ geo helpers
+const R = 6378137;
+function ll(x, y) {
+  return [origin[0] + (y / R) * 180 / Math.PI,
+          origin[1] + (x / (R * Math.cos(origin[0] * Math.PI / 180))) * 180 / Math.PI];
+}
+function gridBounds(g) {
+  const [hi, hj] = g.home, c = g.cell, n = g.n;
+  return L.latLngBounds(ll((-hj - 0.5) * c, (hi - n + 0.5) * c), ll((n - hj - 0.5) * c, (hi + 0.5) * c));
+}
+function cellBounds(g, i, j) {
+  const [hi, hj] = g.home, c = g.cell, x = (j - hj) * c, y = (hi - i) * c;
+  return L.latLngBounds(ll(x - c / 2, y - c / 2), ll(x + c / 2, y + c / 2));
+}
+const mmss = (t) => { t = Math.max(0, Math.round(t)); return String(Math.floor(t / 60)).padStart(2, "0") + ":" + String(t % 60).padStart(2, "0"); };
+
+// ------------------------------------------------------------ map setup
+function initMap() {
+  map = L.map("map", { zoomControl: false, attributionControl: true, maxZoom: 26, zoomSnap: 0.25 });
+  L.control.zoom({ position: "topright" }).addTo(map);
+  const sat = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+    { maxNativeZoom: 19, maxZoom: 23, attribution: "Imagery © Esri, Maxar, Earthstar Geographics" });
+  const topo = L.tileLayer("https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png",
+    { maxNativeZoom: 17, maxZoom: 23, subdomains: "abc", attribution: "© OpenStreetMap contributors, SRTM · © OpenTopoMap (CC-BY-SA)" });
+  const osm = L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+    { maxNativeZoom: 19, maxZoom: 23, attribution: "© OpenStreetMap contributors" });
+  const none = L.layerGroup();
+  let fails = 0;
+  sat.on("tileerror", () => { if (++fails === 6) $("offline").textContent = "Satellite tiles aren't loading (offline?). The search still runs; switch base map top-right."; });
+  sat.on("tileload", () => { fails = 0; $("offline").textContent = ""; });
+  map._bases = { sat, topo, osm, none };
+  L.control.layers({ "Satellite": sat, "Topographic": topo, "Streets": osm, "Floor plan / offline": none }, null, { position: "topright" }).addTo(map);
+  L.control.scale({ metric: true, imperial: false, position: "bottomright" }).addTo(map);
+  map.createPane("heat"); map.getPane("heat").style.zIndex = 390;
+  map.createPane("cov"); map.getPane("cov").style.zIndex = 380;
+  map.createPane("walls"); map.getPane("walls").style.zIndex = 395;
+}
+
+function buildMission(s) {
+  mission = s.mission;
+  const g = s.grid;
+  origin = g.origin;
+  indoor = g.n * g.cell < 60;
+  [heatOv, covOv, areaRect, wallLayer, homeMk, gridLayer, scLayer].forEach((l) => l && map.removeLayer(l));
+  Object.keys(droneMk).forEach((k) => { [droneMk, trailLine, wpLine, sigCirc].forEach((o) => { if (o[k]) map.removeLayer(o[k]); delete o[k]; }); delete trail[k]; });
+  Object.keys(conMk).forEach((k) => { map.removeLayer(conMk[k]); delete conMk[k]; });
+  truthMk.splice(0).forEach((m) => map.removeLayer(m));
+  const b = gridBounds(g);
+  const base = indoor ? map._bases.none : map._bases.sat;
+  Object.values(map._bases).forEach((l) => map.removeLayer(l));
+  base.addTo(map);
+  covOv = L.imageOverlay("data:,", b, { pane: "cov", opacity: 1, interactive: false }).addTo(map);
+  heatOv = L.imageOverlay("data:,", b, { pane: "heat", opacity: 1, interactive: false }).addTo(map);
+  areaRect = L.rectangle(b, { color: "#fff", weight: 1.5, dashArray: "6 5", fill: false, interactive: false }).addTo(map);
+  wallLayer = L.layerGroup(g.walls.map(([i, j]) => L.rectangle(cellBounds(g, i, j),
+    { pane: "walls", stroke: false, fillColor: "#0a0a0c", fillOpacity: 0.72, interactive: false }))).addTo(map);
+  gridLayer = L.layerGroup();
+  if (indoor) {
+    for (let k = 0; k <= g.n; k++) {
+      const [hi, hj] = g.home, c = g.cell;
+      const x = (k - hj - 0.5) * c, y = (hi - k + 0.5) * c;
+      gridLayer.addLayer(L.polyline([ll(x, (hi - g.n + 0.5) * c), ll(x, (hi + 0.5) * c)], { color: "#888", weight: 0.6, opacity: 0.5, interactive: false }));
+      gridLayer.addLayer(L.polyline([ll((-hj - 0.5) * c, y), ll((g.n - hj - 0.5) * c, y)], { color: "#888", weight: 0.6, opacity: 0.5, interactive: false }));
+    }
+    gridLayer.addTo(map);
+  }
+  homeMk = L.marker(ll(0, 0), { icon: L.divIcon({ className: "", iconSize: [20, 20], iconAnchor: [10, 10],
+    html: '<div class="home"></div><div class="hlabel">Homebase · tag (0,0)</div>' }), zIndexOffset: 500 }).addTo(map);
+  scLayer = L.layerGroup().addTo(map);
+  const sc = s.scenario;
+  if (sc) {
+    for (const [x, y, r] of sc.threats) {
+      scLayer.addLayer(L.circle(ll(x, y), { radius: r, color: "#ff3b30", weight: 2, dashArray: "7 6", fillColor: "#ff3b30", fillOpacity: 0.1, interactive: false }));
+      scLayer.addLayer(L.circle(ll(x, y), { radius: 0.4 * r, color: "#ff3b30", weight: 1, fillColor: "#7f0000", fillOpacity: 0.32, interactive: false }));
+      scLayer.addLayer(L.marker(ll(x, y), { interactive: false, icon: L.divIcon({ className: "", iconSize: [120, 18], iconAnchor: [60, 9], html: '<div class="tlabel" style="text-align:center">HOSTILE · reported</div>' }) }));
+    }
+    scLayer.addLayer(L.marker(ll(sc.lkp[0], sc.lkp[1]), { zIndexOffset: 600, icon: L.divIcon({ className: "", iconSize: [26, 26], iconAnchor: [13, 13],
+      html: `<div class="lkp">✕</div><div class="hlabel" style="left:28px;top:4px">Last known position · ${sc.minutes_ago} min ago</div>` }) })
+      .bindTooltip(`Last known position<br><span class="mg">${MG(sc.lkp[0], sc.lkp[1])}</span>`));
+  }
+  $("lg-wall").style.display = g.walls.length ? "" : "none";
+  $("lg-lkp").style.display = sc ? "" : "none";
+  $("lg-threat").style.display = sc ? "" : "none";
+  map.fitBounds(b, { paddingTopLeft: [40, 90], paddingBottomRight: [70, 50] });
+  $("tl").innerHTML = "";
+  $("reports").innerHTML = "";
+  $("t-truth").checked = false;
+}
+
+// ------------------------------------------------------------ overlays
+const cnv = document.createElement("canvas"), cnv2 = document.createElement("canvas");
+function heatRGBA(p) {             // yellow -> orange -> red
+  const stops = [[255, 213, 74], [255, 122, 26], [225, 29, 72]];
+  const t = Math.min(1, p) * 2, k = Math.min(1, Math.floor(t)), f = t - k;
+  const a = stops[k], b = stops[Math.min(2, k + 1)];
+  return [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f, a[2] + (b[2] - a[2]) * f];
+}
+function drawOverlays(s) {
+  const n = s.grid.n;
+  [cnv, cnv2].forEach((c) => { c.width = n; c.height = n; });
+  const h = cnv.getContext("2d"), hc = cnv2.getContext("2d");
+  const hi = h.createImageData(n, n), ci = hc.createImageData(n, n);
+  const rgb = getComputedStyle(document.documentElement).getPropertyValue("--searched").split(",").map(Number);
+  for (let k = 0; k < n * n; k++) {
+    const p = s.prob[k] / 255, sr = s.searched[k] / 255, [r, g, b] = heatRGBA(p);
+    hi.data.set([r, g, b, Math.round(255 * Math.min(0.9, Math.pow(p, 0.6)))], k * 4);
+    ci.data.set([rgb[0] || 120, rgb[1] || 190, rgb[2] || 235, Math.round(255 * 0.5 * Math.pow(sr, 0.8))], k * 4);
+  }
+  h.putImageData(hi, 0, 0); hc.putImageData(ci, 0, 0);
+  const up = (src, blur) => { const big = document.createElement("canvas"); big.width = big.height = n * 10;
+    const bx = big.getContext("2d"); bx.imageSmoothingEnabled = true; if (blur) bx.filter = `blur(${blur}px)`;
+    bx.drawImage(src, 0, 0, n * 10, n * 10); return big.toDataURL(); };
+  if ($("t-heat").checked) heatOv.setUrl(up(cnv, 7)); else heatOv.setUrl("data:,");
+  if ($("t-cov").checked) covOv.setUrl(up(cnv2, 2)); else covOv.setUrl("data:,");
+}
+
+// ------------------------------------------------------------ markers
+function droneIcon(d) {
+  const c = COLORS[(d.id - 1) % COLORS.length];
+  const bat = d.battery == null ? "" : ` · ${d.battery}%`;
+  const pulse = d.cmd === 1 ? '<div class="pulse"></div>' : "";
+  return L.divIcon({ className: "", iconSize: [26, 26], iconAnchor: [13, 13],
+    html: `${pulse}<div class="dicon" style="background:${c}">${d.id}</div><div class="dlabel">D${d.id} ${d.task}${bat} · ${d.z} m</div>` });
+}
+function updDrones(s) {
+  for (const d of s.drones) {
+    if (d.state === 0 && d.task !== "landed" && !droneMk[d.id]) continue;
+    const p = ll(d.x, d.y), c = COLORS[(d.id - 1) % COLORS.length];
+    if (!droneMk[d.id]) {
+      droneMk[d.id] = L.marker(p, { zIndexOffset: 1000 }).addTo(map);
+      trail[d.id] = [];
+      trailLine[d.id] = L.polyline([], { color: c, weight: 2.5, opacity: 0.85, interactive: false }).addTo(map);
+      wpLine[d.id] = L.polyline([], { color: c, weight: 1.5, dashArray: "4 5", opacity: 0.9, interactive: false }).addTo(map);
+      sigCirc[d.id] = L.circle(p, { radius: 1, color: c, weight: 1, fillOpacity: 0.08, opacity: 0.5, interactive: false }).addTo(map);
+    }
+    droneMk[d.id].setLatLng(p).setIcon(droneIcon(d));
+    const tr = (d.trail || []).map(([x, y]) => ll(x, y)).concat([p]);      // history kept by the homebase
+    trailLine[d.id].setLatLngs($("t-trail").checked ? tr : []);
+    wpLine[d.id].setLatLngs(d.tx == null ? [] : [p, ll(d.tx, d.ty)]);
+    sigCirc[d.id].setLatLng(p).setRadius(Math.max(0.5, 2 * d.sigma));
+  }
+}
+function updContacts(s) {
+  const seen = new Set();
+  for (const t of s.tracks) {
+    seen.add(t.id);
+    const col = STC[t.status] || STC.unknown;
+    const fill = t.confirmed ? col : "rgba(0,0,0,.35)";
+    const icon = L.divIcon({ className: "", iconSize: [20, 20], iconAnchor: [10, 10],
+      html: `<div class="cicon" style="border-color:${col};background:${fill}">${t.id}</div>` });
+    const vit = t.hr || t.br ? `heart ${t.hr || "?"} · breath ${t.br || "?"}` : "no vitals yet";
+    const html = `<b>Contact #${t.id} · ${t.status.toUpperCase()}</b><br>${t.confirmed ? "confirmed" : "unconfirmed"} · conf ${Math.round(100 * t.conf)}%<br>${vit}` +
+      `<br>sensors: ${t.sensors.join(", ")}<br>seen by: ${t.seen_by.map((i) => "D" + i).join(", ")}` +
+      (t.tag_id ? `<br>ID tag ${t.tag_id}${t.ally === true ? " (ally)" : t.ally === false ? " (UNKNOWN)" : ""}` : "") +
+      `<br><span class="mg">${MG(t.x, t.y)}</span><br>(${t.x}, ${t.y}) m from homebase`;
+    if (!conMk[t.id]) conMk[t.id] = L.marker(ll(t.x, t.y), { icon, zIndexOffset: 800 }).bindPopup(html).addTo(map);
+    else conMk[t.id].setLatLng(ll(t.x, t.y)).setIcon(icon).setPopupContent(html);
+  }
+  Object.keys(conMk).forEach((k) => { if (!seen.has(+k)) { map.removeLayer(conMk[k]); delete conMk[k]; } });
+}
+function updTruth(s) {
+  const has = !!s.truth;
+  $("t-truth-l").style.display = has ? "" : "none";
+  $("lg-truth").style.display = has ? "" : "none";
+  if (has && s.done_at != null && !updTruth.auto) { $("t-truth").checked = true; updTruth.auto = true; }
+  truthMk.splice(0).forEach((m) => map.removeLayer(m));
+  if (!has || !$("t-truth").checked) return;
+  for (const p of s.truth) {
+    truthMk.push(L.marker(ll(p.x, p.y), { interactive: true, zIndexOffset: 700, icon: L.divIcon({ className: "", iconSize: [22, 22], iconAnchor: [11, 11],
+      html: '<div class="star">★</div>' }) }).bindTooltip(`hidden person: ${p.status}, hr ${p.hr} br ${p.br}`).addTo(map));
+  }
+}
+
+// ------------------------------------------------------------ side panel
+function chip(text, cls) { return `<span class="chip ${cls || ""}">${text}</span>`; }
+function updPanel(s) {
+  const live = s.mode === "live";
+  $("chips").innerHTML = (s.scenario ? chip(s.scenario.name, "on") : "") + (live ? chip("● Live hardware", "good") : chip(`Simulation ×${s.speed}`, "")) +
+    chip(s.military ? "Military · EMCON" : "Civilian", s.military ? "on" : "") + (s.signed ? chip("Signed", "good") : "") +
+    (s.radio && s.radio.jam ? chip(`Jammed · ${Math.max(0, Math.round(s.radio.jam_until - s.t))} s`, "bad") : "") +
+    (s.paused ? chip("Paused", "on") : "");
+  $("clock").textContent = mmss(s.t);
+  const vit = s.tracks.filter((t) => t.hr || t.br).length;
+  let sub = `POS ${s.pos}% · ${s.tracks.length} contact${s.tracks.length === 1 ? "" : "s"}`;
+  if (s.truth) sub += ` · ${s.truth.filter((p) => p.seen).length}/${s.truth.length} hidden people detected`;
+  $("hudsub").textContent = sub;
+  $("s-pos").textContent = Math.round(s.pos) + "%";
+  $("posbar").style.width = Math.min(100, s.pos) + "%";
+  $("s-con").textContent = s.tracks.length;
+  $("s-vit").textContent = vit;
+  $("s-loss").textContent = s.radio ? s.radio.loss + "%" : `${s.stats.rx} rx`;
+  $("m-mode").textContent = `${s.stats.tx} sent · ${s.stats.rx} received${s.stats.bad ? " · " + s.stats.bad + " rejected" : ""}`;
+  const bn = $("banner");
+  if (s.done_at != null) {
+    bn.style.display = "block";
+    bn.textContent = s.scenario && s.truth && s.truth.length === 1 ? `Soldier found and assessed at ${mmss(s.done_at)}`
+      : `All ${s.truth ? s.truth.length : ""} found and checked for vitals at ${mmss(s.done_at)}`;
+  } else bn.style.display = "none";
+  const sc = s.scenario;
+  $("brief-card").style.display = sc ? "" : "none";
+  $("hyp-card").style.display = sc ? "" : "none";
+  if (sc) {
+    $("brief-title").innerHTML = `${sc.name} <span>${sc.canopy}% under canopy</span>`;
+    $("brief").innerHTML = sc.brief.replace(/(Isolated soldier|authenticated beacon|Hostile positions|contested)/g, "<b>$1</b>");
+    const mx = Math.max(1, ...sc.regions.map((r) => r[1]));
+    $("hyp").innerHTML = sc.regions.map(([k, v]) => `<div style="margin-bottom:7px"><div class="row"><span>${k}</span><span>${Math.round(v)}%</span></div>
+      <div class="rb"><div style="width:${100 * v / mx}%"></div></div></div>`).join("");
+    $("reports").innerHTML = sc.reports.map((r) => {
+      const vit = r.hr || r.br ? `heart ${r.hr || "?"}, breath ${r.br || "?"}` : "no vitals";
+      const id = r.tag ? (r.ally ? `beacon ${r.tag} <b>AUTHENTICATED</b> (ally)` : `beacon ${r.tag} <b>NOT RECOGNISED</b>`) : "no beacon heard";
+      return `<div class="report"><b class="h">${mmss(r.t)} · Recovery report, contact #${r.track}</b>
+        Location <span class="mg">${MG(r.x, r.y)}</span><br>Condition <b>${r.status.toUpperCase()}</b> · ${vit}<br>ID ${id}<br>
+        Terrain ${r.terrain}${r.road_m != null ? ` · nearest road ${r.road_m} m` : ""} · nearest hostile zone ${r.threat_m} m<br>
+        ${r.lkp_m} m from last known position · seen by ${r.seen_by.map((i) => "D" + i).join(", ")}</div>`;
+    }).join("");
+  }
+  ["b-pause", "b-jam", "b-new", "b-setup"].forEach((id) => { $(id).disabled = live; });
+  $("b-pause").textContent = s.paused ? "Play" : "Pause";
+  $("b-recall").disabled = !!s.recalled;
+  $("b-recall").textContent = s.recalled ? "Recalled" : "Recall all";
+  document.querySelectorAll("#speed button").forEach((b) => { b.classList.toggle("on", +b.dataset.s === s.speed); b.disabled = live; });
+
+  const air = s.drones.filter((d) => d.state !== 0).length;
+  $("f-sum").textContent = `${air}/${s.drones.length} airborne`;
+  $("fleet").innerHTML = s.drones.map((d) => {
+    const c = COLORS[(d.id - 1) % COLORS.length];
+    const b = d.battery == null ? null : d.battery;
+    const bc = b == null ? "var(--faint)" : b > 50 ? "var(--good)" : b > 25 ? "var(--warn)" : "var(--bad)";
+    const sens = (d.sensors || []).join(" · ") || "no sensor report";
+    const link = d.seen == null ? "never heard" : d.seen < 3 ? "link ok" : `silent ${d.seen} s`;
+    return `<div class="drone"><div class="dot" style="background:${c}">${d.id}</div>
+      <div><b>D${d.id}</b> <span class="task ${d.task}">${d.task === "confirm" ? "vitals check" : d.task}</span>
+      <div class="meta">${sens} · alt ${d.z} m · ±${d.sigma} m · ${link}</div></div>
+      <div style="text-align:right">${b == null ? "–" : b + "%"}<span class="batt"><div style="width:${b || 0}%;background:${bc}"></div></span>
+      <div class="meta">${d.time_left == null ? "on pad" : d.time_left + " s left"}</div></div></div>`;
+  }).join("");
+
+  $("cas").innerHTML = s.tracks.length ? s.tracks.map((t) => {
+    const vit = t.hr || t.br ? `heart ${t.hr || "?"} · breath ${t.br || "?"}` : "no vitals yet";
+    return `<div class="cas" data-x="${t.x}" data-y="${t.y}"><span class="st ${t.status}">${t.status}</span>
+      <div><b>#${t.id}</b> ${t.confirmed ? "confirmed" : "unconfirmed"} · ${vit}<br>
+      <small><span class="mg">${MG(t.x, t.y)}</span> · ${t.sensors.join(", ")}${t.tag_id ? " · " + (t.ally ? "ALLY " : "") + "tag " + t.tag_id : ""}</small></div></div>`;
+  }).join("") : '<div class="empty">No one found yet.</div>';
+  document.querySelectorAll(".cas").forEach((el) => el.onclick = () => map.flyTo(ll(+el.dataset.x, +el.dataset.y), Math.max(map.getZoom(), indoor ? 21 : 18)));
+
+  $("tl").innerHTML = s.events.filter((e) => !e.q).slice().reverse().map(evHTML).filter(Boolean).join("") ||
+    '<div class="empty">Drones are taking off…</div>';
+}
+function evHTML(e) {
+  const D = e.drone != null ? `D${e.drone}` : "";
+  const T = {
+    takeoff: [`${D} took off`, ""],
+    landed: [`${D} landed at the homebase (${e.battery}% left)`, "good"],
+    contact_new: [`${D} ${e.sensor}: <b>possible person #${e.track}</b> at (${e.x}, ${e.y}) m`, "accent"],
+    contact_update: [`${D} ${e.sensor} on #${e.track}: ${e.confirmed ? "<b>confirmed</b>" : "update"}${e.status !== "unknown" ? " · " + e.status : ""}${e.tag ? " · tag " + e.tag : ""}`, e.confirmed ? "good" : ""],
+    vitals: [`${D} ${e.sensor} on #${e.track}: heart ${e.hr || "?"}, breath ${e.br || "?"} → <b>${(e.status || "").toUpperCase()}</b>`, e.status === "critical" ? "bad" : "good"],
+    vitals_check: [`${D} sent down to read vitals on #${e.track}`, "accent"],
+    vitals_none: [`${D} hovered over #${e.track}: no vitals detected`, "warn"],
+    rtb: [`${D} heading home: ${e.time_left} s of battery, ${e.time_home} s to get back`, "warn"],
+    link_lost: [`Lost link to ${D} (${e.silent_s} s silent)`, "bad"],
+    link_back: [`${D} link restored`, "good"],
+    stuck: [`${D} blocked, re-planning`, "warn"],
+    recall: [`<b>Recall:</b> every drone ordered home`, "warn"],
+    replay_rejected: [`Rejected a replayed packet claiming to be ${D}`, "bad"],
+    unknown_tag_warning: [`Unknown ID tag ${e.tag} on #${e.track}`, "bad"],
+    jam: [`Radio jammed for ${e.secs} s`, "bad"],
+  }[e.ev];
+  if (!T) return "";
+  return `<div class="tl-item ${T[1]}"><time>${mmss(e.t)}</time><span class="o"></span><span class="txt">${T[0]}</span></div>`;
+}
+
+// ------------------------------------------------------------ mission setup
+const SU = { open: false, tool: "area", span: 600, civ: false, cond: "random", count: 1, center: null,
+             victims: [], lkp: null, threats: [], layer: null };
+const COND_C = { random: "#ffffff", ok: "#22c55e", injured: "#f59e0b", critical: "#ef4444" };
+function offLL(lat, lon, dx, dy) {   // metres east/north from a lat/lon
+  return [lat + (dy / R) * 180 / Math.PI, lon + (dx / (R * Math.cos(lat * Math.PI / 180))) * 180 / Math.PI];
+}
+function toLocal(o, lat, lon) {      // lat/lon -> metres from origin o
+  return [(lon - o[1]) * Math.PI / 180 * R * Math.cos(o[0] * Math.PI / 180), (lat - o[0]) * Math.PI / 180 * R];
+}
+function suGeom() {                   // the homebase sits in the south-west corner cell of a 24 x 24 grid
+  const n = 24, cell = SU.span / n, c = SU.center;
+  const half = SU.span / 2 - cell / 2;
+  const origin = offLL(c[0], c[1], -half, -half);
+  const sw = offLL(origin[0], origin[1], -cell / 2, -cell / 2), ne = offLL(origin[0], origin[1], SU.span - cell / 2, SU.span - cell / 2);
+  return { n, cell, origin, bounds: L.latLngBounds(sw, ne) };
+}
+function suDraw() {
+  if (SU.layer) map.removeLayer(SU.layer);
+  SU.layer = L.layerGroup().addTo(map);
+  if (!SU.open || !SU.center) return;
+  const G = suGeom();
+  SU.layer.addLayer(L.rectangle(G.bounds, { color: "#f0701e", weight: 2.5, dashArray: "8 6", fillColor: "#f0701e", fillOpacity: 0.06, interactive: false }));
+  SU.layer.addLayer(L.marker(G.origin, { interactive: false, icon: L.divIcon({ className: "", iconSize: [20, 20], iconAnchor: [10, 10],
+    html: '<div class="home"></div><div class="hlabel">Homebase (new)</div>' }) }));
+  SU.threats.forEach((t, k) => {
+    const c = L.circle(t.ll, { radius: t.r, color: "#ff3b30", weight: 2, dashArray: "6 5", fillColor: "#ff3b30", fillOpacity: 0.15 });
+    c.on("click", (e) => { L.DomEvent.stop(e); SU.threats.splice(k, 1); suDraw(); });
+    SU.layer.addLayer(c.bindTooltip("Hostile zone (click to remove)"));
+  });
+  if (SU.lkp) SU.layer.addLayer(L.marker(SU.lkp, { icon: L.divIcon({ className: "", iconSize: [26, 26], iconAnchor: [13, 13],
+    html: '<div class="lkp">✕</div><div class="hlabel" style="left:28px;top:4px">Last known position</div>' }) })
+    .on("click", (e) => { L.DomEvent.stop(e); SU.lkp = null; suDraw(); }));
+  SU.victims.forEach((v, k) => {
+    const m = L.marker(v.ll, { zIndexOffset: 900, icon: L.divIcon({ className: "", iconSize: [24, 24], iconAnchor: [12, 12],
+      html: `<div class="vstar" style="color:${COND_C[v.status]}">★</div>` }) });
+    m.on("click", (e) => { L.DomEvent.stop(e); SU.victims.splice(k, 1); suDraw(); });
+    SU.layer.addLayer(m.bindTooltip(`Victim ${k + 1}: ${v.status} (click to remove)`));
+  });
+  const vs = SU.victims.length ? `${SU.victims.length} victim${SU.victims.length > 1 ? "s" : ""} placed (click a star to remove)` : `No victims placed: ${SU.count} will be hidden at random, where the behaviour model says`;
+  const lk = SU.lkp ? "last known position placed" : "last known position random";
+  const ho = SU.civ ? "no hostiles (civilian)" : (SU.threats.length ? `${SU.threats.length} hostile zone(s) placed` : ($("su-nohost").checked ? "no hostiles" : "2 hostile zones at random"));
+  $("su-sum").innerHTML = `${vs}<br>${lk} · ${ho}<br>Area ${SU.span >= 1000 ? SU.span / 1000 + " km" : SU.span + " m"} square, homebase at its south-west corner.`;
+  const segOn = (id, v) => document.querySelectorAll(`#${id} button`).forEach((b) => b.classList.toggle("on", b.dataset.v === String(v)));
+  segOn("su-span", SU.span); segOn("su-mode", SU.civ ? "civ" : "mil"); segOn("su-tool", SU.tool); segOn("su-cond", SU.cond);
+  $("su-count").textContent = SU.count;
+  map.getContainer().style.cursor = "crosshair";
+}
+function suOpen() {
+  SU.open = true;
+  if (!SU.center && S) { const c = gridBounds(S.grid).getCenter(); SU.center = [c.lat, c.lng]; SU.span = Math.round(S.grid.n * S.grid.cell / 100) * 100 || 600; SU.civ = !S.military; }
+  $("setup-card").style.display = "";
+  $("setup-card").scrollIntoView({ block: "start" });
+  suDraw();
+}
+function suClose() { SU.open = false; $("setup-card").style.display = "none"; suDraw(); map.getContainer().style.cursor = ""; }
+function suInArea(ll) { return suGeom().bounds.contains(ll); }
+function onSetupClick(e) {
+  if (!SU.open) return;
+  const ll = [e.latlng.lat, e.latlng.lng];
+  if (SU.tool === "area") { SU.center = ll; }
+  else if (!suInArea(e.latlng)) { $("su-status").textContent = "That's outside the search area. Use Move area first."; return; }
+  else if (SU.tool === "victim") SU.victims.push({ ll, status: SU.cond });
+  else if (SU.tool === "lkp") SU.lkp = ll;
+  else if (SU.tool === "hostile") { SU.threats.push({ ll, r: 0.2 * SU.span }); $("su-nohost").checked = false; }
+  $("su-status").textContent = "";
+  suDraw();
+}
+async function suSearch() {
+  const q = $("su-q").value.trim();
+  if (!q) return;
+  const m = q.match(/^\s*(-?\d+(?:\.\d+)?)\s*[, ]\s*(-?\d+(?:\.\d+)?)\s*$/);
+  let ll = null;
+  if (m) ll = [parseFloat(m[1]), parseFloat(m[2])];
+  else {
+    $("su-status").textContent = "Searching…";
+    try {
+      const r = await fetch("https://nominatim.openstreetmap.org/search?format=json&limit=1&q=" + encodeURIComponent(q));
+      const j = await r.json();
+      if (j.length) ll = [parseFloat(j[0].lat), parseFloat(j[0].lon)];
+    } catch (e) { /* offline */ }
+    if (!ll) { $("su-status").textContent = "Couldn't find that place. Paste coordinates instead, e.g. 44.14, -71.68"; return; }
+  }
+  SU.center = ll; SU.tool = "victim";
+  map.flyTo(ll, SU.span > 900 ? 15 : 16);
+  $("su-status").textContent = "Moved. Now click to place victims, or just press Start mission.";
+  suDraw();
+}
+function overpassQuery(G) {
+  const sw = offLL(G.origin[0], G.origin[1], -G.cell, -G.cell), ne = offLL(G.origin[0], G.origin[1], G.n * G.cell, G.n * G.cell);
+  const b = `${sw[0].toFixed(6)},${sw[1].toFixed(6)},${ne[0].toFixed(6)},${ne[1].toFixed(6)}`;
+  return `[out:json][timeout:40];(way["highway"](${b});way["waterway"](${b});way["building"](${b});way["natural"](${b});way["landuse"](${b});way["leisure"](${b});way["amenity"="parking"](${b});relation["type"="multipolygon"]["natural"](${b});relation["type"="multipolygon"]["landuse"](${b}););out geom;`;
+}
+async function fetchTerrain(G) {
+  const urls = ["https://overpass-api.de/api/interpreter", "https://overpass.kumi.systems/api/interpreter", "https://overpass.private.coffee/api/interpreter"];
+  const body = "data=" + encodeURIComponent(overpassQuery(G));
+  for (const u of urls) {
+    const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), 45000);
+    try {
+      $("su-status").textContent = `Loading real terrain from OpenStreetMap (${new URL(u).host})…`;
+      const r = await fetch(u, { method: "POST", body, headers: { "Content-Type": "application/x-www-form-urlencoded" }, signal: ctl.signal });
+      clearTimeout(timer);
+      if (r.ok) return await r.json();
+    } catch (e) { clearTimeout(timer); }
+  }
+  return null;
+}
+async function suStart() {
+  if (!SU.center) return;
+  const G = suGeom(), o = G.origin;
+  $("su-start").disabled = true;
+  const osm = await fetchTerrain(G);
+  $("su-status").textContent = osm ? `Terrain loaded (${osm.elements.length} features). Starting…` : "OpenStreetMap didn't answer; the homebase will try, then fall back to stand-in terrain. Starting…";
+  const xy = (ll) => toLocal(o, ll[0], ll[1]).map((v) => Math.round(v * 10) / 10);
+  const cmd = { cmd: "setup", origin: o, n: G.n, cell: G.cell, civilian: SU.civ, count: SU.count, osm,
+    victims: SU.victims.map((v) => { const [x, y] = xy(v.ll); return { x, y, status: v.status }; }),
+    lkp: SU.lkp ? xy(SU.lkp) : null,
+    threats: SU.civ ? [] : SU.threats.length ? SU.threats.map((t) => [...xy(t.ll), t.r]) : ($("su-nohost").checked ? [] : null) };
+  await fetch("/control", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(cmd) }).catch(() => {});
+  $("su-start").disabled = false;
+  setTimeout(suClose, 600);
+}
+$("b-setup").onclick = () => (SU.open ? suClose() : suOpen());
+$("su-close").onclick = suClose;
+$("su-go").onclick = suSearch;
+$("su-q").onkeydown = (e) => { if (e.key === "Enter") suSearch(); };
+$("su-start").onclick = suStart;
+$("su-clear").onclick = () => { SU.victims = []; SU.lkp = null; SU.threats = []; suDraw(); };
+$("su-minus").onclick = () => { SU.count = Math.max(1, SU.count - 1); suDraw(); };
+$("su-plus").onclick = () => { SU.count = Math.min(8, SU.count + 1); suDraw(); };
+$("su-nohost").onchange = () => { if ($("su-nohost").checked) SU.threats = []; suDraw(); };
+const seg = (id, f) => document.querySelectorAll(`#${id} button`).forEach((b) => b.onclick = () => { f(b.dataset.v); suDraw(); });
+seg("su-span", (v) => { SU.span = +v; });
+seg("su-mode", (v) => { SU.civ = v === "civ"; if (SU.civ) SU.threats = []; });
+seg("su-tool", (v) => { SU.tool = v; });
+seg("su-cond", (v) => { SU.cond = v; });
+
+// ------------------------------------------------------------ wiring
+function post(cmd) { fetch("/control", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(cmd) }).catch(() => {}); }
+$("b-pause").onclick = () => post({ cmd: S && S.paused ? "play" : "pause" });
+$("b-jam").onclick = () => post({ cmd: "jam", secs: 30 });
+$("b-new").onclick = () => post({ cmd: "restart" });
+$("b-recall").onclick = () => post({ cmd: "recall" });
+document.querySelectorAll("#speed button").forEach((b) => b.onclick = () => post({ cmd: "speed", value: +b.dataset.s }));
+function setTheme(t) {
+  document.documentElement.dataset.theme = t; store.set("t15-theme", t);
+  document.querySelectorAll("#theme button").forEach((b) => b.classList.toggle("on", b.dataset.t === t));
+  if (S) drawOverlays(S);
+}
+document.querySelectorAll("#theme button").forEach((b) => b.onclick = () => setTheme(b.dataset.t));
+["t-heat", "t-cov", "t-trail", "t-truth"].forEach((id) => $(id).onchange = () => S && render(S, true));
+setTheme(store.get("t15-theme", "ops"));
+
+let lastOverlay = 0;
+function render(s, force) {
+  if (s.mission !== mission) { updTruth.auto = false; buildMission(s); }
+  const now = performance.now();
+  if (force || now - lastOverlay > 400) { drawOverlays(s); lastOverlay = now; }
+  updDrones(s); updContacts(s); updTruth(s); updPanel(s);
+  const lh = document.querySelector(".legend").offsetHeight;   // keep Leaflet's scale/credits above the legend
+  document.querySelectorAll(".mapwrap .leaflet-bottom").forEach((e) => { e.style.bottom = lh + "px"; });
+  $("cursor").style.bottom = (lh + 8) + "px";
+}
+initMap();
+map.on("click", onSetupClick);
+map.on("mousemove", (e) => { $("cursor").textContent = "MGRS " + mgrs(e.latlng.lat, e.latlng.lng); });
+map.on("mouseout", () => { $("cursor").textContent = ""; });
+function connect() {
+  const es = new EventSource("/stream");
+  es.onmessage = (m) => { try { S = JSON.parse(m.data); if (S.grid) render(S); } catch (e) { console.error(e); } };
+  es.onerror = () => { $("hudsub").textContent = "lost connection to homebase, retrying…"; };
+}
+connect();
+</script>
+</body>
+</html>
