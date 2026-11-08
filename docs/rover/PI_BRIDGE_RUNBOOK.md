@@ -28,6 +28,15 @@ open http://localhost:8000/demo
 | Firmware on it | unknown. The port has never been opened. |
 | Staged on the Pi | `~/team15_rover/firmware_staged/bridge_m5stack_stickc{,_plus}.merged.bin` + `SHA256SUMS` (verified). esptool 4.8.1 in `~/team15_rover/.venv-flash` |
 
+## 2b. Installed firmware: identify before replacing (screen: "ROVER READY / MOVE — power 0 / btn A = lock/unlock")
+- No Team-15 branch contains those strings. The closest source is the PR #6 branch `culubo/sensor-id-specs`, `firmware/roverc_usb/roverc_usb.ino` ("Rover USB + WiFi", "READY / stopped", "Last: %c power %d", button A **latches** until reset). The installed build differs: it shows **lock/unlock**, a toggle, and no Wi-Fi lines. Treat its source as unknown.
+- PR #6 protocol (`ROVERC_USB_V1`): plain text `HELLO`, `STOP`, `MOVE <w|a|s|d|z|c> <5..50>`. Each MOVE is a 250 ms pulse that stops on its own, and the motor registers are read back. **Not compatible** with the Team-15 bridge (CRC frames, ARM/session, `K`/`N` acks). It also runs a **Wi-Fi AP + TCP:5000 control server**, a second motor channel outside the Pi supervisor.
+- Smallest safe procedure (each step needs approval). RoverC power OFF, a person present:
+  1. **Back up the installed firmware first** (reset into the ROM bootloader; reads only, never writes flash):
+     `~/team15_rover/.venv-flash/bin/esptool.py --chip esp32 --port $P read_flash 0 0x400000 ~/Team15_evidence/stickc_flash_backup_$(date +%Y%m%d-%H%M%S).bin` and record its SHA-256. `strings` on the dump shows its banner and protocol keywords without running it. A restore is one `write_flash 0x0 <backup>`.
+  2. Or, without a reset into the bootloader: `python3 scripts/stickc_identify.py --approved-by <name> --roverc-power-off --hello` (on the Pi) listens for 3 s, sends only `HELLO`, and saves the transcript.
+- The **rear label** settles StickC vs StickC Plus (vs "Plus SE", the board named in the PR #6 header). A photo of it is the only fully non-destructive model check.
+
 ## 3. ModemManager exclusion (needs approval: system config)
 `docs/rover/udev/77-team15-stickc-mm-ignore.rules` matches only serial `7D520E63EE`.
 ```bash
