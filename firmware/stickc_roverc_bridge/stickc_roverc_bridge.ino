@@ -234,8 +234,15 @@ void setup() {
   allZero();
   auto cfg = M5.config();
   cfg.external_display_value = 0;          // no Port A (I2C_NUM_0) display probing: Wire owns I2C_NUM_0 for the hat
-  M5.begin(cfg);                          // display / PMIC / IMU init: can take hundreds of ms
-  if (allZero()) state = DISARMED;        // and again, in case M5.begin touched the bus or pins
+  cfg.internal_mic = false;                // StickC/Plus PDM mic uses GPIO0 = RoverC SDA (M5StickC Plus SE: none)
+  cfg.internal_imu = false;                // M5StickC Plus SE has no IMU
+  M5.begin(cfg);                          // display / PMIC init: can take hundreds of ms
+  // M5Unified sets GPIO0 to a plain output HIGH on StickC/Plus (CH552 countermeasure). That detaches SDA from
+  // I2C, so re-attach the hat bus AFTER M5.begin (the working installed firmware also starts Wire after it).
+  Wire.end();
+  Wire.begin(SDA_PIN, SCL_PIN, I2C_HZ);
+  Wire.setTimeOut(I2C_TIMEOUT_MS);
+  if (allZero()) state = DISARMED;        // and again: confirmed on the re-attached bus, else I2CERR (no ARM)
   Serial.begin(115200);
   lastValidMs = millis();
   M5.Display.setRotation(1);
