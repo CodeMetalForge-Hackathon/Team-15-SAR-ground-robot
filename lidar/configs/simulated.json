@@ -1,0 +1,6 @@
+{
+  "_comment": "SIMULATED mode. No device is opened. Mount is UNALIGNED, so every sector reads UNKNOWN until an alignment is recorded.",
+  "mode": "simulated",
+  "sensor_id": "rplidar-c1-top",
+  "frame_id": "lidar_c1_sensor"
+}
