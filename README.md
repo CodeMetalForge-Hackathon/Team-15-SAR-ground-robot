@@ -371,6 +371,69 @@ simulation over the same signed byte protocol the hardware uses.
 - With 15% packet loss, 100% of detections were delivered. Zero battery failures.
 - On mission complete the drones return and land, and the rover holds at the casualty.
 
+
+---
+
+## Autonomy & Simulation (Aurora)
+
+A mission planner for **personnel recovery in GPS-denied, contested terrain**. It runs on the Jetson
+homebase and commands a mixed team of drones and a ground rover. Everything is tested end to end in
+simulation over the same signed byte protocol the hardware uses.
+
+[![Demo video](https://img.youtube.com/vi/VIDEO_ID/0.jpg)](https://www.youtube.com/watch?v=VIDEO_ID)
+
+### What it does
+- **Search planning:** a live probability map of where the isolated person is likely to be. It's built from
+  real OpenStreetMap terrain (canopy, roads, water) and the last known position. MCTS plans each
+  vehicle's next move, and teammates claim cells so the fleet fans out instead of overlapping.
+- **GPS-denied:** each vehicle's position uncertainty (VIO drift) is tracked and folded into the search.
+  A UWB/AprilTag anchor at the homebase resets drift on every pass.
+- **Contested radio:** every packet is HMAC-SHA256 signed with replay protection. Detections are
+  store-and-forward, resent until acknowledged. EMCON mode cuts emissions.
+- **Drones + rover:** drones search from the air, and mmWave-radar drones read heart rate and breathing.
+  The rover drives real terrain and takes contacts the drones can't reach or see under canopy.
+  When the mission is complete, the drones land and the rover stays with the casualty for the recovery team.
+- **Starlink as a second comms path:** casualty reports go to HQ over Starlink and queue through outages.
+  The rover's link survives jamming of the drone mesh.
+- **Triage output:** a priority-ordered casualty list with MGRS grid, condition, vitals and
+  authenticated ally beacon ID.
+- **Hardware path:** the same planner flies Crazyflie drones through a safety bridge (geofence,
+  battery and link-loss auto-land), plus a Bluetooth link driver and a manual keyboard pilot.
+
+### Results (simulation, Fort Kent, Maine)
+| Event | Time |
+|---|---|
+| Soldier's authenticated beacon detected | 1:43 |
+| Vitals read by drone radar (heart 90, breath 17 → OK) | 2:23 |
+| Casualty report received at HQ over Starlink | +0.2 s |
+
+With 15% packet loss, 100% of detections were delivered, with zero battery failures.
+
+![Live mission: drones, rover and Starlink](https://raw.githubusercontent.com/CodeMetalForge-Hackathon/Team-15/aurora-rover-starlink/docs/img/sim_1.png)
+![Soldier found and assessed, rover stays with the casualty](https://raw.githubusercontent.com/CodeMetalForge-Hackathon/Team-15/aurora-rover-starlink/docs/img/sim_2.png)
+
+### Run it
+```bash
+git checkout aurora-rover-starlink
+cd team15_starter
+python3 homebase.py --sim --web                               # dashboard at http://localhost:8080
+python3 homebase.py --sim --web --origin 47.2587,-68.5895     # Fort Kent, Maine
+python3 homebase.py --cf-sim                                  # simulated Crazyflies through the real bridge
+```
+
+### Code ([`aurora-rover-starlink`](https://github.com/CodeMetalForge-Hackathon/Team-15/tree/aurora-rover-starlink))
+| Part | Where |
+|---|---|
+| Homebase brain (planning, triage, RTB) | `team15_starter/fleet/hub.py`, `fleet/planner.py` |
+| Ground rover | `team15_starter/fleet/rover.py`, `fleet/ground.py` |
+| Starlink (HQ uplink + rover link) | `team15_starter/fleet/starlink.py` |
+| Signed radio protocol | `team15_starter/link/protocol.py` |
+| Live dashboard | `team15_starter/fleet/web/index.html` |
+| Crazyflie bridge, Bluetooth, keyboard pilot | `sar_sim/cf_bridge.py`, `sar_sim/ble_link.py`, `sar_sim/cf_keyfly.py` |
+
+### Limits
+This is a validated simulation prototype, not a fielded system. Real-drone autonomous flight
+needs a Flow deck v2 for positioning. The Starlink delay and outage numbers are modeled, not measured.
 **Run it**
 ```bash
 cd team15_starter
