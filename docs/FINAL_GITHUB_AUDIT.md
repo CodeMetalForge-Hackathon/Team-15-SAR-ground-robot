@@ -53,10 +53,10 @@ already on `main`, so nothing was lost.
 | Camera obstacle mapping | `camera_mapping/` | PR #16 `0c9acc3` | advisory |
 | Pi camera + Faster R-CNN | `perception/pi_source.py`, `perception/live_camera.py`, `perception/detectors.py` | PR #3 `baa1804` | real hardware (bench) |
 | Qwen advisory contract and guarded client | `qwen_advisory/` | PR #12 `205dbc4` | stdlib client with fallback |
-| Qwen + LoRA rover advisor | qwen_rover_advisor and ai_rover_session scripts | **PR #20 branch only** | experimental |
+| Qwen + LoRA rover advisor | `scripts/qwen_rover_advisor.py` (from PR #20, byte-identical); the session runner stays on the PR #20 branch | PR #22 follow-up | experimental, advisory only |
 | Qwen training, RAG, evaluation | private Qwen workspace (Git, no remote, HEAD `1dc877a`) | — | **not on GitHub** (disclosed in [10 RAG](10_RAG_PIPELINE.md)) |
 | Pi-side authenticated control service | pi_host, link, remote | **PR #20 branch only** | experimental |
-| StickC firmware, serial bridge, watchdog, STOP | `firmware/stickc_roverc_bridge/`, `rover/bridge.py`, `docs/rover/BRIDGE_PROTOCOL.md` | PR #15 `89a0e81` | firmware on `main` fails to compile (`LINE_MAX`); the compiling version is on PR #20 |
+| StickC firmware, serial bridge, watchdog, STOP | `firmware/stickc_roverc_bridge/`, `rover/bridge.py`, `docs/rover/BRIDGE_PROTOCOL.md` | PR #15 `89a0e81`; firmware replaced by the PR #20 version (`0d7a11d`, compiles, StickC Plus SE settings; no protocol change) | firmware compiles; hardware run user-reported |
 | Bench testing | `docs/rover/BENCH_RUNBOOK.md`; bench mode and Pi scripts on **PR #20 only** | PR #8 | gated |
 | Sensors | `ranging/` (Grove), `lidar/` (RPLIDAR C1) | PR #7, PR #11 | simulation-tested; hardware gates closed |
 | Dashboard and API | `dashboard/` | PR #5, #16, #19 | production |

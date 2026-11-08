@@ -6,6 +6,10 @@
 > and AI model evaluation, each with its sources.
 > **[Final GitHub audit →](docs/FINAL_GITHUB_AUDIT.md)**: what is on `main`, what is unmerged or private,
 > and how each claim was checked (2026-11-08).
+> **[Pi control + Qwen/LoRA rover integration: PR #20 (unmerged, branch preserved) →](https://github.com/CodeMetalForge-Hackathon/Team-15/pull/20)**:
+> Pi-hosted SafetySupervisor and camera veto, HMAC-signed Mac→Pi link, Qwen + LoRA advisor, bench mode; 638 tests pass
+> on its head `0d7a11d`. Not merged: hardware-gated and still carries device identifiers. Its compiling StickC Plus SE
+> firmware and its Qwen + LoRA advisor script are on `main`.
 
 
 <img width="3840" height="2160" alt="team15_demo_layout" src="https://github.com/user-attachments/assets/abf56691-9a03-4bee-b90d-16f03cb41d80" />

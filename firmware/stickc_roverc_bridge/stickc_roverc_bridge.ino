@@ -1,4 +1,5 @@
-// Team-15 M5StickC -> RoverC-Pro USB-serial motor bridge.  DRAFT: NOT COMPILED, NOT FLASHED, NOT RUN.
+// Team-15 M5StickC -> RoverC-Pro USB-serial motor bridge.  COMPILES (m5stack:esp32 3.3.10, M5Unified 0.3.0) for
+// StickC / StickC Plus / StickC Plus2. NOT FLASHED, NOT RUN on hardware.
 // Protocol and rules: docs/rover/BRIDGE_PROTOCOL.md. Executable model (keep in lockstep, same parsing):
 // rover/tests/bridge_model.py. Flashing needs separate written approval, with the RoverC power switch OFF.
 //
@@ -43,7 +44,7 @@ static const uint32_t TASK_WDT_MS = 1000;   // hung loop() -> chip reset -> setu
 static const uint32_t ESTOP_CLEAR_HOLD_MS = 1000;
 static const int MAX_SPEED = 100;
 static const int MAX_BYTES_PER_LOOP = 256;  // the watchdog check always runs, even under a serial flood
-static const size_t LINE_MAX = 95;
+static const size_t LINE_MAX_BYTES = 95;
 
 enum State { BOOT, DISARMED, ARMED, WDSTOP, ESTOP, I2CERR };
 static const char *STATE_NAMES[] = {"BOOT", "DISARMED", "ARMED", "WDSTOP", "ESTOP", "I2CERR"};
@@ -54,7 +55,7 @@ static uint32_t lastValidMs = 0, lastZeroTryMs = 0;
 static uint32_t wdTrips = 0, i2cErrs = 0;
 static int8_t regs[4] = {0, 0, 0, 0};       // last output CONFIRMED by the bus
 static bool outputUnknown = true;           // until the first zero is confirmed, assume the worst
-static char line[LINE_MAX + 1];
+static char line[LINE_MAX_BYTES + 1];
 static size_t lineLen = 0;
 static bool lineOverflow = false;
 
@@ -232,8 +233,16 @@ void setup() {
   Wire.setTimeOut(I2C_TIMEOUT_MS);
   allZero();
   auto cfg = M5.config();
-  M5.begin(cfg);                          // display / PMIC / IMU init: can take hundreds of ms
-  if (allZero()) state = DISARMED;        // and again, in case M5.begin touched the bus or pins
+  cfg.external_display_value = 0;          // no Port A (I2C_NUM_0) display probing: Wire owns I2C_NUM_0 for the hat
+  cfg.internal_mic = false;                // StickC/Plus PDM mic uses GPIO0 = RoverC SDA (M5StickC Plus SE: none)
+  cfg.internal_imu = false;                // M5StickC Plus SE has no IMU
+  M5.begin(cfg);                          // display / PMIC init: can take hundreds of ms
+  // M5Unified sets GPIO0 to a plain output HIGH on StickC/Plus (CH552 countermeasure). That detaches SDA from
+  // I2C, so re-attach the hat bus AFTER M5.begin (the working installed firmware also starts Wire after it).
+  Wire.end();
+  Wire.begin(SDA_PIN, SCL_PIN, I2C_HZ);
+  Wire.setTimeOut(I2C_TIMEOUT_MS);
+  if (allZero()) state = DISARMED;        // and again: confirmed on the re-attached bus, else I2CERR (no ARM)
   Serial.begin(115200);
   lastValidMs = millis();
   M5.Display.setRotation(1);
@@ -259,7 +268,7 @@ void loop() {
       lineLen = 0;
       lineOverflow = false;
     } else if (c != '\r') {
-      if (lineLen < LINE_MAX) line[lineLen++] = c;
+      if (lineLen < LINE_MAX_BYTES) line[lineLen++] = c;
       else lineOverflow = true;           // oversize line: drop the whole line
     }
   }
