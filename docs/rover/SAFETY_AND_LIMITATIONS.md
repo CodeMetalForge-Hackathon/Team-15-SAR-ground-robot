@@ -2,6 +2,8 @@
 
 Date: 2026-11-07. Branch `feature/rover-navigation`.
 
+> **Update, 2026-11-08 (docs audit):** this report predates PR #14 (fail-closed forward motion) and PR #15 (USB-serial StickC bridge plus a **draft** firmware that has never been compiled or flashed). `POST /rover/estop` is defined in `rover/status_api.py`, but `dashboard/app.py` does not mount it, so there is no dashboard e-stop button today. For the current picture, see [17_SAFETY_ARCHITECTURE.md](../17_SAFETY_ARCHITECTURE.md).
+
 ## 0. Gate status
 | Gate | Status | Evidence |
 |---|---|---|
@@ -68,7 +70,7 @@ Not verified, so each one blocks Gate 5:
 - The e-stop is latched and independent of the supervisor. It works three ways:
   - every registered stop runs even if another raises;
   - an optional stop file lets any process trip it;
-  - `POST /rover/estop` trips it from the dashboard.
+  - `POST /rover/estop` trips it, once the router is mounted (it is not mounted in `dashboard/app.py` at the time of the audit).
   The physical stop (power switch, or lifting the robot) always comes first; see the runbook.
 - `MOVE_BACKWARD` and `STRAFE_*` are refused unless an operator gives fresh evidence, because no sensor covers those directions. The detour "retreat" is a rotate-then-drive-forward, never blind reversing.
 - `auto_approve` is refused when the driver is physical.
@@ -96,6 +98,6 @@ Not verified, so each one blocks Gate 5:
 
 ## 4. Not done / out of scope
 - No concrete hardware transport. `RecordingTransport` is a dry-run recorder only.
-- No StickC bridge firmware, which the next step needs.
+- No StickC bridge firmware, which the next step needs. (Since then, PR #15 added a draft `.ino` that has never been compiled or flashed.)
 - No AprilTag localization, no 0.25 m coverage grid, and no occlusion modelling. These are optional research, and none of them is claimed.
 - Not mounted into `dashboard/app.py`. That's the dashboard owner's call; see `contracts/ROVER_NAV_CONTRACT.md`.

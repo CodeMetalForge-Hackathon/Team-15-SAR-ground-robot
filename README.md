@@ -27,10 +27,10 @@ Run the tests with `pip install -r requirements.txt && pytest -q`.
 | | |
 |---|---|
 | Base model | [Qwen/Qwen3.5-2B](https://huggingface.co/Qwen/Qwen3.5-2B) (Apache-2.0), revision `15852e8c` |
-| Fine-tuning | LoRA (r 16, α 32), vision frozen, 15.63 M parameters. SFT on 689 synthetic mission records plus 7 public Co-GLANCE frames |
-| RAG | SQLite FTS5 over 47 verified documents with provenance and an injection quarantine |
+| Fine-tuning | LoRA (r 16, α 32), vision frozen, 15.63 M parameters. SFT on 689 records: synthetic mission steps, 7 public Co-GLANCE frames and 4 metadata-only bench-camera rows |
+| RAG | SQLite FTS5 over 47 documents (2 marked "cite only") with provenance and an injection quarantine |
 | Tool use | one read-only tool request per step, validated by a deterministic safety gate. Guard and deterministic fallback |
-| Result | **218/230** correct mission steps on a frozen simulated benchmark, **0** unsafe motion requests (base model: 0/230). Measured with RAG context |
+| Result | **218/230** correct mission steps on a frozen simulated benchmark, **0** unsafe motion requests (base model under Hugging Face without an output grammar: 0/230, because no output parsed; with Ollama's JSON grammar: 56/230 with RAG). Measured with RAG context |
 | Limitations | synthetic, in-distribution benchmark; no hardware evaluation; 2 missed sensor-timeout stops; no transfer to the LiDAR or delivery tasks. The LiDAR LoRA pilot was **not promoted** |
 
 ### Model weights / Hugging Face
