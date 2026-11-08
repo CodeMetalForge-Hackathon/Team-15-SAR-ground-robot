@@ -109,7 +109,7 @@ no target. `diagnosis.evidence` says what each verdict is based on.
 
 ## Test results
 
-`python3 -m pytest -q ranging/tests` → **118 passed** (macOS, Python 3.13, 2026-11-07).
+`python3 -m pytest -q ranging/tests` → **126 passed** (macOS, Python 3.13, 2026-11-07).
 On the Pi (Debian 13.7, Python 3.13.5), these were checked:
 - The simulator CLI works.
 - The gate refuses the unverified config (exit 2).

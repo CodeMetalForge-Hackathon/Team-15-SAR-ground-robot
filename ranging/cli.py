@@ -188,6 +188,11 @@ def fit_and_thresholds(rows: list, ocfg: ObstacleConfig, samples: int) -> dict:
                               "basis": "margin = max(configured, max|error| + 3*max SD); stopping distance still "
                                        "uses the PLACEHOLDER speed/decel/latency unless measured"}
     out["targets_with_dropouts"] = dropout
+    # Real usable range: the board's MAX232/LM324 run below their usual 5 V at 3.3 V, so the 3.5 m
+    # datasheet range is not assumed. Largest target with >= 90 % valid and |error| <= 5 cm.
+    good = [r["target_m"] for r in rows if r["n_valid"] >= 0.9 * samples and abs(r.get("error_m", 1e9)) <= 0.05]
+    out["recommended_max_range_m"] = min(max(good), SensorConfig().max_range_m) if good else None
+    out["max_range_basis"] = "largest tape-measured target with >= 90% valid pings and |error| <= 0.05 m"
     out["calibration_complete"] = complete
     return out
 

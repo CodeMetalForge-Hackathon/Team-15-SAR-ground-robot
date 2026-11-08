@@ -51,7 +51,7 @@ def run(assessor, driver, n):
 def good_elec(**over):
     d = dict(sensor_vcc_v=3.3, header_vcc_pin=1, gpio_bcm=5, series_resistor_ohm=1000, sensor_revision="V2.0",
              revision_evidence_ref="~/Team15_evidence/range/pcb.jpg", powered_off_while_wiring=True,
-             continuity_checked=True, vcc_measured_v=3.31, sig_idle_measured_v=0.02, mount_verified=True,
+             continuity_checked=True, vcc_measured_v=3.31, sig_idle_measured_v=0.54, mount_verified=True,
              wiring_verified_by="hw-teammate", wiring_verified_at="2026-11-07T20:00:00Z",
              independently_verified_by="second-reviewer", independently_verified_at="2026-11-07T20:30:00Z")
     d.update(over)
@@ -283,6 +283,8 @@ def test_good_wiring_passes():
     (dict(independently_verified_at=None), "no independent verification"),
     (dict(independently_verified_by=" HW-Teammate "), "different person"),
     (dict(sig_idle_measured_v=4.8), "must never reach a Pi GPIO"),
+    (dict(sig_idle_measured_v=3.3), "missing pull-down"),
+    (dict(sig_idle_measured_v=1.3), "missing pull-down"),
     (dict(wiring_verified_by=None), "wiring not verified"),
     (dict(wiring_verified_at=""), "wiring not verified"),
 ])
@@ -742,3 +744,16 @@ def test_preflight_never_requests_a_line():
 def test_preflight_fails_on_each_problem(kw, check):
     rep, _, res = preflight(**kw)
     assert res[check] == "FAIL" and rep["ok"] is False and "locked" in rep["next"]
+
+
+@pytest.mark.parametrize("v", [0.0, 0.3, 0.54, 0.9, 1.2])
+def test_sig_idle_in_schematic_range_passes(v):
+    check_electrical(good_elec(sig_idle_measured_v=v))
+
+
+def test_calibration_recommends_demonstrated_max_range():
+    rows = [{"target_m": t, "n_valid": 30, "median_m": t, "error_m": 0.01, "sd_m": 0.004} for t in (0.3, 1.0, 2.0)]
+    rows.append({"target_m": 2.5, "n_valid": 12, "median_m": 2.5, "error_m": 0.01, "sd_m": 0.01})   # dropouts
+    rows.append({"target_m": 3.0, "n_valid": 0, "statuses": {"NO_ECHO": 30}})
+    a = cli.fit_and_thresholds(rows, ObstacleConfig(), 30)
+    assert a["recommended_max_range_m"] == 2.0 and a["calibration_complete"] is False

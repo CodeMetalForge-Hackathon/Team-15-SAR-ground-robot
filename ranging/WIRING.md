@@ -15,11 +15,11 @@ Seeed `grove.py` driver `grove/grove_ultrasonic_ranger.py`, both read 2026-11-07
 | Operating voltage | 3.2–5.2 V, 8 mA | wiki spec table |
 | Range / resolution | 2–350 cm, 1 cm | wiki spec table |
 | Beam | "Measurement angle 15 degree", 40 kHz | wiki spec table |
-| Connector order | `SIG, NC, VCC, GND` = yellow, white, red, black | wiki GrovePi code comment and Arduino wiring table |
+| Connector order | `SIG, NC, VCC, GND` = yellow, white, red, black. Schematic J1: 4 = SIG, 3 = NC, 2 = VCC ("+5v" net), 1 = GND | wiki GrovePi comment, Arduino table, schematic |
 | Protocol | one wire. Pulse SIG high > 10 µs, release it. The sensor sends 8 × 40 kHz. SIG then goes high for the round-trip time | wiki "operating principle" |
 | Distance | `d = t_high × c / 2`. Seeed code: `cm = µs / 29 / 2` | wiki and grove.py |
 | Ping interval | not specified. The Seeed Arduino example waits 250 ms. We use ≥ 60 ms (default 100 ms) | wiki example |
-| Echo logic level | **not documented** ("TTL"). The schematic PDF could not be read | — |
+| Echo logic level | **SIG high ≈ VCC.** SIG goes straight to MCU pin P67. The MCU is powered from J1 VCC, and so are the MAX232 and LM324. **R2 = 10 kΩ pull-down** to GND on SIG. No pull-up and no other rail on SIG | Seeed schematic, dated 8-Nov-2017, includes C14 (read 2026-11-07, finding first reported by the robotics session) |
 | Handling | "Do not hot plug". Target area ≥ 0.5 m², smooth | wiki |
 | Raspberry Pi 5 | **the wiki does not mention it.** Its Pi example is a Pi 3 with a Grove Base Hat on D5 | wiki |
 
@@ -32,15 +32,19 @@ I²C1 on GPIO2/3 is not enabled. User `team15` is in group `gpio`. python3-libgp
 
 ## 2. Electrical decision: power the sensor from 3.3 V
 
-The echo output level is undocumented. If the sensor is powered from 5 V, the
-echo may swing to 5 V, and **Raspberry Pi GPIO is 3.3 V logic and not 5 V
-tolerant.** So:
+According to the schematic, SIG is driven by an MCU powered from J1 VCC. So
+**with a 5 V supply, the echo is 5 V**, and **Raspberry Pi GPIO is 3.3 V logic
+and not 5 V tolerant.** So:
 
 - **Default (no extra parts): VCC from the Pi's 3.3 V rail.** A powered device
   cannot drive its output above its own supply rail, so SIG stays ≤ 3.3 V.
   This needs a **V2.0** board. V1.0 is not documented as 3.3 V compatible.
   3.3 V is only 0.1 V above the 3.2 V minimum. If readings are flaky, measure
   VCC at the sensor while it runs.
+  The board's MAX232 (transmit) and LM324 (receive amplifier) run below their
+  usual 5 V at 3.3 V, so **do not assume the 350 cm datasheet range.**
+  `calibrate` reports `recommended_max_range_m` from the tape-measured targets.
+  Set `max_range_m` to it.
 - **Fallback, only if 3.3 V proves unreliable:** VCC 5 V **plus a bidirectional
   MOSFET level shifter** on SIG (BSS138 type: HV = 5 V, LV = 3.3 V, common GND).
   A resistor divider alone is **not** acceptable. SIG is bidirectional, because
@@ -132,9 +136,15 @@ There is one wire. Either the Pi drives it (trigger) or the sensor drives it
    bumper. These go into the `obstacle` section of the config.
 6. Power on the Pi. **No range code yet.** Measure:
    - VCC at the sensor (red to black): **3.20–3.45 V**.
-   - SIG (yellow) to GND: **≤ 3.4 V**. Expect about 3.3 V or less, because at
-     boot GPIO5 has the Pi's default pull-up (`pinctrl get 5` → `pu`). Anything
-     above 3.4 V: unplug the Pi's power and stop.
+   - SIG (yellow) to GND, with GPIO5 in its boot state (`pinctrl get 5` → `no pu`):
+     **expect ≈ 0.3–0.9 V.** The board's 10 kΩ pull-down (R2) works against the
+     Pi's ~50 kΩ default pull-up through the 1 kΩ resistor: 3.3 × 10/61 ≈ 0.54 V.
+     - **Between 0.9 and 1.2 V:** marginal, but the gate allows it.
+     - **> 1.2 V (e.g. ≈ 3.3 V):** the pull-down is missing. This is not the
+       documented board, so **stop** (the gate refuses).
+     - **> 3.4 V:** unplug the Pi's power immediately.
+     - **≈ 0 V:** also OK. GPIO5 may already have a pull-down if the range
+       driver ran since boot.
 7. Record everything (next section).
 
 ## 6. Unlock the driver (only after every step passes)
@@ -192,6 +202,8 @@ python3 -B -m ranging calibrate  --config $CFG --hardware --targets 0.30,0.50,1.
 - **Disconnected signature** (optional): power off, unplug the Grove cable at the
   sensor, power on, run `diagnose --samples 30`. Expect
   `NO_RESPONSE_EVER`. Power off again before reconnecting.
-- **7.3:** the report has the per-target error, a linear fit (scale, offset), a
+- **7.3:** add targets at 2.50 and 3.00 m (`--targets 0.30,0.50,1.00,1.50,2.00,2.50,3.00`)
+  to find the real maximum range at 3.3 V. The report has the per-target error, a linear fit (scale, offset), a
   suggested speed of sound, and **recommended `blocked_m`/`caution_m`** with
-  margin = max(0.10 m, max|error| + 3·SD).
+  margin = max(0.10 m, max|error| + 3·SD), and `recommended_max_range_m`.
+  Set `max_range_m` to it, so readings beyond the demonstrated range are `OUT_OF_RANGE` (→ STOP).
