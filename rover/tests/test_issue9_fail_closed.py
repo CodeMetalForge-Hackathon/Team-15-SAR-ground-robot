@@ -320,18 +320,26 @@ def test_sim_readings_always_assert_a_verdict():
         sim.world.t += 0.05
 
 
-def test_nothing_outside_rover_can_reach_the_motor_path():
-    """Qwen, dashboard, perception and ranging code must not import the supervisor or the hardware driver."""
+# Modules allowed to touch the motor path. Everything else (Qwen/LLM glue, dashboard, perception, ranging,
+# rover/pi_io.py, rover/status_api.py, any new rover module) must not. Adding a file here needs review.
+MOTOR_PATH_ALLOWED = {"rover/motion.py", "rover/hardware.py", "rover/protocol.py", "rover/navigator.py",
+                      "rover/sim.py", "rover/simrun.py", "rover/bridge.py"}
+MOTOR_PATH_NAMES = ("rover.motion", "rover.hardware", "rover.protocol", "rover.bridge", "SafetySupervisor",
+                    "RoverCAdapter", "BridgeTransport", "open_serial", "encode_motor_block", "approve_motion")
+
+
+def test_nothing_outside_the_allow_list_can_reach_the_motor_path():
+    """No LLM/Qwen, dashboard, perception or ranging code (and no unreviewed rover module) may import the
+    supervisor, the hardware driver, the motor protocol or the USB bridge."""
     root = pathlib.Path(__file__).resolve().parents[2]
-    banned = ("rover.motion", "rover.hardware", "rover.protocol", "SafetySupervisor", "RoverCAdapter",
-              "encode_motor_block", "approve_motion")
     offenders = []
     for p in root.rglob("*.py"):
-        rel = p.relative_to(root)
-        if rel.parts[0] in ("rover", ".git", ".claude") or "site-packages" in rel.parts:
+        rel = p.relative_to(root).as_posix()
+        top = rel.split("/")[0]
+        if top in (".git", ".claude") or "site-packages" in rel or "/tests/" in f"/{rel}" or rel in MOTOR_PATH_ALLOWED:
             continue
         text = p.read_text(errors="ignore")
-        offenders += [f"{rel}: {b}" for b in banned if b in text]
+        offenders += [f"{rel}: {b}" for b in MOTOR_PATH_NAMES if b in text]
     assert offenders == []
 
 

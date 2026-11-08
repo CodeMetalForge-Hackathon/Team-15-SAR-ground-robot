@@ -373,8 +373,8 @@ class SafetySupervisor:
         if moving and not self.latched:
             if self.deadline is not None and now >= self.deadline:
                 self.stop("command duration elapsed")
-            elif self._driver_problem():
-                self._latch(SafetyStop.DRIVER_FAULT, self._driver_problem())
+            elif (drv := self._driver_problem()):  # evaluated once: health() may poll a live link
+                self._latch(SafetyStop.DRIVER_FAULT, drv)
             elif self._range_problem(now):
                 self._latch(SafetyStop.SENSOR_STALE, f"while moving: {self._range_problem(now)}")
             elif self.active == Command.MOVE_FORWARD and self._forward_problem():
