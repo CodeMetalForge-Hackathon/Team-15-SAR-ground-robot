@@ -7,6 +7,10 @@
 > **[Final GitHub audit →](docs/FINAL_GITHUB_AUDIT.md)**: what is on `main`, what is unmerged or private,
 > and how each claim was checked (2026-11-08).
 
+
+<img width="3840" height="2160" alt="team15_demo_layout" src="https://github.com/user-attachments/assets/abf56691-9a03-4bee-b90d-16f03cb41d80" />
+
+
 A teleoperated wheeled rescue robot (M5Stack RoverC-Pro with a Raspberry Pi 5 and camera; RPLIDAR C1 in progress).
 
 - **Perception:** a camera-based person-candidate detector, with results shown on an operator dashboard.
