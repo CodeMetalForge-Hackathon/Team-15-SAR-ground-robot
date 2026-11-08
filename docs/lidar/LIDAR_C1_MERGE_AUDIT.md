@@ -69,7 +69,7 @@ GitHub Actions on PR #11 9041c05: `lidar-tests`, `test` (ci) and `perception-tes
 | S9 | Port conflicts | Replay 8775 is not used elsewhere (other hits on active branches are data values in TSV/CSV). Dashboard 8000, ranging 8765, robot API 8770, camera test 8792 | No conflict |
 | S10 | Partial or stale scans read as clearance | Partial → CLEAR/CAUTION downgraded; stale → all UNKNOWN; no return → UNKNOWN; disconnected → UNKNOWN; real device never allows motion | Tested across scenarios 01, 09–14, 17, 20 |
 | S11 | Workflow collisions | New file `lidar.yml`, display name `lidar`, job `lidar-tests`; distinct from `ci`, `perception`, `ranging` | No collision |
-| S12 | Mirror / width limitations | Phantom far returns read CLEAR; the sector check ignores robot width | Documented limitations; block Stage E |
+| S12 | Mirror / width limitations | Phantom far returns read CLEAR. The rover fields use the FRONT ±22.5° wedge, not a robot-width corridor (raised by the rover owner) | Documented. Corridor reduction is required before Stage D (migration doc). Blocks D/E |
 
 ## 7. Required actions before merge (none are code changes to other owners' branches)
 
