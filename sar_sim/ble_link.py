@@ -245,6 +245,18 @@ class BleDriver:
 
     def close(self):
         self.closing = True
+        if self.thread is not None and threading.current_thread() is self.thread:
+            # Called from the Bluetooth thread itself (cflib closes the link inside our
+            # error callback). Waiting here would wait on ourselves: schedule it instead.
+            if self.loop is not None and self.loop.is_running():
+                async def shutdown():
+                    try:
+                        await self._disconnect()
+                    finally:
+                        self.loop.stop()
+                self.loop.create_task(shutdown())
+            self.client = None
+            return
         if self.loop is not None and self.loop.is_running():
             try:
                 asyncio.run_coroutine_threadsafe(self._disconnect(), self.loop).result(timeout=6)
