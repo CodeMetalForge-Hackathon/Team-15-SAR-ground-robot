@@ -72,6 +72,7 @@ class SimConfig:
     yaw_dps_per_unit: float = 90.0    # synthetic: 1.0 normalised yaw = 90 deg/s
     sensor_max_m: float = 3.5         # Grove ultrasonic datasheet range is ~3.5 m
     beam_half_deg: float = 7.5
+    sim_blocked_m: float = 0.35       # simulated ranging-service BLOCKED threshold (PR #7 default blocked_m)
     align_tol_deg: float = 5.0        # driving more than this off an edge bearing leaves the graph
     node_tol_m: float = 0.05
     robot_radius_m: float = 0.10      # SYNTHETIC placeholder; measure the real chassis
@@ -187,9 +188,13 @@ class SimWorld:
             return None
         self.seq += 1
         r = self._range_at(self.heading)
+        # Issue #9: the simulated ranging service asserts its verdict explicitly (never None), like PR #7's
+        # forward_motion_allowed. SIMULATED only: a sim no-echo means open space beyond sensor range.
         if r is None or r > self.cfg.sensor_max_m:
-            return RangeReading(self.t, NO_ECHO, None, self.cfg.sensor_max_m, "sim-ultrasonic", self.seq)
-        return RangeReading(self.t, OK, round(r, 4), self.cfg.sensor_max_m, "sim-ultrasonic", self.seq)
+            return RangeReading(self.t, NO_ECHO, None, self.cfg.sensor_max_m, "sim-ultrasonic", self.seq,
+                                forward_allowed=True, reason="SIMULATED: no echo within sensor range")
+        return RangeReading(self.t, OK, round(r, 4), self.cfg.sensor_max_m, "sim-ultrasonic", self.seq,
+                            forward_allowed=r >= self.cfg.sim_blocked_m)
 
     def read_heading(self) -> Optional[HeadingReading]:
         if not self.heading_feedback:

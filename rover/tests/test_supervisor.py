@@ -22,6 +22,10 @@ class Drv:
         self.v = None
         self.stops = 0
         self.fail = False
+        self.link = ""          # Issue #9: "" = controller link healthy, else the fault
+
+    def health(self):
+        return self.link
 
     def apply(self, v):
         if self.fail:
@@ -35,7 +39,8 @@ class Drv:
 
 def fresh(s, c, clear=True, volts=4.0):
     s.heartbeat()
-    s.update_range(RangeReading(c.t, OK, 2.0, 3.5, "fake"), Assessment.CLEAR if clear else Assessment.BLOCKED)
+    s.update_range(RangeReading(c.t, OK, 2.0, 3.5, "fake", forward_allowed=clear),
+                   Assessment.CLEAR if clear else Assessment.BLOCKED)
     s.update_power(PowerReading(c.t, volts, "fake"))
 
 
@@ -127,7 +132,7 @@ def test_watchdog_lost_heartbeat_latches_and_no_auto_restart():
     advance(c, s, 0.1)
     for _ in range(8):  # sensors stay fresh, but the control loop stops calling heartbeat()
         c.t = round(c.t + 0.05, 6)
-        s.update_range(RangeReading(c.t, OK, 2.0, 3.5, "fake"), Assessment.CLEAR)
+        s.update_range(RangeReading(c.t, OK, 2.0, 3.5, "fake", forward_allowed=True), Assessment.CLEAR)
         s.update_power(PowerReading(c.t, 4.0, "fake"))
         s.tick()
     assert s.latched == SafetyStop.COMMS_LOST and s.output == ZERO and d.v == ZERO
