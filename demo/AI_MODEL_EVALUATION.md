@@ -45,11 +45,14 @@ How to read this:
   * Same runtime, prompts and scorer: base + RAG parsed 0/230, ckpt-0088 parsed 230/230.
   * At weight level, 150/150 LoRA B matrices are non-zero (Σ‖B‖ = 29.14).
   * No doc records an explicit adapter-listing or logit-difference check.
-* **Robot-path check on an unmerged branch: unverified here.** The closed PR #20 branch contains
+* **Robot-path check on an unmerged branch: logged (boolean only), not on `main`.** The closed PR #20 branch contains
   `scripts/qwen_rover_advisor.py`. At startup it compares next-token logits with the adapter on and off,
   and refuses to serve unless they differ (and LoRA modules are present). A team session reported this
-  check passing with ckpt-0088, but **no output log is committed or present in the evidence stores**,
-  so this package does not count it as verified.
+  check passing with ckpt-0088. The private evidence store holds 14 advice records and 13 session logs
+  (2026-11-08 09:20–10:01 ET) that record `adapter_active_verified: true` and the ckpt-0088 SHA-256; motors
+  were MOCKED, and no numeric logit value was logged. The final audit then ran the logit check itself from
+  the public adapter: max next-token logit difference 15.03, 150 LoRA modules
+  ([FINAL_GITHUB_AUDIT](../docs/FINAL_GITHUB_AUDIT.md)).
 * **Live demo service: NO.**
   * The running service is **base Qwen3.5-2B (Ollama `qwen3.5:2b-q4_K_M`) + RAG + guard**
     (`C_QWEN_RAG`).

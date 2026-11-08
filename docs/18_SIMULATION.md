@@ -248,7 +248,7 @@ Run on 2026-11-08 on an Apple M4 Pro (14 cores), Python 3.13.5, in a scratch cop
 | Run | Budget | MCTS likelihood | Best baseline (Greedy) likelihood | MCTS victims found | Greedy victims found | Evidence |
 |---|---|---|---|---|---|---|
 | `7ed29a5` (2026-11-07 15:33 −0500) | 30 km | 0.170 ± 0.023 | 0.126 ± 0.015 | 17.4 ± 2.5 % | 11.3 ± 1.5 % | git history only (overwritten) |
-| `4018ff9` (2026-11-07 15:39 −0500), committed at d1b607a | 10 km | 0.069 ± 0.010 | 0.051 ± 0.008 | 6.95 ± 1.25 % | 4.78 ± 0.93 % | `team15_starter/results/sarenv_bench_summary.csv` (sha256 `3af5f7da…0b6c`), `team15_starter/results/sarenv_bench_raw.csv` (sha256 `8a00b608…eae58`) |
+| `4018ff9` (2026-11-07 15:39 −0500), committed at d1b607a | 10 km | 0.069 ± 0.010 | 0.051 ± 0.008 | 6.95 ± 1.25 % | 4.78 ± 0.93 % | `team15_starter/results/sarenv_bench_summary.csv` (sha256 `3af5f7da…0e6c`), `team15_starter/results/sarenv_bench_raw.csv` (sha256 `8a00b608…eae58`) |
 
 In both runs MCTS has the highest mean on all three metrics. The commit message of `4018ff9` says "60 scenarios x 2 budgets", but the committed CSVs contain **only** the 10 km run (every `path_km` is 10.0). The 30 km run survives only in git history. SAREnv itself is not vendored (`--sarenv ../SAREnv`), so **this benchmark could not be re-run for this document**. Details are in [SIM-05](experiments/reports/SIM-05-sarenv-bench.md).
 

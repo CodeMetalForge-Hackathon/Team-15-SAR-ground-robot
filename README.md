@@ -4,6 +4,8 @@
 > **simulation** (aerial scout + ground rover; no physical robot movement).
 > **[Judge demo and evidence package →](demo/README.md)**: test results, benchmarks, hardware status
 > and AI model evaluation, each with its sources.
+> **[Final GitHub audit →](docs/FINAL_GITHUB_AUDIT.md)**: what is on `main`, what is unmerged or private,
+> and how each claim was checked (2026-11-08).
 
 A teleoperated wheeled rescue robot (M5Stack RoverC-Pro with a Raspberry Pi 5 and camera; RPLIDAR C1 in progress).
 

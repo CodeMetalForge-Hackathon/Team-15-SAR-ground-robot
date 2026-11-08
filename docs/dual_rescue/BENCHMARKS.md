@@ -232,7 +232,7 @@ from the fixed revision):
   outcome among 800 runs.
 
 **Known limitation found, not fixed in this PR.** The drone made 16 false CLEAR corridor reports in
-`dynamic` (plus 10 in the injected blind-camera fault). A corridor's coverage accumulates looks made
+`dynamic` in the **independent-mode baseline** (16 of its 20 runs; **0** in the coordinated system under test), plus 24 in the injected blind-camera fault (all 10 runs). Counts corrected by the final audit against the run CSV. A corridor's coverage accumulates looks made
 **before** debris fell, so the drone can call it CLEAR afterwards. None led to a collision or an unsafe
 outcome: the rover's own ultrasonic stopped it every time, and its BLOCKED observation wins over a later
 aerial CLEAR. The planned fix is to count only samples seen within the freshness window.
