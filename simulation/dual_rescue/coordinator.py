@@ -46,7 +46,8 @@ OPERATOR = "sim-operator"
 ROUTABLE = ("CLEAR", "TRAVERSED", "PROBE_APPROVED")
 AGENT_TIMEOUT_S = 10.0
 REFRESH_MARGIN_S = 30.0
-MAX_RESUMES = 3                # incidental sightings acknowledged per target before an operator is needed        # with freshness, also re-observe corridors that will go STALE this soon
+MAX_RESUMES = 3                # incidental sightings acknowledged per target before an operator is needed
+MAX_RECONFIRM = 2              # extra aerial confirm passes for a candidate still POSSIBLE after the search        # with freshness, also re-observe corridors that will go STALE this soon
 MAX_DETOUR_TASKS = 3
 SCOUT_TIMEOUT_S = 150.0
 MODES = ("coordinated", "independent", "static_route")
@@ -97,6 +98,7 @@ class Coordinator:
         self._detour: Optional[tuple] = None
         self._detour_tasks = 0
         self._reroutes_seen = 0
+        self._reconfirm: dict[str, int] = {}
         self._approach_scouted: set = set()
         rover.nav.on_need_sensing = self._rover_needs_sensing if mode == "coordinated" else None
         rover.nav.stale_edges = self.stale_edges
@@ -515,7 +517,19 @@ class Coordinator:
             handled = [x for x in self.targets.values()
                        if x["status"] in ("AT_STANDOFF", "UNREACHABLE", "NO_PERSON_FOUND")]
             unresolved = [c for c, v in self.candidates.items() if v.get("status") != "LIKELY" and c not in self.targets]
-            if self.drone_lost or (self.drone.search_complete and (handled or not unresolved)):
+            if self.drone.search_complete and not self.drone_lost and self.drone_link and not self.drone.tasks \
+                    and self.drone.task is None:
+                again = [c for c in unresolved if self._reconfirm.get(c, 0) < MAX_RECONFIRM]
+                if again:
+                    c = again[0]
+                    self._reconfirm[c] = self._reconfirm.get(c, 0) + 1
+                    self.drone.assign({"type": "CONFIRM", "cand_id": c, "task_id": f"reconfirm-{c}-{self._reconfirm[c]}",
+                                       "reason": f"{c} still POSSIBLE after the search"})
+                    self.msg("COORD", "AIR-1", "TASK", f"re-confirm {c} (pass {self._reconfirm[c]}/{MAX_RECONFIRM}): "
+                             f"confidence {self.candidates[c]['confidence']:.2f} < {DISPATCH_CONFIDENCE}")
+                    self.phase, self.phase_detail = "CONFIRMING", f"drone re-confirming {c}"
+                    return
+            if self.drone_lost or (self.drone.search_complete and self.drone.task is None and not self.drone.tasks):
                 if not self.complete:
                     self.complete = True
                     self.msg("COORD", "OPERATOR", "COMPLETE",

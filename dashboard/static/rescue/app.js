@@ -102,7 +102,7 @@ function renderPanels(st) {
   $('links').innerHTML = `<i style="background:${L['AIR-1'] ? 'var(--air)' : 'var(--red)'}"></i>AIR-1 link <i style="background:${L['GND-1'] ? 'var(--gnd)' : 'var(--red)'};margin-left:.6em"></i>GND-1 link`;
   const d = st.drone, r = st.rover;
   $('air').innerHTML = kv([['Mode', pill(d.mode)], ['Planner', esc(d.planner)], ['Position', `(${d.x.toFixed(1)}, ${d.y.toFixed(1)}) m · ${d.alt_m} m alt`],
-    ['Sensor', `${d.sensor} · ${d.footprint_m} m footprint · PoD ${d.pod}`], ['Sector PoS', `${(d.sector_pos * 100).toFixed(0)} %`], ['Looks · path', `${d.looks} · ${d.distance_m} m`],
+    ['Sensor', `${d.sensor} · ${d.footprint_m} m footprint · PoD ${d.pod}`], ['Search PoS', `${(d.observable_pos * 100).toFixed(0)} % observable · ${(d.sector_pos * 100).toFixed(0)} % incl. unseen`], ['Looks · path', `${d.looks} · ${d.distance_m} m`],
     ['Candidates', d.candidates.length], ['Task', d.task ? esc(d.task.task_id || d.task.type) : '—']]);
   $('airWhy').textContent = 'Why: ' + d.why;
   const route = r.route && r.route.status === 'OK' ? `${r.route.path.join('-')} (${r.route.length_m} m)` : (r.route ? r.route.status : '—');

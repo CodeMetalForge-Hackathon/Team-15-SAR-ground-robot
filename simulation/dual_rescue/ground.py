@@ -51,10 +51,18 @@ class CoopNavigator(Navigator):
 
     def _plan(self, start: str):
         """Navigator._plan, plus: corridors whose observation is STALE are excluded from NEW routes."""
-        if self.no_replan and getattr(self, "_obstacle_edge", None) is not None:
+        in_detour = getattr(self, "_obstacle_edge", None) is not None
+        if self.no_replan and in_detour:
             return RouteResult(NO_KNOWN_ROUTE, reason="baseline static_route: replanning disabled")
-        stale = self.stale_edges() if self.stale_edges is not None else []
-        return compute_route(start, self.dest, blocked=list(self.log.blocked_edges()) + list(stale), graph=self.g)
+        # freshness is enforced where a hold-for-sensing is possible (the detour decision); the Navigator's
+        # follow-up plan after its verified retreat re-uses the detour it just approved
+        stale = list(self.stale_edges()) if (self.stale_edges is not None and in_detour) else []
+        blocked = list(self.log.blocked_edges())
+        res = compute_route(start, self.dest, blocked=blocked + stale, graph=self.g)
+        if res.status != OK and stale:
+            res.reason = (f"no route from {start} to {self.dest} on corridors observed CLEAR and fresh; "
+                          f"blocked: {', '.join(blocked) or 'none'}; stale observations: {', '.join(stale)}")
+        return res
 
     def _obstacle(self, u: str, v: str):
         self._obstacle_edge = (u, v)
