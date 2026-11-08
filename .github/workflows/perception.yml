@@ -1,4 +1,4 @@
-name: ci
+name: perception
 on:
   push:
   pull_request:
