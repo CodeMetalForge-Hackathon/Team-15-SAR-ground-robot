@@ -255,6 +255,8 @@ def test_live_camera_pi_source_end_to_end(tmp_path, monkeypatch, capsys):
     png = cv2.imread(s["evidence"]["frame_ref"])
     assert png is not None and png.shape == (H, W, 3)
     assert bright_quadrant(png) == "br"
+    frames_log = next(out_dir.glob("*_frames.jsonl")).read_text().splitlines()
+    assert all("detect_s" in json.loads(l) for l in frames_log)   # per-frame timing logged
     assert s["evidence"]["frame_size"] == [W, H]
     assert os.path.exists(s["evidence"]["annotated_ref"])
     with open(out_dir / "sightings.jsonl") as f:

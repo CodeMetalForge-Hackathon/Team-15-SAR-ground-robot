@@ -328,8 +328,11 @@ def run(a: argparse.Namespace) -> int:
             last_frame_at = rx_time
             frames += 1
             dets: List[Detection] = []
+            detect_s = {}
             for d in detectors:
+                t_d = time.perf_counter()
                 dets.extend(d.detect_all(frame))
+                detect_s[getattr(d, "name", "opencv")] = round(time.perf_counter() - t_d, 4)
             rel = obs_time - start
             for f in FAMILIES:
                 if any(d.family == f for d in dets):
@@ -342,7 +345,9 @@ def run(a: argparse.Namespace) -> int:
                 "counts": {f: sum(d.family == f for d in dets) for f in FAMILIES},
                 "best": {f: (b.to_json() if (b := best(dets, f)) else None)
                          for f in FAMILIES},
-                "all": [d.to_json() for d in dets]}) + "\n")
+                "all": [d.to_json() for d in dets],
+                # per-detector processing time for this frame (timing only)
+                "detect_s": detect_s}) + "\n")
 
             trig = select_trigger(dets, trigger_families,
                                   a.min_box_frac * frame.shape[0])

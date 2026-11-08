@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Team 15 object tests</title>
+<style>
+  :root { --bg:#0f1216; --panel:#171b21; --line:#2a313b; --text:#e6e9ee; --muted:#9aa4b2;
+          --ok:#3fb950; --warn:#d29922; --bad:#f85149; --chip:#222932; }
+  @media (prefers-color-scheme: light) {
+    :root { --bg:#f6f7f9; --panel:#fff; --line:#d8dde4; --text:#1b1f24; --muted:#5b6573;
+            --ok:#1a7f37; --warn:#9a6700; --bad:#cf222e; --chip:#eef1f4; }
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:14px/1.45 system-ui, sans-serif; }
+  header { padding:12px 16px; border-bottom:1px solid var(--line); display:flex; gap:12px; flex-wrap:wrap; align-items:baseline; }
+  header h1 { font-size:18px; margin:0; }
+  header a { color:var(--muted); }
+  main { padding:16px; max-width:1200px; margin:0 auto; }
+  .note { color:var(--muted); font-size:12px; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:16px; margin-bottom:16px; }
+  .badge { display:inline-block; padding:2px 8px; border-radius:999px; background:var(--chip); font-size:12px; font-weight:600; margin:0 4px 4px 0; }
+  .badge.ok { color:var(--ok); } .badge.warn { color:var(--warn); } .badge.bad { color:var(--bad); }
+  .result { font-size:20px; font-weight:700; margin:8px 0 2px; }
+  .result.MATCH { color:var(--ok); } .result.UNRECOGNIZED, .result.NOT_DETECTED { color:var(--warn); }
+  .imgs { display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:12px; margin:12px 0; }
+  .imgs figure { margin:0; } .imgs img { width:100%; border-radius:6px; border:1px solid var(--line); }
+  .imgs figcaption { font-size:12px; color:var(--muted); }
+  dl { display:grid; grid-template-columns:max-content 1fr; gap:4px 14px; margin:8px 0; }
+  dt { color:var(--muted); } dd { margin:0; overflow-wrap:anywhere; }
+  table { border-collapse:collapse; width:100%; margin:6px 0 10px; font-size:13px; }
+  th, td { border-bottom:1px solid var(--line); padding:4px 6px; text-align:left; }
+  th { color:var(--muted); font-weight:600; }
+  td.num { font-variant-numeric:tabular-nums; }
+  .scroll { overflow-x:auto; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Bench object tests</h1>
+  <span class="note">LIVE HARDWARE camera experiments with a known object. Not person candidates: no rescue alert, track or route is ever created here.</span>
+  <a href="/">← person rescue dashboard</a>
+</header>
+<main id="tests"><p class="note">Loading…</p></main>
+<script>
+const esc = v => String(v ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const pct = f => `${Math.round(f * 100)}%`;
+const ms = v => v == null ? "n/a" : `${Math.round(v * 1000)} ms`;
+const RESULT_TEXT = { MATCH: "MATCH", NOT_DETECTED: "NOT DETECTED", UNRECOGNIZED: "UNKNOWN / UNRECOGNIZED" };
+
+function card(t) {
+  const gt = t.ground_truth, m = t.model, ref = t.reference, cam = (t.provenance || {}).camera || {};
+  const perf = t.performance || {}, h = t.pi_health || {};
+  const imgs = t.image_urls || {};
+  const freq = Object.entries(t.class_frequency).sort((a, b) => b[1].frames - a[1].frames);
+  const matches = t.match.status === "MATCH";
+  const align = t.alignment ? `<h3>Box alignment with operator ground-truth box</h3><table><tr><th>Class</th><th>Raw score</th><th>IoU</th></tr>${
+      t.alignment.map(a => `<tr><td>${esc(a.label)}</td><td class="num">${esc(a.score)}</td><td class="num">${esc(a.iou_with_ground_truth)}</td></tr>`).join("")}</table>`
+    : `<p class="note">Box alignment: no operator ground-truth box supplied; not computed.</p>`;
+  return `<section class="card" data-test="${esc(t.test_id)}">
+    <span class="badge ok">LIVE HARDWARE / BENCH</span>
+    <span class="badge">${esc(cam.source || "camera n/a")} · rotated ${esc(cam.rotation_deg)}°</span>
+    <span class="badge">bench object test · no rescue alert</span>
+    <h2 style="margin:6px 0 0;font-size:16px">${esc(t.test_id)}</h2>
+    <div class="result ${esc(t.match.status)}" id="result-${esc(t.test_id)}">${esc(RESULT_TEXT[t.match.status])}</div>
+    <div class="note">${esc(t.match.explanation)}</div>
+    <dl>
+      <dt>Known test object</dt><dd><b>${esc(gt.object)}</b> (ground truth supplied by ${esc(gt.supplied_by)})</dd>
+      <dt>Model class for it</dt><dd>${gt.model_class ? esc(gt.model_class) : `<b>none</b>: ${esc(m.name)} has ${m.categories.length} COCO classes and none names this object`}</dd>
+      <dt>Prediction matches ground truth</dt><dd><b>${matches ? "YES" : "NO"}</b></dd>
+      <dt>Frames</dt><dd>${esc(t.frames)} processed · ${esc(t.frames_with_no_detection)} with no detection at all (threshold ${esc(m.threshold)})</dd>
+      <dt>Person boxes</dt><dd>${esc(t.person_frames)} frame(s). Object tests never raise a person alert.</dd>
+      <dt>Captured (reference)</dt><dd>${esc(ref.capture_time_iso || "n/a")} · Pi sensor clock · ${esc(ref.rule)}</dd>
+      <dt>Performance</dt><dd>${esc(perf.processed_fps)} frames/s · inference median ${ms(perf.inference_s_median)} (max ${ms(perf.inference_s_max)}) · capture→result median ${ms(perf.capture_to_result_s_median)} · capture→Mac median ${ms(perf.capture_to_rx_s_median)}</dd>
+      <dt>Pi health</dt><dd>${h.temp_c ? `${esc(h.temp_c[0])}–${esc(h.temp_c[1])} °C · EXT5V ${esc(h.ext5v_v && h.ext5v_v.join("–"))} V · throttled ${esc((h.throttled_values || []).join("/"))}` : "n/a"}</dd>
+    </dl>
+    <div class="imgs">
+      ${imgs.reference ? `<figure><img src="${esc(imgs.reference)}" alt="Camera image for ${esc(t.test_id)}"><figcaption>Actual camera image (reference frame) · sha256 ${esc(ref.images.reference.sha256.slice(0, 16))}… verified</figcaption></figure>` : `<p class="note">Camera image ${esc(ref.withheld || "not available")}</p>`}
+      ${imgs.reference_annotated ? `<figure><img src="${esc(imgs.reference_annotated)}" alt="Annotated image for ${esc(t.test_id)}"><figcaption>Annotated: every box the model drew, raw class and score</figcaption></figure>` : ""}
+    </div>
+    <h3>Reference-frame detections (raw, not relabelled)</h3>
+    <div class="scroll"><table><tr><th>Class</th><th>Raw score</th><th>Bounding box [x, y, w, h] px</th></tr>
+      ${ref.detections.length ? ref.detections.map(d => `<tr><td>${esc(d.label)}</td><td class="num">${esc(d.score)}</td><td class="num">${esc(d.bbox.join(", "))}</td></tr>`).join("")
+        : `<tr><td colspan="3">No detection in this frame</td></tr>`}
+    </table></div>
+    <h3>Detection frequency across all frames</h3>
+    <div class="scroll"><table><tr><th>Predicted class</th><th>Frames</th><th>Frequency</th><th>Raw score min / median / max</th></tr>
+      ${freq.length ? freq.map(([k, f]) => `<tr><td>${esc(k)}</td><td class="num">${esc(f.frames)} / ${esc(t.frames)}</td><td class="num">${pct(f.frac_frames)}</td><td class="num">${esc(f.score_min)} / ${esc(f.score_median)} / ${esc(f.score_max)}</td></tr>`).join("")
+        : `<tr><td colspan="4">Nothing detected in any frame</td></tr>`}
+    </table></div>
+    ${align}
+  </section>`;
+}
+
+async function load() {
+  const el = document.getElementById("tests");
+  try {
+    const r = await fetch("/api/object_tests", { cache: "no-store" });
+    const data = await r.json();
+    el.innerHTML = data.object_tests.length ? data.object_tests.map(card).join("")
+      : '<p class="note">No object tests recorded.</p>';
+  } catch (e) {
+    el.innerHTML = `<p class="note">Could not load object tests: ${esc(e)}</p>`;
+  }
+}
+load();
+</script>
+</body>
+</html>

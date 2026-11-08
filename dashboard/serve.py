@@ -25,6 +25,9 @@ def main(argv=None) -> int:
     p = argparse.ArgumentParser(description="Team 15 base-station dashboard")
     p.add_argument("--observation", action="append", default=[],
                    help="JSON/JSONL file with observation(s) to load at start (repeatable)")
+    p.add_argument("--run-annotation", action="append", default=[],
+                   help="run_annotation.json to load at start (repeatable; "
+                        "contracts/run_annotation.py)")
     p.add_argument("--evidence-dir", action="append", default=[],
                    help="extra folder photos may be served from (repeatable)")
     p.add_argument("--range-fixture", default=None,
@@ -46,6 +49,8 @@ def main(argv=None) -> int:
     dirs = [CAMERA_EVIDENCE_DIR, *(str(Path(f).parent) for f in obs_files), *a.evidence_dir]
     dirs = list(dict.fromkeys(str(Path(d).expanduser()) for d in dirs))
     os.environ["TEAM15_OBSERVATIONS"] = os.pathsep.join(obs_files)
+    os.environ["TEAM15_RUN_ANNOTATIONS"] = os.pathsep.join(
+        str(Path(f).expanduser().resolve()) for f in a.run_annotation)
     os.environ["TEAM15_EVIDENCE_DIR"] = os.pathsep.join(dirs)
     os.environ["TEAM15_RESPONDER_NODE"] = a.responder
     for var, val in (("TEAM15_RANGE_FIXTURE", a.range_fixture), ("TEAM15_ROBOT_FIXTURE", a.robot_fixture)):

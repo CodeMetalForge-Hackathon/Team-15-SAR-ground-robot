@@ -188,9 +188,42 @@ function cameraText(L) {
 }
 function timingText(L) {
   const c = L.camera || {};
+  const live = L.run && L.run.live_capture_to_dashboard_s;
+  if (live != null) {
+    const reloaded = Math.abs(L.capture_to_ingest_s - live) > 5
+      ? ` · this dashboard instance re-loaded the record ${L.capture_to_ingest_s.toFixed(0)} s after capture` : "";
+    return `${esc(c.capture_clock_label || "not reported")}${c.capture_to_rx_s != null ? ` · capture→Mac ${(c.capture_to_rx_s * 1000).toFixed(0)} ms` : ""} · <b id="live-latency">live capture→dashboard ${Math.round(live * 1000)} ms</b> (measured at live delivery)${reloaded}`;
+  }
   const rx = c.capture_to_rx_s != null ? ` · capture→Mac ${(c.capture_to_rx_s * 1000).toFixed(0)} ms` : "";
   const skew = L.clock_skew ? ' · <b class="bad">CLOCK SKEW: capture time is in the future</b>' : "";
   return `${esc(c.capture_clock_label || "not reported")}${rx} · capture→dashboard ${L.capture_to_ingest_s.toFixed(2)} s${skew}`;
+}
+function runChip(L) {
+  const r = L.run;
+  if (!r) return "";
+  if (r.error) return `<span class="badge bad" id="run-chip">RUN CONTEXT REJECTED: ${esc(r.error)}</span>`;
+  return `<span class="badge live" id="run-chip" data-classification="${esc(r.classification)}">${esc(r.label)}</span>`;
+}
+function bboxText(L) {
+  if (!Array.isArray(L.bbox)) return "not reported";
+  const [x, y, w, h] = L.bbox.map(Number);
+  const fs = Array.isArray(L.frame_size) ? ` in a ${esc(L.frame_size[0])}×${esc(L.frame_size[1])} frame` : "";
+  return `x ${x}, y ${y}, width ${w}, height ${h} px${fs} (top-left origin; drawn on the annotated image)`;
+}
+function runRows(L) {
+  const r = L.run;
+  if (!r || r.error) return "";
+  const ms = v => v == null ? "n/a" : `${Math.round(v * 1000)} ms`;
+  const h = r.pi_health || {};
+  const health = h.temp_c ? ` · Pi ${esc(h.temp_c[0])}–${esc(h.temp_c[1])} °C, throttled ${esc((h.throttled_values || []).join("/") || "n/a")}` : "";
+  return `
+      <dt>Run</dt><dd id="run-id">${esc(r.run_id)} · <b>${esc(r.label)}</b></dd>
+      <dt>Run result</dt><dd id="run-scope">${r.counts_as_empty_scene ? "Counts as an empty-scene result"
+        : `Not an empty-scene result${r.scene_requested ? ` (requested scene: ${esc(r.scene_requested)})` : ""}: a person was present. Excluded from the empty-scene false-positive rate.`}</dd>
+      ${r.person_score_median != null ? `<dt>Detector score (run)</dt><dd id="run-score">median <b>${esc(r.person_score_median)}</b> (min ${esc(r.person_score_min)}, max ${esc(r.person_score_max)}) over ${esc(r.person_frames)}${r.frames != null ? ` of ${esc(r.frames)}` : ""} frames of the run. Raw detector scores, not probabilities.</dd>` : ""}
+      <dt>Run performance</dt><dd id="run-perf">${esc(r.processed_fps)} frames/s processed${r.frames != null ? ` (${esc(r.frames)} frames)` : ""} · median capture→Mac ${ms(r.capture_to_rx_s_median)} (max ${ms(r.capture_to_rx_s_max)})${health}</dd>
+      <dt>Consent</dt><dd id="run-consent">${esc(r.consent_status)} for ${esc(r.consent_scope.join(", "))}${r.consent_stated_at ? `, stated ${esc(r.consent_stated_at)}` : ""}. Local test dashboard only, not for public sharing.</dd>
+      <dt>Checksums</dt><dd class="note">frame ${esc(r.frame_sha256)} (matches the sighting)${r.annotated_sha256 ? `<br>annotated ${esc(r.annotated_sha256)} (${esc(r.annotated_sha256_recorded)})` : ""}</dd>`;
 }
 const newest = st => st.tracks.length ? st.tracks.reduce((a, b) => (b.latest.obs_time > a.latest.obs_time ? b : a)) : null;
 
@@ -242,7 +275,7 @@ function drawCandidate(st) {
   const t = newest(st);
   if (!t) { el.innerHTML = '<span class="note">No sighting yet.</span>'; candKey = null; return; }
   const L = t.latest;
-  const key = [L.obs_id, L.confirmation, L.decided_by, t.n_observations].join("|");
+  const key = [L.obs_id, L.confirmation, L.decided_by, t.n_observations, L.run ? L.run.label : ""].join("|");
   if (key === candKey) return;           // keep the photo and the operator field steady
   candKey = key;
   const op = esc(store.get("team15.operator") || "");
@@ -250,6 +283,7 @@ function drawCandidate(st) {
     <span class="badge ${badgeClass(t.badge)}">${badgeIcon(t.badge)}${esc(t.badge)}</span>
     ${confChip(L)}
     ${cameraChip(L)}
+    ${runChip(L)}
     <span class="badge neutral" id="stale-chip" hidden>STALE</span>
     <div class="cand-title" id="cand-label">${esc(t.label)}</div>
     <div class="note">${esc(t.track_id)} · ${t.n_observations} sighting(s) in this sector · sources: ${esc(t.sources.join(", "))} · bench camera has no identity</div>
@@ -261,14 +295,20 @@ function drawCandidate(st) {
       <dt>Camera</dt><dd id="camera-detail">${cameraText(L)}</dd>
       <dt>Observation</dt><dd>${esc(L.obs_id)} · ${esc(L.kind)} · ${esc(L.sensor.toUpperCase())}</dd>
       <dt>Provenance</dt><dd>${esc(L.source_mode)} / ${esc(L.platform ?? "n/a")}: not an aerial detection</dd>
-      <dt>Location</dt><dd>${esc(t.how)}: sector ${esc(t.cell)} was <b>assigned</b>${L.cell_source ? ` (${esc(L.cell_source)})` : ""}, not measured</dd>
+      <dt>Location</dt><dd id="location">${esc(t.how)}: sector ${esc(t.cell)} is <b>OPERATOR-ASSIGNED / SYNTHETIC</b>${L.cell_source ? ` (${esc(L.cell_source)})` : ""}: a cell on the synthetic trail map, not a measured location</dd>
+      ${L.detected_class ? `<dt>Detected class</dt><dd id="detected-class">${esc(L.detected_class)}</dd>` : ""}
+      <dt>Bounding box</dt><dd id="bbox">${bboxText(L)}</dd>
       <dt>Detector</dt><dd>${detectorText(L)}</dd>
+      <dt>Detector score (sighting frame)</dt><dd id="frame-score">${L.detector_score != null ? `<b>${esc(L.detector_score)}</b> for this sighting frame only (${esc(L.detector_score_kind)}; not a probability)` : "n/a"}</dd>
       <dt>Confidence</dt><dd>${scoreText(L)}</dd>
       ${L.count_in_frame != null ? `<dt>Boxes in frame</dt><dd>${esc(L.count_in_frame)} (may include bystanders or reflections)</dd>` : ""}
+      ${runRows(L)}
     </dl>
     <div class="photo" id="photo">${photoHtml(L)}</div>
     <div class="note">${L.photo_name ? `Photo: ${esc(L.photo_name)} (local only, not in Git)` : ""}
-      ${L.frame_url ? ` · <a href="${esc(L.frame_url)}" target="_blank" rel="noopener">exact evidence frame</a>` : ""}</div>
+      ${L.frame_url ? ` · <a id="link-original" href="${esc(L.frame_url)}" target="_blank" rel="noopener">original frame${L.frame_name ? ` (${esc(L.frame_name)})` : ""}</a>` : ""}
+      ${L.annotated_url ? ` · <a id="link-annotated" href="${esc(L.annotated_url)}" target="_blank" rel="noopener">annotated image${L.annotated_name ? ` (${esc(L.annotated_name)})` : ""}</a>` : ""}
+      <br>The camera does not identify people. No identity, injury, medical condition or distance is inferred from the image.</div>
     ${L.confirmation === "unconfirmed" ? `
     <div class="decide">
       <label for="operator">Operator</label>
@@ -295,7 +335,7 @@ function drawHistory(st) {
   el.innerHTML = `<ul class="hist">${items.map(h => `
     <li data-obs="${esc(h.obs_id)}">
       ${h.photo_url ? `<img src="${esc(h.photo_url)}" alt="" loading="lazy" onerror="this.outerHTML='<div class=noimg></div>'">` : '<div class="noimg"></div>'}
-      <div><b>${esc(h.obs_id)}</b> · ${esc(h.track_id)} sector ${esc(h.cell)} · ${esc(h.badge)} · ${esc((h.camera && h.camera.label) || "camera not reported")}<br>
+      <div><b>${esc(h.obs_id)}</b> · ${esc(h.track_id)} sector ${esc(h.cell)} · ${esc(h.badge)}${h.run && h.run.label ? ` · ${esc(h.run.label)}` : ""} · ${esc((h.camera && h.camera.label) || "camera not reported")}<br>
         ${fmtTime(h)}<br>${detectorText(h)} · ${esc(h.confirmation.toUpperCase())}${h.decided_by ? ` by ${esc(h.decided_by)}` : ""}</div>
     </li>`).join("")}</ul>`;
 }

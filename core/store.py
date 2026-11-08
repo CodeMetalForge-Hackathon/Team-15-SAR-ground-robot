@@ -24,6 +24,7 @@ import threading
 import time
 from pathlib import Path
 
+from contracts import run_annotation
 from contracts.camera_provenance import camera_kind, camera_label, clock_label
 from core.ingest import normalise
 from planner.graph import TrailGraph, load_graph
@@ -66,6 +67,12 @@ def _name(path) -> str | None:
 
 CLOCK_SKEW_S = 2.0
 
+# What each detector family reports. Only PERSON_DETECTOR is the COCO "person" class.
+DETECTED_CLASS = {"PERSON_DETECTOR": "person (COCO class 'person')",
+                  "FULL_BODY_HOG": "person (HOG full-body detector)",
+                  "UPPER_BODY_HAAR": "person (upper-body cascade)",
+                  "FACE_ONLY": "face only (not a person detection)"}
+
 
 def _camera_view(cam: dict | None) -> dict:
     """Which physical camera produced the sighting (evidence.camera, see
@@ -105,6 +112,7 @@ class MissionStore:
         self._routes: list[dict] = []
         self._alerts: list[dict] = []
         self._decisions: list[dict] = []
+        self._runs: dict[str, dict] = {}         # obs_id -> run annotation
 
     # ---- writes -------------------------------------------------------------
     def add_observation(self, raw: dict) -> dict:
@@ -150,6 +158,31 @@ class MissionStore:
                                                         .get("camera"))["label"]})
             self._replan()
             return {"obs_id": obs_id, "duplicate": False, "track_id": track_id}
+
+    def add_run_annotation(self, ann: dict) -> dict:
+        """Attach operator-stated run context (contracts/run_annotation.py).
+        The observations themselves are not changed."""
+        run_annotation.validate(ann)
+        with self._lock:
+            for oid in ann["obs_ids"]:
+                prev = self._runs.get(oid)
+                if prev is not None and prev["run_id"] != ann["run_id"]:
+                    raise run_annotation.InvalidRunAnnotation(
+                        f"{oid} is already annotated by run {prev['run_id']}")
+            for oid in ann["obs_ids"]:
+                self._runs[oid] = ann
+        return {"run_id": ann["run_id"], "obs_ids": list(ann["obs_ids"])}
+
+    def _run_view(self, o: dict) -> dict | None:
+        ann = self._runs.get(o["obs_id"])
+        if ann is None:
+            return None
+        sha = (o.get("evidence") or {}).get("frame_sha256")
+        if ann["evidence"][o["obs_id"]]["frame_sha256"] != sha:
+            return {"run_id": ann["run_id"], "label": None,
+                    "error": "run annotation does not match this observation's evidence "
+                             "frame checksum; not shown"}
+        return run_annotation.view(ann, o["obs_id"])
 
     def decide(self, obs_id: str, decision: str, operator: str) -> dict:
         """Operator confirms or rejects one sighting. Nothing else changes it."""
@@ -238,7 +271,11 @@ class MissionStore:
             "detector_score": ev.get("detector_score"),
             "detector_score_kind": ev.get("detector_score_kind"),
             "count_in_frame": ev.get("count_in_frame"),
+            "detected_class": DETECTED_CLASS.get(ev.get("detector_family")),
+            "bbox": ev.get("bbox"),               # [x, y, w, h] in frame pixels
+            "frame_size": ev.get("frame_size"),
             "frame_sha256": ev.get("frame_sha256"),
+            "run": self._run_view(o),
             "camera": _camera_view(ev.get("camera")),
             # capture -> dashboard ingest; obs_time is the capture time, never replaced
             "capture_to_ingest_s": o["rx_time"] - o["obs_time"],
@@ -247,6 +284,8 @@ class MissionStore:
             # Display the annotated JPEG when there is one; /frame is the exact evidence.
             "photo_url": f"/evidence/{o['obs_id']}" if (has_frame or has_annotated) else None,
             "frame_url": f"/evidence/{o['obs_id']}/frame" if has_frame else None,
+            "annotated_url": f"/evidence/{o['obs_id']}" if has_annotated else None,
+            "annotated_name": _name(ev.get("annotated_ref")),
             "photo_name": _name(ev.get("annotated_ref") or ev.get("frame_ref")),
             "frame_name": _name(ev.get("frame_ref")),
         }
