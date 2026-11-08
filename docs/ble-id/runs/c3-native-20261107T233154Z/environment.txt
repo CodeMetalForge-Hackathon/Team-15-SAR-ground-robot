@@ -1,0 +1,16 @@
+utc: 2026-11-07T23:31:54Z
+ProductName:		macOS
+ProductVersion:		26.1
+BuildVersion:		25B78
+arm64
+      Model Name: MacBook Pro
+      Chip: Apple M4 Pro
+      Memory: 24 GB
+python3: /opt/homebrew/bin/python3 Python 3.15.0
+node: v24.11.0
+HEAD: 7cf7e97dc4afbc72b28147ca8ebc9c6361ec1eb2
+status:
+ M docs/ble-id/runs/c3-native-20261107T215002Z/summary.txt
+?? docs/ble-id/runs/c3-diag-20261107T232843Z/
+?? docs/ble-id/runs/c3-native-20261107T233154Z/
+python for tests and dashboard: /opt/homebrew/bin/python3.13 (Python 3.13.13)

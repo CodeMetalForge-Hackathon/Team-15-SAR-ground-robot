@@ -1,0 +1,8 @@
+mode: SYNTHETIC TEST KEYS | source: LIVE-HW | scope: TESTKEY-bench-c3-native-20261107T215002Z
+snapshots: 60 ok: 60 errors: 0
+no verified card
+final sightings: []
+final counts: {'drop:unsupported_version': 1}
+receiver: {'status': 'scanning', 'detail': 'Passive receiver is scanning', 'source': 'LIVE-HW'}
+replay state on disk: {}
+native live integration: FAIL / INCOMPLETE (no verified card: iPhone C1 app was not broadcasting in Rotating mode during the 120 s capture)

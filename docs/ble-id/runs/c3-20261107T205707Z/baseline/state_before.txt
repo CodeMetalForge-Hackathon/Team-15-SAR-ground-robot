@@ -1,0 +1,30 @@
+run: c3-20261107T205707Z
+utc: 2026-11-07T20:57:07Z
+HEAD: 424a6212240be49be05cbecda7282fd5fa7753e2
+--- git status (uncommitted work from the discovery session, preserved as-is)
+ M firmware/esp32_scanner/esp32_scanner.ino
+?? .gitignore
+?? discovery/
+?? docs/ble-id/DISCOVERY_VALIDATION.md
+?? docs/ble-id/runs/c3-20261107T205707Z/
+?? firmware/esp32_scanner/build/
+?? tests/test_discovery.py
+--- sha256 of uncommitted discovery-session files
+74ced0c389a3f187b566ecec3b6c2196abd9d810aa79bad32c1ccfe20023d530  discovery/__init__.py
+1960e18721b51fa6aedf2007d5cb9dcd38029c3196c4add0f34870aeb2681670  discovery/server.py
+a77a05a375b523b6a5e11e9d319a86a2a57240432c3adaf12d910d8cf287ae73  discovery/README.md
+9d4cbd76ca2983236ecc4aa86ecdce32ca7bca4929f7cd531a492589607b003e  discovery/static/app.js
+6ce7e9e0b7f5c6407513a9baaae051e62af694ac5ccb7262411b00087a908ffb  discovery/static/index.html
+bfc31bf28cd9370e2abccbff1317016d9b36c30f0ac87a8fb662928cc45a2849  discovery/static/style.css
+ad732a76630cbbba14a368ee43ad6df851f8f7d9e2d1dcab02ccf5b58b5c9d38  tests/test_discovery.py
+edeb8c80ee7b919ebae3d5099d3ca7ed441f8ef82cb50bcc7693eeca1eb5f5ab  docs/ble-id/DISCOVERY_VALIDATION.md
+fb2d1f0dae79c0b6a61b67988a5f6539c0790e0e0c56e825ca710c32043cb974  firmware/esp32_scanner/esp32_scanner.ino
+6feaded4e28ea86e001a6751b4e3d960e8b7c31b9616ff9936b79297086e809b  .gitignore
+--- mtimes (UTC)
+2026-11-07 20:44:53.612573112 +0000 discovery/server.py
+2026-11-07 20:46:30.494089236 +0000 discovery/static/app.js
+2026-11-07 20:43:48.028961160 +0000 firmware/esp32_scanner/esp32_scanner.ino
+2026-11-07 20:48:40.427437231 +0000 tests/test_discovery.py
+host: Linux VM on the user's Mac (Linux aarch64); Python 3.10.12
+/usr/bin/node
+v22.23.4

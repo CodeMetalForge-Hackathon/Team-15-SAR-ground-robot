@@ -1,0 +1,66 @@
+{
+ "first_authenticated_card_s_after_sim_start": 6.92,
+ "banner": "SIMULATED \u00b7 Synthetic serial input, simulator keys and separate replay state. Not hardware.",
+ "mode_tag": "SIMULATED",
+ "connection": "SIMULATED \u00b7 NOT HARDWARE \u00b7 Passive scanning",
+ "first_card": "Enrolled beacon 001\nAUTHENTICATED\nLast authenticated token 3 s ago\n1 verified token \u00b7 window 59802864 \u00b7 2026-11-07T21:12:00+00:00\n-61 dBm\nat last verification \u00b7 not distance",
+ "api_counts": {
+  "drop:framing": 8,
+  "drop:name_present": 2,
+  "drop:rssi_out_of_range": 2,
+  "forged:bad_tag": 2,
+  "ignored:receiver_not_ready": 1,
+  "replay:duplicate": 47,
+  "replay:future": 2,
+  "replay:stale": 2,
+  "unknown:unenrolled_alias": 2,
+  "verified:fresh": 4
+ },
+ "api_sightings": [
+  {
+   "alias": 1,
+   "label": "Enrolled beacon 001",
+   "last_verified_age_s": 24.1,
+   "first_verified_age_s": 53.1,
+   "last_verified_utc": "2026-11-07T21:12:30+00:00",
+   "counter": 59802865,
+   "rssi": -60,
+   "verified_tokens": 2,
+   "stale": false
+  },
+  {
+   "alias": 2,
+   "label": "Enrolled beacon 002",
+   "last_verified_age_s": 23.1,
+   "first_verified_age_s": 53.1,
+   "last_verified_utc": "2026-11-07T21:12:31+00:00",
+   "counter": 59802865,
+   "rssi": -71,
+   "verified_tokens": 2,
+   "stale": false
+  }
+ ],
+ "api_source": "SIMULATED",
+ "api_mode": "simulated",
+ "receiver": {
+  "status": "scanning",
+  "detail": "Passive receiver is scanning",
+  "source": "SIMULATED"
+ },
+ "nearby_panel": "Signal 01\nHeard just now\nUnknown BLE deviceUNVERIFIED\nAdvertised name: SIM NODEA\n-70 dBm\n53 advertisements\n30 s ago\n\u2212110 to \u221220 dBm\nnow\nSignal 02\nHeard just now\nPossible Apple deviceUNVERIFIED\n-79 dBm\n53 advertisements\n30 s ago\n\u2212110 to \u221220 dBm\nnow",
+ "diagnostics_text": "Rejected and diagnostic events 68\nMalformed \u00b7 serial row not in the expected format: 8\nMalformed \u00b7 protocol token with a device name: 2\nMalformed \u00b7 signal strength out of range: 2\nForged \u00b7 enrolled alias, signature does not match: 2\nIgnored \u00b7 receiver had no fresh heartbeat: 1\nReplay \u00b7 already-used token heard again: 47\nReplay \u00b7 token ahead of this receiver's clock: 2\nReplay \u00b7 token outside the time window (too old): 2\nUnknown \u00b7 alias not enrolled here: 2\n6 s ago \u00b7 Replay \u00b7 already-used token heard again \u00b7 alias 2 \u00b7 -71 dBm\n6 s ago \u00b7 Replay \u00b7 already-used token heard again \u00b7 alias 1 \u00b7 -62 dBm\n7 s ago \u00b7 Replay \u00b7 already-used token heard again \u00b7 alias 1 \u00b7 -61 dBm\n8 s ago \u00b7 Replay \u00b7 token ahead of this receiver's clock \u00b7 alias 1 \u00b7 -64 dBm\n8 s ago \u00b7 Replay \u00b7 already-used token heard again \u00b7 alias 1 \u00b7 -60 dBm\n9 s ago \u00b7 Malformed \u00b7 serial row not in the expected format\n9 s ago \u00b7 Malformed \u00b7 protocol token with a device name\n9 s ago \u00b7 Malformed \u00b7 serial row not in the expected format\n9 s ago \u00b7 Malformed \u00b7 signal strength out of range\n9 s ago \u00b7 Malformed \u00b7 serial row not in the expected format\n9 s ago \u00b7 Malformed \u00b7 serial row not in the expected format\n9 s ago \u00b7 Replay \u00b7 already-used token heard again \u00b7 alias 2 \u00b7 -71 dBm\n9 s ago \u00b7 Replay \u00b7 already-used token heard again \u00b7 alias 1 \u00b7 -59 dBm\n10 s ago \u00b7 Unknown \u00b7 alias not enrolled here \u00b7 -62 dBm\n10 s ago \u00b7 Replay \u00b7 already-used token heard again \u00b7 alias 1 \u00b7 -58 dBm",
+ "discovery_source": "SIMULATED",
+ "discovery_signals": 2,
+ "video_webm": "page@6cce80d0750f333990af896f8d47d24d.webm",
+ "assertions": {
+  "SIMULATED banner visible": true,
+  "header never says LIVE for simulated data": true,
+  "card says AUTHENTICATED": true,
+  "API source SIMULATED": true,
+  "all outcome kinds seen": true,
+  "nearby signals stay UNVERIFIED": true,
+  "Apple hint shown as possible only": true,
+  "diagnostics list forged/replay/unknown/malformed": true,
+  "sighting kept through loss": true
+ }
+}

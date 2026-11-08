@@ -1,0 +1,14 @@
+__pycache__/
+*.py[cod]
+.DS_Store
+
+# BLE-ID local secrets: production key files must never be committed
+keys.json
+*keys.json
+*.keys.json
+olf-keys*
+secrets/
+# BLE-ID local runtime state (replay state and owner lock files)
+*.json.lock
+*replay_state*.json
+olf-*-state.json

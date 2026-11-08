@@ -1,0 +1,144 @@
+Command line invocation:
+    /Applications/Xcode.app/Contents/Developer/usr/bin/xcodebuild -project ios/BeaconC1/BeaconC1.xcodeproj -scheme BeaconC1 -sdk iphoneos -configuration Debug -derivedDataPath /tmp/ble-c1-build -allowProvisioningUpdates DEVELOPMENT_TEAM=<identifier-masked> build
+
+Build settings from command line:
+    DEVELOPMENT_TEAM = <identifier-masked>
+    SDKROOT = iphoneos26.2
+
+2026-11-07 15:17:19.956 xcodebuild[77277:24551149] [MT] IDERunDestination: Supported platforms for the buildables in the current scheme is empty.
+--- xcodebuild: WARNING: Using the first of multiple matching destinations:
+{ platform:iOS, id:dvtdevice-DVTiPhonePlaceholder-iphoneos:placeholder, name:Any iOS Device }
+{ platform:macOS, arch:arm64, variant:Designed for [iPad,iPhone], id:00006040-000229E60AF9801C, name:My Mac }
+{ platform:iOS Simulator, id:dvtdevice-DVTiOSDeviceSimulatorPlaceholder-iphonesimulator:placeholder, name:Any iOS Simulator Device }
+{ platform:visionOS Simulator, arch:arm64, variant:Designed for [iPad,iPhone], id:<UUID-masked>, OS:26.2, name:Apple Vision Pro }
+{ platform:iOS Simulator, arch:arm64, id:<UUID-masked>, OS:26.3.1, name:iPad (A16) }
+{ platform:iOS Simulator, arch:arm64, id:<UUID-masked>, OS:26.3.1, name:iPad Air 11-inch (M3) }
+{ platform:iOS Simulator, arch:arm64, id:<UUID-masked>, OS:26.3.1, name:iPad Air 13-inch (M3) }
+{ platform:iOS Simulator, arch:arm64, id:<UUID-masked>, OS:26.3.1, name:iPad Pro 11-inch (M5) }
+{ platform:iOS Simulator, arch:arm64, id:<UUID-masked>, OS:26.3.1, name:iPad Pro 13-inch (M5) }
+{ platform:iOS Simulator, arch:arm64, id:<UUID-masked>, OS:26.3.1, name:iPad mini (A17 Pro) }
+{ platform:iOS Simulator, arch:arm64, id:<UUID-masked>, OS:26.3.1, name:iPhone 16e }
+{ platform:iOS Simulator, arch:arm64, id:<UUID-masked>, OS:26.3.1, name:iPhone 17 }
+{ platform:iOS Simulator, arch:arm64, id:<UUID-masked>, OS:26.3.1, name:iPhone 17 Pro }
+{ platform:iOS Simulator, arch:arm64, id:<UUID-masked>, OS:26.3.1, name:iPhone 17 Pro Max }
+{ platform:iOS Simulator, arch:arm64, id:<UUID-masked>, OS:26.3.1, name:iPhone Air }
+{ platform:iOS, arch:arm64, id:<identifier-masked>, name:٩(๑❛ᴗ❛๑)۶ }
+ComputePackagePrebuildTargetDependencyGraph
+
+Prepare packages
+
+CreateBuildRequest
+
+SendProjectDescription
+
+CreateBuildOperation
+
+ComputeTargetDependencyGraph
+note: Building targets in dependency order
+note: Target dependency graph (1 target)
+    Target 'BeaconC1' in project 'BeaconC1' (no dependencies)
+
+GatherProvisioningInputs
+
+CreateBuildDescription
+
+ExecuteExternalTool /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -v -E -dM -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.2.sdk -x c -c /dev/null
+
+ExecuteExternalTool /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc --version
+
+ExecuteExternalTool /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/ld -version_details
+
+Build description signature: e2b0d66f2d20d6b9fda582d964923838
+Build description path: /tmp/ble-c1-build/Build/Intermediates.noindex/XCBuildData/e2b0d66f2d20d6b9fda582d964923838.xcbuilddata
+ClangStatCache /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang-stat-cache /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.2.sdk /tmp/ble-c1-build/SDKStatCaches.noindex/iphoneos26.2-23C57-3794476bd08197c3e2abd9bb477ef7f7.sdkstatcache
+    cd /Users/culubo/Team-15/ios/BeaconC1/BeaconC1.xcodeproj
+    /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang-stat-cache /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.2.sdk -o /tmp/ble-c1-build/SDKStatCaches.noindex/iphoneos26.2-23C57-3794476bd08197c3e2abd9bb477ef7f7.sdkstatcache
+
+ProcessProductPackaging /Users/culubo/Library/Developer/Xcode/UserData/Provisioning\ Profiles/<UUID-masked>.mobileprovision /tmp/ble-c1-build/Build/Products/Debug-iphoneos/BeaconC1.app/embedded.mobileprovision (in target 'BeaconC1' from project 'BeaconC1')
+    cd /Users/culubo/Team-15/ios/BeaconC1
+    builtin-productPackagingUtility /Users/culubo/Library/Developer/Xcode/UserData/Provisioning\ Profiles/<UUID-masked>.mobileprovision -o /tmp/ble-c1-build/Build/Products/Debug-iphoneos/BeaconC1.app/embedded.mobileprovision
+
+WriteAuxiliaryFile /tmp/ble-c1-build/Build/Intermediates.noindex/BeaconC1.build/Debug-iphoneos/BeaconC1.build/DerivedSources/Entitlements.plist (in target 'BeaconC1' from project 'BeaconC1')
+    cd /Users/culubo/Team-15/ios/BeaconC1
+    write-file /tmp/ble-c1-build/Build/Intermediates.noindex/BeaconC1.build/Debug-iphoneos/BeaconC1.build/DerivedSources/Entitlements.plist
+
+ProcessProductPackaging "" /tmp/ble-c1-build/Build/Intermediates.noindex/BeaconC1.build/Debug-iphoneos/BeaconC1.build/BeaconC1.app.xcent (in target 'BeaconC1' from project 'BeaconC1')
+    cd /Users/culubo/Team-15/ios/BeaconC1
+
+    Entitlements:
+
+    {
+    "application-identifier" = "<identifier-masked>.com.culubo.olf.beaconc1";
+    "com.apple.developer.team-identifier" = <identifier-masked>;
+    "get-task-allow" = 1;
+}
+
+    builtin-productPackagingUtility -entitlements -format xml -o /tmp/ble-c1-build/Build/Intermediates.noindex/BeaconC1.build/Debug-iphoneos/BeaconC1.build/BeaconC1.app.xcent
+
+ProcessProductPackagingDER /tmp/ble-c1-build/Build/Intermediates.noindex/BeaconC1.build/Debug-iphoneos/BeaconC1.build/BeaconC1.app.xcent /tmp/ble-c1-build/Build/Intermediates.noindex/BeaconC1.build/Debug-iphoneos/BeaconC1.build/BeaconC1.app.xcent.der (in target 'BeaconC1' from project 'BeaconC1')
+    cd /Users/culubo/Team-15/ios/BeaconC1
+    /usr/bin/derq query -f xml -i /tmp/ble-c1-build/Build/Intermediates.noindex/BeaconC1.build/Debug-iphoneos/BeaconC1.build/BeaconC1.app.xcent -o /tmp/ble-c1-build/Build/Intermediates.noindex/BeaconC1.build/Debug-iphoneos/BeaconC1.build/BeaconC1.app.xcent.der --raw
+
+Ld /tmp/ble-c1-build/Build/Products/Debug-iphoneos/BeaconC1.app/__preview.dylib normal (in target 'BeaconC1' from project 'BeaconC1')
+    cd /Users/culubo/Team-15/ios/BeaconC1
+    /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -Xlinker -reproducible -target arm64-apple-ios17.0 -dynamiclib -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.2.sdk -O0 -L/tmp/ble-c1-build/Build/Products/Debug-iphoneos -F/tmp/ble-c1-build/Build/Products/Debug-iphoneos -install_name @rpath/BeaconC1.debug.dylib -dead_strip -rdynamic -Xlinker -no_deduplicate -Xlinker -dependency_info -Xlinker /tmp/ble-c1-build/Build/Intermediates.noindex/BeaconC1.build/Debug-iphoneos/BeaconC1.build/Objects-normal/arm64/BeaconC1_dependency_info.dat -Xlinker -no_adhoc_codesign -o /tmp/ble-c1-build/Build/Products/Debug-iphoneos/BeaconC1.app/__preview.dylib
+
+ProcessInfoPlistFile /tmp/ble-c1-build/Build/Products/Debug-iphoneos/BeaconC1.app/Info.plist /tmp/ble-c1-build/Build/Intermediates.noindex/BeaconC1.build/Debug-iphoneos/BeaconC1.build/empty-BeaconC1.plist (in target 'BeaconC1' from project 'BeaconC1')
+    cd /Users/culubo/Team-15/ios/BeaconC1
+    builtin-infoPlistUtility /tmp/ble-c1-build/Build/Intermediates.noindex/BeaconC1.build/Debug-iphoneos/BeaconC1.build/empty-BeaconC1.plist -producttype com.apple.product-type.application -genpkginfo /tmp/ble-c1-build/Build/Products/Debug-iphoneos/BeaconC1.app/PkgInfo -expandbuildsettings -format binary -platform iphoneos -requiredArchitecture arm64 -o /tmp/ble-c1-build/Build/Products/Debug-iphoneos/BeaconC1.app/Info.plist
+
+Ld /tmp/ble-c1-build/Build/Products/Debug-iphoneos/BeaconC1.app/BeaconC1.debug.dylib normal (in target 'BeaconC1' from project 'BeaconC1')
+    cd /Users/culubo/Team-15/ios/BeaconC1
+    /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -Xlinker -reproducible -target arm64-apple-ios17.0 -dynamiclib -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.2.sdk -O0 -L/tmp/ble-c1-build/Build/Intermediates.noindex/EagerLinkingTBDs/Debug-iphoneos -L/tmp/ble-c1-build/Build/Products/Debug-iphoneos -F/tmp/ble-c1-build/Build/Intermediates.noindex/EagerLinkingTBDs/Debug-iphoneos -F/tmp/ble-c1-build/Build/Products/Debug-iphoneos -filelist /tmp/ble-c1-build/Build/Intermediates.noindex/BeaconC1.build/Debug-iphoneos/BeaconC1.build/Objects-normal/arm64/BeaconC1.LinkFileList -install_name @rpath/BeaconC1.debug.dylib -Xlinker -rpath -Xlinker /usr/lib/swift -Xlinker -rpath -Xlinker @executable_path/Frameworks -dead_strip -Xlinker -object_path_lto -Xlinker /tmp/ble-c1-build/Build/Intermediates.noindex/BeaconC1.build/Debug-iphoneos/BeaconC1.build/Objects-normal/arm64/BeaconC1_lto.o -rdynamic -Xlinker -no_deduplicate -Xlinker -dependency_info -Xlinker /tmp/ble-c1-build/Build/Intermediates.noindex/BeaconC1.build/Debug-iphoneos/BeaconC1.build/Objects-normal/arm64/BeaconC1_dependency_info.dat -fobjc-link-runtime -L/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/iphoneos -L/usr/lib/swift -Xlinker -add_ast_path -Xlinker /tmp/ble-c1-build/Build/Intermediates.noindex/BeaconC1.build/Debug-iphoneos/BeaconC1.build/Objects-normal/arm64/BeaconC1.swiftmodule @/tmp/ble-c1-build/Build/Intermediates.noindex/BeaconC1.build/Debug-iphoneos/BeaconC1.build/Objects-normal/arm64/BeaconC1-linker-args.resp -Xlinker -alias -Xlinker _main -Xlinker ___debug_main_executable_dylib_entry_point -Xlinker -no_adhoc_codesign -o /tmp/ble-c1-build/Build/Products/Debug-iphoneos/BeaconC1.app/BeaconC1.debug.dylib
+
+ConstructStubExecutorLinkFileList /tmp/ble-c1-build/Build/Intermediates.noindex/BeaconC1.build/Debug-iphoneos/BeaconC1.build/BeaconC1-ExecutorLinkFileList-normal-arm64.txt (in target 'BeaconC1' from project 'BeaconC1')
+    cd /Users/culubo/Team-15/ios/BeaconC1
+    construct-stub-executor-link-file-list /tmp/ble-c1-build/Build/Products/Debug-iphoneos/BeaconC1.app/BeaconC1.debug.dylib /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/usr/lib/libPreviewsJITStubExecutor_no_swift_entry_point.a /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/usr/lib/libPreviewsJITStubExecutor.a --output /tmp/ble-c1-build/Build/Intermediates.noindex/BeaconC1.build/Debug-iphoneos/BeaconC1.build/BeaconC1-ExecutorLinkFileList-normal-arm64.txt
+note: Using stub executor library with Swift entry point. (in target 'BeaconC1' from project 'BeaconC1')
+
+Ld /tmp/ble-c1-build/Build/Products/Debug-iphoneos/BeaconC1.app/BeaconC1 normal (in target 'BeaconC1' from project 'BeaconC1')
+    cd /Users/culubo/Team-15/ios/BeaconC1
+    /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -Xlinker -reproducible -target arm64-apple-ios17.0 -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.2.sdk -O0 -L/tmp/ble-c1-build/Build/Products/Debug-iphoneos -F/tmp/ble-c1-build/Build/Products/Debug-iphoneos -Xlinker -rpath -Xlinker @executable_path -Xlinker -rpath -Xlinker @executable_path/Frameworks -rdynamic -Xlinker -no_deduplicate -e ___debug_blank_executor_main -Xlinker -sectcreate -Xlinker __TEXT -Xlinker __debug_dylib -Xlinker /tmp/ble-c1-build/Build/Intermediates.noindex/BeaconC1.build/Debug-iphoneos/BeaconC1.build/BeaconC1-DebugDylibPath-normal-arm64.txt -Xlinker -sectcreate -Xlinker __TEXT -Xlinker __debug_instlnm -Xlinker /tmp/ble-c1-build/Build/Intermediates.noindex/BeaconC1.build/Debug-iphoneos/BeaconC1.build/BeaconC1-DebugDylibInstallName-normal-arm64.txt -Xlinker -filelist -Xlinker /tmp/ble-c1-build/Build/Intermediates.noindex/BeaconC1.build/Debug-iphoneos/BeaconC1.build/BeaconC1-ExecutorLinkFileList-normal-arm64.txt /tmp/ble-c1-build/Build/Products/Debug-iphoneos/BeaconC1.app/BeaconC1.debug.dylib -Xlinker -no_adhoc_codesign -o /tmp/ble-c1-build/Build/Products/Debug-iphoneos/BeaconC1.app/BeaconC1
+
+ExtractAppIntentsMetadata (in target 'BeaconC1' from project 'BeaconC1')
+    cd /Users/culubo/Team-15/ios/BeaconC1
+    /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/appintentsmetadataprocessor --toolchain-dir /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain --module-name BeaconC1 --sdk-root /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.2.sdk --xcode-version 17C529 --platform-family iOS --deployment-target 17.0 --bundle-identifier com.culubo.olf.beaconc1 --output /tmp/ble-c1-build/Build/Products/Debug-iphoneos/BeaconC1.app --target-triple arm64-apple-ios17.0 --binary-file /tmp/ble-c1-build/Build/Products/Debug-iphoneos/BeaconC1.app/BeaconC1 --dependency-file /tmp/ble-c1-build/Build/Intermediates.noindex/BeaconC1.build/Debug-iphoneos/BeaconC1.build/Objects-normal/arm64/BeaconC1_dependency_info.dat --stringsdata-file /tmp/ble-c1-build/Build/Intermediates.noindex/BeaconC1.build/Debug-iphoneos/BeaconC1.build/Objects-normal/arm64/ExtractedAppShortcutsMetadata.stringsdata --source-file-list /tmp/ble-c1-build/Build/Intermediates.noindex/BeaconC1.build/Debug-iphoneos/BeaconC1.build/Objects-normal/arm64/BeaconC1.SwiftFileList --metadata-file-list /tmp/ble-c1-build/Build/Intermediates.noindex/BeaconC1.build/Debug-iphoneos/BeaconC1.build/BeaconC1.DependencyMetadataFileList --static-metadata-file-list /tmp/ble-c1-build/Build/Intermediates.noindex/BeaconC1.build/Debug-iphoneos/BeaconC1.build/BeaconC1.DependencyStaticMetadataFileList --swift-const-vals-list /tmp/ble-c1-build/Build/Intermediates.noindex/BeaconC1.build/Debug-iphoneos/BeaconC1.build/Objects-normal/arm64/BeaconC1.SwiftConstValuesFileList --compile-time-extraction --deployment-aware-processing --validate-assistant-intents --no-app-shortcuts-localization
+2026-11-07 15:17:22.851 appintentsmetadataprocessor[77321:24551419] Starting appintentsmetadataprocessor export
+2026-11-07 15:17:22.854 appintentsmetadataprocessor[77321:24551419] warning: Metadata extraction skipped. No AppIntents.framework dependency found.
+
+CopySwiftLibs /tmp/ble-c1-build/Build/Products/Debug-iphoneos/BeaconC1.app (in target 'BeaconC1' from project 'BeaconC1')
+    cd /Users/culubo/Team-15/ios/BeaconC1
+    builtin-swiftStdLibTool --copy --verbose --sign C65D592C018234CA07390C44BDB236B1C34B40A3 --scan-executable /tmp/ble-c1-build/Build/Products/Debug-iphoneos/BeaconC1.app/BeaconC1.debug.dylib --scan-folder /tmp/ble-c1-build/Build/Products/Debug-iphoneos/BeaconC1.app/Frameworks --scan-folder /tmp/ble-c1-build/Build/Products/Debug-iphoneos/BeaconC1.app/PlugIns --scan-folder /tmp/ble-c1-build/Build/Products/Debug-iphoneos/BeaconC1.app/SystemExtensions --scan-folder /tmp/ble-c1-build/Build/Products/Debug-iphoneos/BeaconC1.app/Extensions --platform iphoneos --toolchain /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain --destination /tmp/ble-c1-build/Build/Products/Debug-iphoneos/BeaconC1.app/Frameworks --strip-bitcode --strip-bitcode-tool /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/bitcode_strip --emit-dependency-info /tmp/ble-c1-build/Build/Intermediates.noindex/BeaconC1.build/Debug-iphoneos/BeaconC1.build/SwiftStdLibToolInputDependencies.dep --filter-for-swift-os --back-deploy-swift-span
+
+CodeSign /tmp/ble-c1-build/Build/Products/Debug-iphoneos/BeaconC1.app/BeaconC1.debug.dylib (in target 'BeaconC1' from project 'BeaconC1')
+    cd /Users/culubo/Team-15/ios/BeaconC1
+
+    Signing Identity:     "Apple Development: <email-masked> (9GXBC9FU4L)"
+    Provisioning Profile: "iOS Team Provisioning Profile: com.culubo.olf.beaconc1"
+                          (<UUID-masked>)
+
+    /usr/bin/codesign --force --sign C65D592C018234CA07390C44BDB236B1C34B40A3 --timestamp\=none --generate-entitlement-der /tmp/ble-c1-build/Build/Products/Debug-iphoneos/BeaconC1.app/BeaconC1.debug.dylib
+
+CodeSign /tmp/ble-c1-build/Build/Products/Debug-iphoneos/BeaconC1.app/__preview.dylib (in target 'BeaconC1' from project 'BeaconC1')
+    cd /Users/culubo/Team-15/ios/BeaconC1
+
+    Signing Identity:     "Apple Development: <email-masked> (9GXBC9FU4L)"
+    Provisioning Profile: "iOS Team Provisioning Profile: com.culubo.olf.beaconc1"
+                          (<UUID-masked>)
+
+    /usr/bin/codesign --force --sign C65D592C018234CA07390C44BDB236B1C34B40A3 --timestamp\=none --generate-entitlement-der /tmp/ble-c1-build/Build/Products/Debug-iphoneos/BeaconC1.app/__preview.dylib
+
+CodeSign /tmp/ble-c1-build/Build/Products/Debug-iphoneos/BeaconC1.app (in target 'BeaconC1' from project 'BeaconC1')
+    cd /Users/culubo/Team-15/ios/BeaconC1
+
+    Signing Identity:     "Apple Development: <email-masked> (9GXBC9FU4L)"
+    Provisioning Profile: "iOS Team Provisioning Profile: com.culubo.olf.beaconc1"
+                          (<UUID-masked>)
+
+    /usr/bin/codesign --force --sign C65D592C018234CA07390C44BDB236B1C34B40A3 --entitlements /tmp/ble-c1-build/Build/Intermediates.noindex/BeaconC1.build/Debug-iphoneos/BeaconC1.build/BeaconC1.app.xcent --timestamp\=none --generate-entitlement-der /tmp/ble-c1-build/Build/Products/Debug-iphoneos/BeaconC1.app
+
+Validate /tmp/ble-c1-build/Build/Products/Debug-iphoneos/BeaconC1.app (in target 'BeaconC1' from project 'BeaconC1')
+    cd /Users/culubo/Team-15/ios/BeaconC1
+    builtin-validationUtility /tmp/ble-c1-build/Build/Products/Debug-iphoneos/BeaconC1.app -shallow-bundle -infoplist-subpath Info.plist
+
+** BUILD SUCCEEDED **

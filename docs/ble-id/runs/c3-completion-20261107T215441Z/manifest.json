@@ -1,0 +1,9 @@
+{
+  "run_id": "c3-completion-20261107T215441Z",
+  "source_commit": "aadbdc72c8ff8e3cf629a489d558e654f7e5e656",
+  "scope": "C3 completion only",
+  "initial_api": "LIVE-HW / SYNTHETIC TEST KEYS; scanning, no sightings",
+  "prior_native_test_run": "c3-native-20261107T215002Z",
+  "prior_native_tests": "208 passed; exit 0",
+  "physical_C1_video": "pending; unchanged"
+}

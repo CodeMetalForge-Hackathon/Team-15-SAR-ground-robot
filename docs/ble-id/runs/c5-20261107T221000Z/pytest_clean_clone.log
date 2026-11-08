@@ -1,0 +1,202 @@
+test_ble_id_monitor.py::test_verified_is_persisted_then_shown PASSED
+test_ble_id_monitor.py::test_duplicates_neither_erase_nor_refresh_freshness PASSED
+test_ble_id_monitor.py::test_rejected_input_stays_in_diagnostics[arg0-forged:bad_tag] PASSED
+test_ble_id_monitor.py::test_rejected_input_stays_in_diagnostics[arg1-unknown:unenrolled_alias] PASSED
+test_ble_id_monitor.py::test_rejected_input_stays_in_diagnostics[arg2-replay:stale] PASSED
+test_ble_id_monitor.py::test_rejected_input_stays_in_diagnostics[arg3-replay:future] PASSED
+test_ble_id_monitor.py::test_rejected_input_stays_in_diagnostics[garbage-drop:framing] PASSED
+test_ble_id_monitor.py::test_rejected_input_stays_in_diagnostics[arg5-drop:framing] PASSED
+test_ble_id_monitor.py::test_rejected_input_stays_in_diagnostics[arg6-drop:framing] PASSED
+test_ble_id_monitor.py::test_rejected_input_stays_in_diagnostics[arg7-drop:rssi_out_of_range] PASSED
+test_ble_id_monitor.py::test_rejected_input_stays_in_diagnostics[arg8-drop:framing] PASSED
+test_ble_id_monitor.py::test_rejected_input_stays_in_diagnostics[arg9-drop:name_present] PASSED
+test_ble_id_monitor.py::test_rejected_input_stays_in_diagnostics[arg10-drop:framing] PASSED
+test_ble_id_monitor.py::test_rejected_input_stays_in_diagnostics[arg11-drop:framing] PASSED
+test_ble_id_monitor.py::test_rejected_input_stays_in_diagnostics[arg12-drop:framing] PASSED
+test_ble_id_monitor.py::test_unrelated_uuids_are_counted_not_listed PASSED
+test_ble_id_monitor.py::test_comment_channels_ignored_and_receiver_gate PASSED
+test_ble_id_monitor.py::test_persistence_failure_withholds_result_and_halts PASSED
+test_ble_id_monitor.py::test_invalid_host_clock_halts[nan] PASSED
+test_ble_id_monitor.py::test_invalid_host_clock_halts[0.0] PASSED
+test_ble_id_monitor.py::test_invalid_host_clock_halts[1000000000.0] PASSED
+test_ble_id_monitor.py::test_invalid_host_clock_halts[inf] PASSED
+test_ble_id_monitor.py::test_restart_rejects_replay_and_lock_enforces_one_owner PASSED
+test_ble_id_monitor.py::test_missing_or_corrupt_state_fails_closed PASSED
+test_ble_id_monitor.py::test_snapshot_exposes_no_key_material_or_addresses PASSED
+test_ble_keys.py::test_production_loads_explicit_file PASSED
+test_ble_keys.py::test_test_keys_match_the_published_c0_vectors PASSED
+test_ble_keys.py::test_every_published_synthetic_key_is_refused_in_production[key0] PASSED
+test_ble_keys.py::test_every_published_synthetic_key_is_refused_in_production[key1] PASSED
+test_ble_keys.py::test_every_published_synthetic_key_is_refused_in_production[key2] PASSED
+test_ble_keys.py::test_every_published_synthetic_key_is_refused_in_production[key3] PASSED
+test_ble_keys.py::test_every_published_synthetic_key_is_refused_in_production[key4] PASSED
+test_ble_keys.py::test_every_published_synthetic_key_is_refused_in_production[key5] PASSED
+test_ble_keys.py::test_every_published_synthetic_key_is_refused_in_production[key6] PASSED
+test_ble_keys.py::test_every_published_synthetic_key_is_refused_in_production[key7] PASSED
+test_ble_keys.py::test_every_published_synthetic_key_is_refused_in_production[key8] PASSED
+test_ble_keys.py::test_every_published_synthetic_key_is_refused_in_production[key9] PASSED
+test_ble_keys.py::test_every_published_synthetic_key_is_refused_in_production[key10] PASSED
+test_ble_keys.py::test_every_published_synthetic_key_is_refused_in_production[key11] PASSED
+test_ble_keys.py::test_every_published_synthetic_key_is_refused_in_production[key12] PASSED
+test_ble_keys.py::test_every_published_synthetic_key_is_refused_in_production[key13] PASSED
+test_ble_keys.py::test_every_published_synthetic_key_is_refused_in_production[key14] PASSED
+test_ble_keys.py::test_keys_file_must_be_owner_only[416] PASSED
+test_ble_keys.py::test_keys_file_must_be_owner_only[388] PASSED
+test_ble_keys.py::test_keys_file_must_be_owner_only[420] PASSED
+test_ble_keys.py::test_keys_file_must_be_owner_only[432] PASSED
+test_ble_keys.py::test_bad_keys_files_are_refused[arg0-different] PASSED
+test_ble_keys.py::test_bad_keys_files_are_refused[arg1-format] PASSED
+test_ble_keys.py::test_bad_keys_files_are_refused[arg2-no enrolled] PASSED
+test_ble_keys.py::test_bad_keys_files_are_refused[arg3-invalid alias] PASSED
+test_ble_keys.py::test_bad_keys_files_are_refused[arg4-invalid alias] PASSED
+test_ble_keys.py::test_bad_keys_files_are_refused[arg5-invalid alias] PASSED
+test_ble_keys.py::test_bad_keys_files_are_refused[arg6-64 lowercase hex] PASSED
+test_ble_keys.py::test_bad_keys_files_are_refused[arg7-64 lowercase hex] PASSED
+test_ble_keys.py::test_bad_keys_files_are_refused[arg8-duplicates] PASSED
+test_ble_keys.py::test_bad_keys_files_are_refused[arg9-exactly] PASSED
+test_ble_keys.py::test_bad_keys_files_are_refused[[]-exactly] PASSED
+test_ble_keys.py::test_missing_or_non_json_keys_file PASSED
+test_ble_keys.py::test_production_never_falls_back_to_test_keys PASSED
+test_ble_keys.py::test_modes_and_scopes_cannot_mix[test-keys-TESTKEY-bench-True] PASSED
+test_ble_keys.py::test_modes_and_scopes_cannot_mix[test-keys-MISSION-ALPHA-False] PASSED
+test_ble_keys.py::test_modes_and_scopes_cannot_mix[simulated-SIMULATED-x-True] PASSED
+test_ble_keys.py::test_modes_and_scopes_cannot_mix[simulated-TESTKEY-x-False] PASSED
+test_ble_keys.py::test_modes_and_scopes_cannot_mix[production-TESTKEY-x-False] PASSED
+test_ble_keys.py::test_modes_and_scopes_cannot_mix[production-SIMULATED-x-False] PASSED
+test_ble_keys.py::test_modes_and_scopes_cannot_mix[production-MISSION-ALPHA-True] PASSED
+test_ble_keys.py::test_modes_and_scopes_cannot_mix[demo-MISSION-ALPHA-False] PASSED
+test_ble_keys.py::test_modes_and_scopes_cannot_mix[production--False] PASSED
+test_ble_keys.py::test_test_and_sim_modes_use_built_in_keys_only PASSED
+test_ble_state.py::test_first_use_requires_explicit_init PASSED
+test_ble_state.py::test_round_trip_and_permissions PASSED
+test_ble_state.py::test_restart_keeps_replay_protection PASSED
+test_ble_state.py::test_crash_before_persist_reaccepts_but_nothing_was_emitted PASSED
+test_ble_state.py::test_failed_write_leaves_old_state_and_no_temp_files PASSED
+test_ble_state.py::test_leftover_temp_file_is_ignored PASSED
+test_ble_state.py::test_wrong_scope_fails_closed PASSED
+test_ble_state.py::test_corrupt_or_lost_state_fails_closed[alias 256] PASSED
+test_ble_state.py::test_corrupt_or_lost_state_fails_closed[alias leading zero] PASSED
+test_ble_state.py::test_corrupt_or_lost_state_fails_closed[alias zero] PASSED
+test_ble_state.py::test_corrupt_or_lost_state_fails_closed[boolean counter] PASSED
+test_ble_state.py::test_corrupt_or_lost_state_fails_closed[checksum mismatch] PASSED
+test_ble_state.py::test_corrupt_or_lost_state_fails_closed[counter overflow] PASSED
+test_ble_state.py::test_corrupt_or_lost_state_fails_closed[deleted] PASSED
+test_ble_state.py::test_corrupt_or_lost_state_fails_closed[edited counter, stale checksum] PASSED
+test_ble_state.py::test_corrupt_or_lost_state_fails_closed[empty file] PASSED
+test_ble_state.py::test_corrupt_or_lost_state_fails_closed[extra field] PASSED
+test_ble_state.py::test_corrupt_or_lost_state_fails_closed[float counter] PASSED
+test_ble_state.py::test_corrupt_or_lost_state_fails_closed[high_water not object] PASSED
+test_ble_state.py::test_corrupt_or_lost_state_fails_closed[json list] PASSED
+test_ble_state.py::test_corrupt_or_lost_state_fails_closed[missing checksum] PASSED
+test_ble_state.py::test_corrupt_or_lost_state_fails_closed[negative counter] PASSED
+test_ble_state.py::test_corrupt_or_lost_state_fails_closed[not json] PASSED
+test_ble_state.py::test_corrupt_or_lost_state_fails_closed[oversized] PASSED
+test_ble_state.py::test_corrupt_or_lost_state_fails_closed[truncated] PASSED
+test_ble_state.py::test_corrupt_or_lost_state_fails_closed[wrong schema] PASSED
+test_ble_state.py::test_invalid_state_is_never_written[{0: 1}] PASSED
+test_ble_state.py::test_invalid_state_is_never_written[{1: -1}] PASSED
+test_ble_state.py::test_invalid_state_is_never_written[{1: 4294967296}] PASSED
+test_ble_state.py::test_invalid_state_is_never_written[{1: True}] PASSED
+test_ble_state_ownership.py::test_second_process_refused_before_processing_any_token[file symlink] PASSED
+test_ble_state_ownership.py::test_second_process_refused_before_processing_any_token[directory symlink] PASSED
+test_ble_state_ownership.py::test_second_process_refused_before_processing_any_token[dot-dot path] PASSED
+test_ble_state_ownership.py::test_second_process_refused_before_processing_any_token[same path] PASSED
+test_ble_state_ownership.py::test_lock_is_released_for_every_alias_when_the_owner_exits PASSED
+test_ble_state_ownership.py::test_saving_through_a_symlink_updates_the_real_file_and_keeps_the_link PASSED
+test_ble_state_ownership.py::test_symlinked_lock_file_is_refused PASSED
+test_ble_state_ownership.py::test_hard_linked_state_is_rejected PASSED
+test_ble_verify_properties.py::test_every_tag_bit_flip_is_forged_and_changes_nothing PASSED
+test_ble_verify_properties.py::test_every_header_bit_flip_never_verifies PASSED
+test_ble_verify_properties.py::test_negative_control_bypass_would_be_caught PASSED
+test_ble_verify_properties.py::test_tag_comparison_uses_compare_digest PASSED
+test_ble_verify_properties.py::test_rejected_input_cannot_poison_state[<function <lambda> at 0x10788fce0>] PASSED
+test_ble_verify_properties.py::test_rejected_input_cannot_poison_state[<function <lambda> at 0x10788fd80>] PASSED
+test_ble_verify_properties.py::test_rejected_input_cannot_poison_state[<function <lambda> at 0x10788fe20>] PASSED
+test_ble_verify_properties.py::test_rejected_input_cannot_poison_state[<function <lambda> at 0x10788fec0>] PASSED
+test_ble_verify_properties.py::test_rejected_input_cannot_poison_state[<function <lambda> at 0x10788ff60>] PASSED
+test_ble_verify_properties.py::test_aliases_are_isolated PASSED
+test_ble_verify_properties.py::test_state_is_shared_across_zones_in_one_process PASSED
+test_ble_verify_properties.py::test_verify_is_pure PASSED
+test_ble_verify_properties.py::test_malformed_air_input_drops_without_raising[None-type] PASSED
+test_ble_verify_properties.py::test_malformed_air_input_drops_without_raising[01010390-type] PASSED
+test_ble_verify_properties.py::test_malformed_air_input_drops_without_raising[12345-type] PASSED
+test_ble_verify_properties.py::test_malformed_air_input_drops_without_raising[arg3-type] PASSED
+test_ble_verify_properties.py::test_malformed_air_input_drops_without_raising[b''-length] PASSED
+test_ble_verify_properties.py::test_malformed_air_input_drops_without_raising[arg5-length] PASSED
+test_ble_verify_properties.py::test_malformed_air_input_drops_without_raising[arg6-length] PASSED
+test_ble_verify_properties.py::test_bytearray_and_memoryview_are_accepted PASSED
+test_ble_verify_properties.py::test_bad_verifier_clock_fails_closed[nan] PASSED
+test_ble_verify_properties.py::test_bad_verifier_clock_fails_closed[inf] PASSED
+test_ble_verify_properties.py::test_bad_verifier_clock_fails_closed[-1.0] PASSED
+test_ble_verify_properties.py::test_bad_verifier_clock_fails_closed[True] PASSED
+test_ble_verify_properties.py::test_bad_verifier_clock_fails_closed[1794077187] PASSED
+test_ble_verify_properties.py::test_bad_key_configuration_raises[{1: b'short'}] PASSED
+test_ble_verify_properties.py::test_bad_key_configuration_raises[bad_keys1] PASSED
+test_ble_verify_properties.py::test_bad_key_configuration_raises[bad_keys2] PASSED
+test_ble_verify_properties.py::test_bad_state_raises[{1: -1}] PASSED
+test_ble_verify_properties.py::test_bad_state_raises[{1: 4294967296}] PASSED
+test_ble_verify_properties.py::test_bad_state_raises[{0: 5}] PASSED
+test_ble_verify_properties.py::test_bad_state_raises[{1: True}] PASSED
+test_ble_verify_properties.py::test_bad_state_raises[{1: 1.0}] PASSED
+test_ble_verify_vectors.py::test_reference_vector_file_is_unchanged PASSED
+test_ble_verify_vectors.py::test_authentication_vectors[v0] PASSED
+test_ble_verify_vectors.py::test_authentication_vectors[v1] PASSED
+test_ble_verify_vectors.py::test_authentication_vectors[v2] PASSED
+test_ble_verify_vectors.py::test_authentication_vectors[v3] PASSED
+test_ble_verify_vectors.py::test_authentication_vectors[v4] PASSED
+test_ble_verify_vectors.py::test_authentication_vectors[v5] PASSED
+test_ble_verify_vectors.py::test_authentication_vectors[v6] PASSED
+test_ble_verify_vectors.py::test_authentication_vectors[v7] PASSED
+test_ble_verify_vectors.py::test_authentication_vectors[v8] PASSED
+test_ble_verify_vectors.py::test_authentication_vectors[v9] PASSED
+test_ble_verify_vectors.py::test_authentication_vectors[v10] PASSED
+test_ble_verify_vectors.py::test_freshness_vectors[v0] PASSED
+test_ble_verify_vectors.py::test_freshness_vectors[v1] PASSED
+test_ble_verify_vectors.py::test_freshness_vectors[v2] PASSED
+test_ble_verify_vectors.py::test_freshness_vectors[v3] PASSED
+test_ble_verify_vectors.py::test_freshness_vectors[v4] PASSED
+test_ble_verify_vectors.py::test_freshness_vectors[v5] PASSED
+test_ble_verify_vectors.py::test_freshness_vectors[v6] PASSED
+test_ble_verify_vectors.py::test_freshness_vectors[v7] PASSED
+test_ble_verify_vectors.py::test_state_sequences[s0] PASSED
+test_ble_verify_vectors.py::test_state_sequences[s1] PASSED
+test_ble_verify_vectors.py::test_state_sequences[s2] PASSED
+test_ble_verify_vectors.py::test_state_sequences[s3] PASSED
+test_ble_verify_vectors.py::test_state_sequences[s4] PASSED
+test_ble_verify_vectors.py::test_state_sequences[s5] PASSED
+test_ble_verify_vectors.py::test_make_token_reproduces_every_authentic_vector PASSED
+test_ble_verify_vectors.py::test_max_counter_vector_and_overflow PASSED
+test_ble_verify_vectors.py::test_window_edges[1794077160.0--1-verified] PASSED
+test_ble_verify_vectors.py::test_window_edges[1794077160.0--2-replay] PASSED
+test_ble_verify_vectors.py::test_window_edges[1794077159.999--2-verified] PASSED
+test_ble_verify_vectors.py::test_window_edges[1794077189.999--1-verified] PASSED
+test_ble_verify_vectors.py::test_window_edges[1794077190.0--1-replay] PASSED
+test_ble_verify_vectors.py::test_window_edges[1794077160.0-1-verified] PASSED
+test_ble_verify_vectors.py::test_window_edges[1794077160.0-2-replay] PASSED
+test_ble_verify_vectors.py::test_window_edges[1794077189.999-2-replay] PASSED
+test_ble_verify_vectors.py::test_window_edges[1794077190.0-2-verified] PASSED
+test_ble_verify_vectors.py::test_freshness_is_not_an_exact_30_second_guarantee PASSED
+test_ble_verify_vectors.py::test_clock_skew_between_phone_and_verifier[-300.0-replay-future] PASSED
+test_ble_verify_vectors.py::test_clock_skew_between_phone_and_verifier[300.0-replay-stale] PASSED
+test_ble_verify_vectors.py::test_clock_skew_between_phone_and_verifier[-29.0-verified-fresh] PASSED
+test_repo_ignores.py::test_local_secrets_and_state_are_ignored[keys.json] PASSED
+test_repo_ignores.py::test_local_secrets_and_state_are_ignored[ble/keys.json] PASSED
+test_repo_ignores.py::test_local_secrets_and_state_are_ignored[olf-keys.json] PASSED
+test_repo_ignores.py::test_local_secrets_and_state_are_ignored[mission_keys.json] PASSED
+test_repo_ignores.py::test_local_secrets_and_state_are_ignored[prod.keys.json] PASSED
+test_repo_ignores.py::test_local_secrets_and_state_are_ignored[secrets/key.bin] PASSED
+test_repo_ignores.py::test_local_secrets_and_state_are_ignored[state.json.lock] PASSED
+test_repo_ignores.py::test_local_secrets_and_state_are_ignored[replay_state.simulated.json] PASSED
+test_repo_ignores.py::test_local_secrets_and_state_are_ignored[olf-MISSION-state.json] PASSED
+test_repo_ignores.py::test_tracked_evidence_and_code_are_not_ignored[path0] PASSED
+test_repo_ignores.py::test_tracked_evidence_and_code_are_not_ignored[ble_keys.py] PASSED
+test_repo_ignores.py::test_tracked_evidence_and_code_are_not_ignored[tests/test_ble_keys.py] PASSED
+test_repo_ignores.py::test_tracked_evidence_and_code_are_not_ignored[discovery/static/beacons.js] PASSED
+test_repo_ignores.py::test_no_tracked_file_is_matched_by_ignore_rules PASSED
+test_c4_analyze.py::test_rssi_dist_never_substitutes_zero_for_empty PASSED
+test_c4_analyze.py::test_e2_passes_at_19_of_20_with_monotonic_persistent_state PASSED
+test_c4_analyze.py::test_e2_rejects_replay_state_reset_or_reused_counter PASSED
+test_c4_analyze.py::test_e2_fails_when_below_19_of_20 PASSED
+test_c4_analyze.py::test_replay_tsv_verifies_rotations_and_counts_duplicates PASSED
+test_c4_analyze.py::test_aging_and_recovery_grading_and_incomplete_run_honesty PASSED
+=== 201 passed, 0 failed ===

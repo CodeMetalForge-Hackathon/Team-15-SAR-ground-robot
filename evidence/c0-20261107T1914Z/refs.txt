@@ -1,0 +1,39 @@
+# Refs inspected (remote-tracking refs from last successful fetch; see REPORT: fetch failed)
+our HEAD: 40e56f2fc68603d702651e91896e1c9edfc9fc73 (culubo/sensor-id-specs)
+45e26592ad0ba4170adacd216153b058b25c4d3f origin/HEAD 2026-11-07 13:41:54 -0500
+7b5933c2d079354eecf4ea48756faa9268d1046f origin/docs/drone-search-plan 2026-11-07 13:39:04 -0500
+45e26592ad0ba4170adacd216153b058b25c4d3f origin/main 2026-11-07 13:41:54 -0500
+c324983388c1331deff5633114a6703dc261e67f origin/t1/camera-person 2026-11-07 13:46:35 -0500
+77a39799d4e4b33f4f646f4fcefdce952f71485e origin/t1/route-a-to-g 2026-11-07 13:46:19 -0500
+a36a658d4c4604fd521ce145a4de88faf9da506c origin/t2/dashboard-a-to-g 2026-11-07 14:00:23 -0500
+refs file mtime (UTC):
+2026-11-07 19:05:32.396595336 +0000 .git/refs/remotes/origin/main
+2026-11-07 19:05:32.397104671 +0000 .git/refs/remotes/origin/t2/dashboard-a-to-g
+
+## files on origin/t2/dashboard-a-to-g
+.github/workflows/ci.yml
+.gitignore
+LICENSE
+TEAM15_DRONE_SEARCH_BUILD.md
+core/__init__.py
+core/ingest.py
+core/store.py
+dashboard/__init__.py
+dashboard/app.py
+dashboard/serve.py
+dashboard/static/index.html
+dashboard/tests/__init__.py
+dashboard/tests/test_dashboard.py
+fixtures/trail_graph_synthetic.json
+perception/.gitignore
+perception/__init__.py
+perception/live_camera.py
+perception/tests/__init__.py
+perception/tests/test_live_camera.py
+planner/__init__.py
+planner/graph.py
+planner/route.py
+planner/tests/__init__.py
+planner/tests/test_route.py
+pytest.ini
+requirements.txt

@@ -1,0 +1,3 @@
+User confirmed developer profile trusted.
+Native devicectl launch succeeded for com.culubo.olf.beaconc1.
+App launches stopped by default; Bluetooth permission is a manual phone action.

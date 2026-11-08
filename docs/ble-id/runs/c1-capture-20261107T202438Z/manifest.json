@@ -1,0 +1,54 @@
+{
+  "run_id": "c1-capture-20261107T202438Z",
+  "mode": "REAL HARDWARE, BENCH, SYNTHETIC TEST KEY",
+  "source_commit": "5022fbf743cac1008d8f3c83cd219df87072525d",
+  "board": "ESP32-C5 rev 1.0; generic CDC firmware",
+  "iphone": "iPhone 14 Pro, iOS 26.0",
+  "profile_trust": "user confirmed",
+  "launch": "devicectl confirmed success",
+  "video": "User confirmed second camera available and signaled start; original file not yet received or reviewed.",
+  "gate": "IN PROGRESS",
+  "preflight": {
+    "file": "preflight_A_unfilmed.tsv",
+    "duration_s": 30.005046,
+    "scanner_heartbeats": 29,
+    "test_beacon_rows": 0,
+    "video": "not filmed; separate from formal control"
+  },
+  "capture_source_revisions": {
+    "A_stopped_and_B_static": "8c514f9",
+    "C_first_attempt": "8c514f9",
+    "C_retry": "158242921373688e86bd132c52c898a85413f0da"
+  },
+  "retry_plan": "Preserve failed first C attempt; record a 2-second startup drain separately, align serial framing, then grade a new full 120-second capture with unchanged analyzer criteria.",
+  "capture_gate": "PASSED on rotating retry; first rotating attempt FAILED and preserved",
+  "video_gate": "PENDING: original video file path and review",
+  "c1_complete": false,
+  "analyzer_revision": "158242921373688e86bd132c52c898a85413f0da",
+  "measurement_limits": [
+    "One bench setup, foreground only; no measured distances",
+    "Reception row count, not independent transmit count or delivery ratio",
+    "No Start-to-detection latency measured",
+    "Synthetic public key; no production enrollment or C2 replay verifier tested"
+  ],
+  "artifact_sha256": {
+    "stage_A_summary.json": "0abd1f44f83a9d96622bf4432017692b5e1fb6471e1509a619d1796a10b0d4c5",
+    "metrics.json": "5e81dff4dea69049ad7b8fd908feb7f52c8fbac877294f12587fab8fbb268bda",
+    "analysis_final.log": "83083722f16bb9335f192a5e650ddd8d05d049030dd19883ab6d7acf0f61a688",
+    "capture_A_stopped.tsv": "99bed224135e4da20c7de5bd8d94dc501302a8b14218dcc890518d38a94b88eb",
+    "attempt1_capture_C_rotating.tsv": "631927a6068fb899356bedc2be46ddc28fa121e189b393d900677fcb4b2f4239",
+    "REPORT.md": "bd6e37b9344267445b4da934c1fbf685428a4b9bd6e92642c32d3c976da9419d",
+    "capture_C_rotating.tsv.warmup.txt": "2bd3e11f3bc104a6e939b9fc9dbc72c338784f163aa851f16a63c1babb3a0286",
+    "capture_C_rotating.tsv": "e4b1fdb98ce85f584a75670a74fada4ae3ab6adcc2e79fdae00451a48add2933",
+    "metrics.csv": "cdc33ab49972384345d19a1807fe6ffb0ad8b5d68938875b91b71b9be010654c",
+    "capture_B_static.tsv": "8914402d49f76765d18d86b4097450e0a34e2929613a4158d56df5e3199621f4",
+    "c1_analysis.json": "83083722f16bb9335f192a5e650ddd8d05d049030dd19883ab6d7acf0f61a688",
+    "analysis_attempt1.log": "5ad3c7cf330bd0f6222830643675c0606127b91a842c82048967ac98189951f1",
+    "preflight_A_unfilmed.tsv": "8d4859efccd37f6859b74391d62dd8b6dff67dd19b9d2c76b0f3ae2ae03fb855",
+    "software-tests-retry.log": "51a0e4f95c2aedfa9f847d3afd8e850813bfda73eb3ee293c894fe73f0434d22",
+    "stage_B_summary.json": "e5e67dad19f0e635bba2838f3cd5ce19b3baaa4c44e3344e665448a8eff7bd93",
+    "phone-launch.txt": "c4bd796365274c78afac31368e38bbee6b3199a88c0cea515635fc1b6c448251",
+    "attempt1_c1_analysis.json": "5ad3c7cf330bd0f6222830643675c0606127b91a842c82048967ac98189951f1",
+    "live-console.log": "06c36db67c385a3b5e8fbd444ebe04896d74ea4794c85969a482d4c77a94e794"
+  }
+}

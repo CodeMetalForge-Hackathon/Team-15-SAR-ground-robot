@@ -1,0 +1,4 @@
+tested_commit: 1c09ce56ea8c4f8455cd3541229f3b9b3c837740
+clean: ''
+host: Linux VM on the user's Mac (Linux aarch64); Python 3.10.12
+utc: 2026-11-07T21:24:00Z

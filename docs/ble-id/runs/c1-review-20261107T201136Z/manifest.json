@@ -1,0 +1,60 @@
+{
+  "run_id": "c1-review-20261107T201136Z",
+  "mode": "BUILD ONLY / SOFTWARE CHECKS",
+  "base_commit": "d27a19bd18567b69cd66e5475e949e39b1b0342e",
+  "hardware_capture": "5-second scanner heartbeat smoke check only; no phone beacon experiment",
+  "video": "NOT RECORDED",
+  "iphone": {
+    "model": "iPhone 14 Pro",
+    "os": "26.0",
+    "build": "23A5326a",
+    "developer_mode": "enabled",
+    "app_installed": true,
+    "launch": "blocked by iOS trust requirement"
+  },
+  "toolchain": {
+    "xcode": "26.3 (17C529)",
+    "arduino_cli": "1.5.1",
+    "esp32_core": "3.3.11",
+    "nimble_requested": "2.5.1"
+  },
+  "board": {
+    "chip": "ESP32-C5 rev 1.0",
+    "flash": "8 MB detected",
+    "fqbn": "esp32:esp32:esp32c5:CDCOnBoot=cdc",
+    "partition_layout": "generic default 4 MB layout, fits detected 8 MB",
+    "manufacturer_board_model": "not independently identified"
+  },
+  "source_commit": "8c514f95e8761b8ba354fc193a757f0585dbab66",
+  "software_tests": {
+    "passed": 12,
+    "failed": 0,
+    "python": "3.15.0",
+    "platform": "Darwin-25.1.0-arm64-arm-64bit-Mach-O"
+  },
+  "hardware_video": "NOT RECORDED",
+  "c1_complete": false,
+  "source_sha256": {
+    "firmware/esp32_scanner/esp32_scanner.ino": "608e025a5c1c832ca7445018a6765790d24e078dc6e15601b74f52bbcc37aed9",
+    "ios/BeaconC1/BeaconC1/Advertiser.swift": "d0ff5a20f9185737ff28001e9e7dad58da90eb863e5c7752d8210fe302101e2b",
+    "ios/BeaconC1/BeaconC1/BeaconC1App.swift": "6892443047893551b60b74fec4ec6f57d26346a9a37686590934eba058db16b5",
+    "ios/BeaconC1/BeaconC1/Token.swift": "d803e649eb4ed5fedb0759326937ababf7364faab8b567f5f9eeb9921ec82b2e",
+    "tools/c1/test_analyzer.py": "9af14c62a269cfa1de570c7521d723a5518f20edc720cda6ae9997e850d89361",
+    "tools/c1/c1_parse.py": "ad1a848b6a3ac67741a7335b15e74d8883d81e24d57f93fa9f4f27abd91aa4c7",
+    "tools/c1/capture_serial.py": "2fc4b6338c6c28f2af30ce29ac579a7a45613c0a5ff548db0d5b1799a41e4bec",
+    "tools/c1/test_capture.py": "a61b905705ce1e266207c7b632ffa2ee4d94ea61e6076d2d106f55f302d33970",
+    "tools/c1/analyze_c1.py": "16a4a02a49cea4fa4cbcda616c0d07f3e55b51bdb44327a9a5e6882c951304fc",
+    "tools/c1/capture_serial.sh": "f57d513093e5b39cbe45accd55b47c44dd8406f5caa2579cb97a55bf3d94ffd5",
+    "tools/c1/run_c1.sh": "32ead370b3c527459c14f652061a34193da16133de739b957da063520ada340e"
+  },
+  "firmware_binary_sha256": {
+    "boot_app0_flashed.bin": "f94c5d786a7a8fab06ac5d10e33bf37711a6697636dc037559ea19cc410a17f0",
+    "esp32_scanner.ino.bootloader_flashed.bin": "b2aa523aee3ead408295fae362b1ff72a0531cf99ab2ea4681b74b35a6428cef",
+    "esp32_scanner.ino.partitions_flashed.bin": "148b959cbff1c38aa8e1d5c0ba9d612c54997b945e56a63f41223eef650653a1",
+    "esp32_scanner.ino.partitions.bin": "148b959cbff1c38aa8e1d5c0ba9d612c54997b945e56a63f41223eef650653a1",
+    "esp32_scanner.ino_flashed.bin": "f38e146c642ac1053f14ffc4d70801c97a123e600dca60d96557451fa35d7ef5",
+    "esp32_scanner.ino.bin": "f38e146c642ac1053f14ffc4d70801c97a123e600dca60d96557451fa35d7ef5",
+    "esp32_scanner.ino.merged.bin": "7a81e226ea14d115b44cccc64b29eb5a9a4ed1480730f502d7bcffc17aa179e7",
+    "esp32_scanner.ino.bootloader.bin": "b2aa523aee3ead408295fae362b1ff72a0531cf99ab2ea4681b74b35a6428cef"
+  }
+}

@@ -1,0 +1,378 @@
+{
+ "format": "OLF BLE-ID wire format v1",
+ "domain_ascii": "OLF/BLE-ID/v1",
+ "window_s": 30,
+ "tag_bytes": 10,
+ "now_unix_s": 1794077187.0,
+ "N": 59802572,
+ "N_hex": "039083cc",
+ "keys_note": "PUBLIC SYNTHETIC TEST KEYS. Never enroll. Real keys never appear in logs or evidence.",
+ "keys_hex": {
+  "1": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+  "2": "202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f",
+  "wrong": "a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5"
+ },
+ "enrolled_aliases": [
+  1,
+  2
+ ],
+ "uuid_text_case": "lowercase here; CBUUID.uuidString is uppercase; compare case-insensitively",
+ "on_air_note": "on_air_le_hex is the expected little-endian AD byte order; C1 raw capture must confirm",
+ "auth": [
+  {
+   "id": "A1",
+   "desc": "valid alias 1, counter N",
+   "payload_hex": "0101039083ccc438cfa7043609b9d1c4",
+   "len": 16,
+   "uuid_text": "01010390-83cc-c438-cfa7-043609b9d1c4",
+   "on_air_le_hex": "c4d1b9093604a7cf38c4cc8390030101",
+   "expected": "verified"
+  },
+  {
+   "id": "A2",
+   "desc": "valid alias 2, counter N",
+   "payload_hex": "0102039083cc33a1eb7b2b481316ca92",
+   "len": 16,
+   "uuid_text": "01020390-83cc-33a1-eb7b-2b481316ca92",
+   "on_air_le_hex": "92ca1613482b7beba133cc8390030201",
+   "expected": "verified"
+  },
+  {
+   "id": "A3",
+   "desc": "alias 1 header, tag made with alias 2's key",
+   "payload_hex": "0101039083ccf6d4b8e4a1a9d46064f6",
+   "len": 16,
+   "uuid_text": "01010390-83cc-f6d4-b8e4-a1a9d46064f6",
+   "on_air_le_hex": "f66460d4a9a1e4b8d4f6cc8390030101",
+   "expected": "forged"
+  },
+  {
+   "id": "A4",
+   "desc": "A1 with alias byte changed 1->2 (enrolled)",
+   "payload_hex": "0102039083ccc438cfa7043609b9d1c4",
+   "len": 16,
+   "uuid_text": "01020390-83cc-c438-cfa7-043609b9d1c4",
+   "on_air_le_hex": "c4d1b9093604a7cf38c4cc8390030201",
+   "expected": "forged"
+  },
+  {
+   "id": "A5",
+   "desc": "A1 with counter changed to N+1, tag kept",
+   "payload_hex": "0101039083cdc438cfa7043609b9d1c4",
+   "len": 16,
+   "uuid_text": "01010390-83cd-c438-cfa7-043609b9d1c4",
+   "on_air_le_hex": "c4d1b9093604a7cf38c4cd8390030101",
+   "expected": "forged"
+  },
+  {
+   "id": "A6",
+   "desc": "A1 with last tag bit flipped",
+   "payload_hex": "0101039083ccc438cfa7043609b9d1c5",
+   "len": 16,
+   "uuid_text": "01010390-83cc-c438-cfa7-043609b9d1c5",
+   "on_air_le_hex": "c5d1b9093604a7cf38c4cc8390030101",
+   "expected": "forged"
+  },
+  {
+   "id": "A7",
+   "desc": "alias 7 (not enrolled), wrong-key tag",
+   "payload_hex": "0107039083cc1fa7a9cd0d996964c63b",
+   "len": 16,
+   "uuid_text": "01070390-83cc-1fa7-a9cd-0d996964c63b",
+   "on_air_le_hex": "3bc66469990dcda9a71fcc8390030701",
+   "expected": "unknown"
+  },
+  {
+   "id": "A8",
+   "desc": "A1 with version byte 0x02",
+   "payload_hex": "0201039083ccc438cfa7043609b9d1c4",
+   "len": 16,
+   "uuid_text": "02010390-83cc-c438-cfa7-043609b9d1c4",
+   "on_air_le_hex": "c4d1b9093604a7cf38c4cc8390030102",
+   "expected": "drop:unsupported_version"
+  },
+  {
+   "id": "A9",
+   "desc": "alias 0 (reserved), valid-looking tag",
+   "payload_hex": "0100039083cc0364bedf4bbd104ef645",
+   "len": 16,
+   "uuid_text": "01000390-83cc-0364-bedf-4bbd104ef645",
+   "on_air_le_hex": "45f64e10bd4bdfbe6403cc8390030001",
+   "expected": "drop:reserved_alias"
+  },
+  {
+   "id": "A10",
+   "desc": "A1 truncated to 15 bytes",
+   "payload_hex": "0101039083ccc438cfa7043609b9d1",
+   "len": 15,
+   "expected": "drop:length"
+  },
+  {
+   "id": "A11",
+   "desc": "A1 plus one byte (17 bytes)",
+   "payload_hex": "0101039083ccc438cfa7043609b9d1c400",
+   "len": 17,
+   "expected": "drop:length"
+  }
+ ],
+ "freshness": [
+  {
+   "id": "F1",
+   "counter": 59802572,
+   "now_unix_s": 1794077187.0,
+   "payload_hex": "0101039083ccc438cfa7043609b9d1c4",
+   "len": 16,
+   "uuid_text": "01010390-83cc-c438-cfa7-043609b9d1c4",
+   "on_air_le_hex": "c4d1b9093604a7cf38c4cc8390030101",
+   "expected": "verified"
+  },
+  {
+   "id": "F2",
+   "counter": 59802571,
+   "now_unix_s": 1794077187.0,
+   "payload_hex": "0101039083cba8e9e47130f94da2ed70",
+   "len": 16,
+   "uuid_text": "01010390-83cb-a8e9-e471-30f94da2ed70",
+   "on_air_le_hex": "70eda24df93071e4e9a8cb8390030101",
+   "expected": "verified"
+  },
+  {
+   "id": "F3",
+   "counter": 59802573,
+   "now_unix_s": 1794077187.0,
+   "payload_hex": "0101039083cd2c8bfe0ca807a38ddd41",
+   "len": 16,
+   "uuid_text": "01010390-83cd-2c8b-fe0c-a807a38ddd41",
+   "on_air_le_hex": "41dd8da307a80cfe8b2ccd8390030101",
+   "expected": "verified (future window accepted)"
+  },
+  {
+   "id": "F4",
+   "counter": 59802570,
+   "now_unix_s": 1794077187.0,
+   "payload_hex": "0101039083caaa3bd42518ad7a09ca24",
+   "len": 16,
+   "uuid_text": "01010390-83ca-aa3b-d425-18ad7a09ca24",
+   "on_air_le_hex": "24ca097aad1825d43baaca8390030101",
+   "expected": "replay:stale"
+  },
+  {
+   "id": "F5",
+   "counter": 59802574,
+   "now_unix_s": 1794077187.0,
+   "payload_hex": "0101039083ce4d2cad76a842b44f5d13",
+   "len": 16,
+   "uuid_text": "01010390-83ce-4d2c-ad76-a842b44f5d13",
+   "on_air_le_hex": "135d4fb442a876ad2c4dce8390030101",
+   "expected": "replay:future"
+  },
+  {
+   "id": "F6",
+   "counter": 59802571,
+   "now_unix_s": 1794077160.0,
+   "payload_hex": "0101039083cba8e9e47130f94da2ed70",
+   "len": 16,
+   "uuid_text": "01010390-83cb-a8e9-e471-30f94da2ed70",
+   "on_air_le_hex": "70eda24df93071e4e9a8cb8390030101",
+   "expected": "verified (now = first instant of window N)"
+  },
+  {
+   "id": "F7",
+   "counter": 59802570,
+   "now_unix_s": 1794077160.0,
+   "payload_hex": "0101039083caaa3bd42518ad7a09ca24",
+   "len": 16,
+   "uuid_text": "01010390-83ca-aa3b-d425-18ad7a09ca24",
+   "on_air_le_hex": "24ca097aad1825d43baaca8390030101",
+   "expected": "replay:stale (now = first instant of window N)"
+  },
+  {
+   "id": "F8",
+   "counter": 59802571,
+   "now_unix_s": 1794077189.999,
+   "payload_hex": "0101039083cba8e9e47130f94da2ed70",
+   "len": 16,
+   "uuid_text": "01010390-83cb-a8e9-e471-30f94da2ed70",
+   "on_air_le_hex": "70eda24df93071e4e9a8cb8390030101",
+   "expected": "verified (age ~59.999 s from token window start)"
+  }
+ ],
+ "sequences": [
+  {
+   "id": "S1",
+   "desc": "duplicate in same window",
+   "steps": [
+    {
+     "alias": 1,
+     "counter": 59802572,
+     "now_unix_s": 1794077187.0,
+     "payload_hex": "0101039083ccc438cfa7043609b9d1c4",
+     "len": 16,
+     "uuid_text": "01010390-83cc-c438-cfa7-043609b9d1c4",
+     "on_air_le_hex": "c4d1b9093604a7cf38c4cc8390030101",
+     "expected": "verified"
+    },
+    {
+     "alias": 1,
+     "counter": 59802572,
+     "now_unix_s": 1794077187.0,
+     "payload_hex": "0101039083ccc438cfa7043609b9d1c4",
+     "len": 16,
+     "uuid_text": "01010390-83cc-c438-cfa7-043609b9d1c4",
+     "on_air_le_hex": "c4d1b9093604a7cf38c4cc8390030101",
+     "expected": "replay:duplicate"
+    }
+   ]
+  },
+  {
+   "id": "S2",
+   "desc": "out of order: future first",
+   "steps": [
+    {
+     "alias": 1,
+     "counter": 59802573,
+     "now_unix_s": 1794077187.0,
+     "payload_hex": "0101039083cd2c8bfe0ca807a38ddd41",
+     "len": 16,
+     "uuid_text": "01010390-83cd-2c8b-fe0c-a807a38ddd41",
+     "on_air_le_hex": "41dd8da307a80cfe8b2ccd8390030101",
+     "expected": "verified"
+    },
+    {
+     "alias": 1,
+     "counter": 59802572,
+     "now_unix_s": 1794077187.0,
+     "payload_hex": "0101039083ccc438cfa7043609b9d1c4",
+     "len": 16,
+     "uuid_text": "01010390-83cc-c438-cfa7-043609b9d1c4",
+     "on_air_le_hex": "c4d1b9093604a7cf38c4cc8390030101",
+     "expected": "replay:not_newer"
+    }
+   ]
+  },
+  {
+   "id": "S3",
+   "desc": "forged must not poison state",
+   "steps": [
+    {
+     "alias": 1,
+     "counter": 59802573,
+     "now_unix_s": 1794077187.0,
+     "payload_hex": "0101039083cd92b7cfd7c41957f88ce9",
+     "len": 16,
+     "uuid_text": "01010390-83cd-92b7-cfd7-c41957f88ce9",
+     "on_air_le_hex": "e98cf85719c4d7cfb792cd8390030101",
+     "expected": "forged"
+    },
+    {
+     "alias": 1,
+     "counter": 59802572,
+     "now_unix_s": 1794077187.0,
+     "payload_hex": "0101039083ccc438cfa7043609b9d1c4",
+     "len": 16,
+     "uuid_text": "01010390-83cc-c438-cfa7-043609b9d1c4",
+     "on_air_le_hex": "c4d1b9093604a7cf38c4cc8390030101",
+     "expected": "verified"
+    }
+   ]
+  },
+  {
+   "id": "S4",
+   "desc": "per-alias isolation",
+   "steps": [
+    {
+     "alias": 1,
+     "counter": 59802572,
+     "now_unix_s": 1794077187.0,
+     "payload_hex": "0101039083ccc438cfa7043609b9d1c4",
+     "len": 16,
+     "uuid_text": "01010390-83cc-c438-cfa7-043609b9d1c4",
+     "on_air_le_hex": "c4d1b9093604a7cf38c4cc8390030101",
+     "expected": "verified"
+    },
+    {
+     "alias": 2,
+     "counter": 59802572,
+     "now_unix_s": 1794077187.0,
+     "payload_hex": "0102039083cc33a1eb7b2b481316ca92",
+     "len": 16,
+     "uuid_text": "01020390-83cc-33a1-eb7b-2b481316ca92",
+     "on_air_le_hex": "92ca1613482b7beba133cc8390030201",
+     "expected": "verified"
+    }
+   ]
+  },
+  {
+   "id": "S5",
+   "desc": "clock jumps forward 3600 s",
+   "steps": [
+    {
+     "alias": 1,
+     "counter": 59802572,
+     "now_unix_s": 1794077187.0,
+     "payload_hex": "0101039083ccc438cfa7043609b9d1c4",
+     "len": 16,
+     "uuid_text": "01010390-83cc-c438-cfa7-043609b9d1c4",
+     "on_air_le_hex": "c4d1b9093604a7cf38c4cc8390030101",
+     "expected": "verified"
+    },
+    {
+     "alias": 1,
+     "counter": 59802572,
+     "now_unix_s": 1794080787.0,
+     "payload_hex": "0101039083ccc438cfa7043609b9d1c4",
+     "len": 16,
+     "uuid_text": "01010390-83cc-c438-cfa7-043609b9d1c4",
+     "on_air_le_hex": "c4d1b9093604a7cf38c4cc8390030101",
+     "expected": "replay:stale"
+    },
+    {
+     "alias": 1,
+     "counter": 59802692,
+     "now_unix_s": 1794080787.0,
+     "payload_hex": "010103908444657b113beb91c327c174",
+     "len": 16,
+     "uuid_text": "01010390-8444-657b-113b-eb91c327c174",
+     "on_air_le_hex": "74c127c391eb3b117b65448490030101",
+     "expected": "verified"
+    }
+   ]
+  },
+  {
+   "id": "S6",
+   "desc": "clock jumps back 300 s after future accept",
+   "steps": [
+    {
+     "alias": 1,
+     "counter": 59802573,
+     "now_unix_s": 1794077187.0,
+     "payload_hex": "0101039083cd2c8bfe0ca807a38ddd41",
+     "len": 16,
+     "uuid_text": "01010390-83cd-2c8b-fe0c-a807a38ddd41",
+     "on_air_le_hex": "41dd8da307a80cfe8b2ccd8390030101",
+     "expected": "verified"
+    },
+    {
+     "alias": 1,
+     "counter": 59802562,
+     "now_unix_s": 1794076887.0,
+     "payload_hex": "0101039083c22dbcbabcff1fe117a5cc",
+     "len": 16,
+     "uuid_text": "01010390-83c2-2dbc-babc-ff1fe117a5cc",
+     "on_air_le_hex": "cca517e11fffbcbabc2dc28390030101",
+     "expected": "replay:not_newer"
+    }
+   ]
+  }
+ ],
+ "boundary": {
+  "max_counter": {
+   "payload_hex": "0101ffffffffe0d800533028273a7e80",
+   "len": 16,
+   "uuid_text": "0101ffff-ffff-e0d8-0053-3028273a7e80",
+   "on_air_le_hex": "807e3a2728305300d8e0ffffffff0101"
+  },
+  "make_token_at_unix_s": 128849018880,
+  "make_token_expected": "error: counter overflow"
+ }
+}

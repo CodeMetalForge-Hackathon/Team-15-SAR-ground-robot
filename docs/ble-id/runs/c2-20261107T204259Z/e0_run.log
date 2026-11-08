@@ -1,0 +1,13 @@
+1200/1200 as expected; invalid verified: 0; latency p50 3.2 us, p95 5.1 us
+  drop_length          expected drop:length                observed drop:length                n=100
+  drop_reserved_alias  expected drop:reserved_alias        observed drop:reserved_alias        n=100
+  drop_version         expected drop:unsupported_version   observed drop:unsupported_version   n=100
+  forged_bit_flip      expected forged:bad_tag             observed forged:bad_tag             n=100
+  forged_wrong_key     expected forged:bad_tag             observed forged:bad_tag             n=100
+  loss_then_recovery   expected verified:fresh             observed verified:fresh             n=100
+  replay_duplicate     expected replay:duplicate           observed replay:duplicate           n=100
+  replay_future        expected replay:future              observed replay:future              n=100
+  replay_not_newer     expected replay:not_newer           observed replay:not_newer           n=100
+  replay_stale         expected replay:stale               observed replay:stale               n=100
+  unknown              expected unknown:unenrolled_alias   observed unknown:unenrolled_alias   n=100
+  verified             expected verified:fresh             observed verified:fresh             n=100

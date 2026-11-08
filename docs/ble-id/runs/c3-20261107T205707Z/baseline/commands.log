@@ -1,0 +1,6 @@
+$ python -B -m pytest -v -p no:cacheprovider tests --ignore=tests/test_discovery.py
+exit=0
+$ python -B -m unittest discover -s tests -p test_discovery.py -v
+exit=0
+$ node --check discovery/static/app.js
+exit=0

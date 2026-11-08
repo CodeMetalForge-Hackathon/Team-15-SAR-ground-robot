@@ -1,0 +1,94 @@
+{
+ "seed": 20261107,
+ "trials_per_class": 100,
+ "classes": 12,
+ "trials_total": 1200,
+ "correct": 1200,
+ "accuracy": 1.0,
+ "invalid_verified": 0,
+ "verify_calls_timed": 1300,
+ "latency_us": {
+  "p50": 3.167,
+  "p95": 5.125,
+  "max": 57.208
+ },
+ "timing_boundary": "perf_counter_ns around one verify() call; excludes serial, parsing, radio, phone",
+ "warmup_calls_excluded": 10,
+ "python": "3.10.12",
+ "machine": "aarch64",
+ "platform": "Linux-6.8.0-138-generic-aarch64-with-glibc2.35",
+ "confusion": [
+  {
+   "class": "drop_length",
+   "expected": "drop:length",
+   "observed": "drop:length",
+   "count": 100
+  },
+  {
+   "class": "drop_reserved_alias",
+   "expected": "drop:reserved_alias",
+   "observed": "drop:reserved_alias",
+   "count": 100
+  },
+  {
+   "class": "drop_version",
+   "expected": "drop:unsupported_version",
+   "observed": "drop:unsupported_version",
+   "count": 100
+  },
+  {
+   "class": "forged_bit_flip",
+   "expected": "forged:bad_tag",
+   "observed": "forged:bad_tag",
+   "count": 100
+  },
+  {
+   "class": "forged_wrong_key",
+   "expected": "forged:bad_tag",
+   "observed": "forged:bad_tag",
+   "count": 100
+  },
+  {
+   "class": "loss_then_recovery",
+   "expected": "verified:fresh",
+   "observed": "verified:fresh",
+   "count": 100
+  },
+  {
+   "class": "replay_duplicate",
+   "expected": "replay:duplicate",
+   "observed": "replay:duplicate",
+   "count": 100
+  },
+  {
+   "class": "replay_future",
+   "expected": "replay:future",
+   "observed": "replay:future",
+   "count": 100
+  },
+  {
+   "class": "replay_not_newer",
+   "expected": "replay:not_newer",
+   "observed": "replay:not_newer",
+   "count": 100
+  },
+  {
+   "class": "replay_stale",
+   "expected": "replay:stale",
+   "observed": "replay:stale",
+   "count": 100
+  },
+  {
+   "class": "unknown",
+   "expected": "unknown:unenrolled_alias",
+   "observed": "unknown:unenrolled_alias",
+   "count": 100
+  },
+  {
+   "class": "verified",
+   "expected": "verified:fresh",
+   "observed": "verified:fresh",
+   "count": 100
+  }
+ ]
+}

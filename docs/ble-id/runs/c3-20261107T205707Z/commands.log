@@ -1,0 +1,26 @@
+$ python -B -m pytest -v -p no:cacheprovider tests
+exit=0
+$ python -B -m unittest discover -s tests -p test_discovery.py -v
+exit=0
+$ node --check discovery/static/app.js
+exit=0
+$ node --check discovery/static/beacons.js
+exit=0
+$ python -B -m pytest -q -p no:cacheprovider tests
+exit=0
+$ python -B -m pytest -q -p no:cacheprovider tests
+exit=0
+$ python -B -m pytest -q -p no:cacheprovider tests
+exit=0
+$ python -B -m pytest -q -p no:cacheprovider tests
+exit=0
+$ python -B -m pytest -q -p no:cacheprovider tests
+exit=0
+$ python -B -m pytest -q -p no:cacheprovider tests
+exit=0
+$ python -B -m pytest -q -p no:cacheprovider tests
+exit=0
+$ python -I -B tools/c2/mutation_check.py . /sessions/rcw-01mltomtfqcprbfmhevkrmxj/c3mut
+exit=0
+$ python -I -B tools/c3/latency_probe.py . /sessions/rcw-01mltomtfqcprbfmhevkrmxj/mnt/Team-15/docs/ble-id/runs/c3-20261107T205707Z/latency/latency_vm_py310.json 50
+exit=0

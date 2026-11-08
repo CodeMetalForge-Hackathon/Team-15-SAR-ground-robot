@@ -1,0 +1,3 @@
+port: /dev/cu.usbmodem2101
+COMMAND   PID   USER   FD   TYPE DEVICE  SIZE/OFF NODE NAME
+Python  88243 culubo    4u   CHR    9,9 0t9698709 1689 /dev/cu.usbmodem2101
