@@ -9,7 +9,7 @@ import pytest
 from lidar.config import LidarConfig, LidarConfigError, MountConfig
 from lidar.processing import Connection, LidarAssessor, SectorStatus, analyze_sectors, sector_of
 from lidar.scan import ScanCompletion, SourceMode
-from lidar.simulation import (SCENARIOS, SIM_MOUNT, World, box, cast, generate, load_fixture, make_scan, room,
+from lidar.simulation import (SCENARIOS, fixture_config, SIM_MOUNT, World, box, cast, generate, load_fixture, make_scan, room,
                               sim_config)
 
 FIX = os.path.join(os.path.dirname(__file__), "..", "fixtures")
@@ -304,9 +304,8 @@ def test_committed_fixtures_match_current_processing():
     assert len(files) == len(SCENARIOS)
     for f in files:
         name = os.path.basename(f)[:-5]
-        cfg = sim_config()
-        if name == "15_incorrect_orientation":
-            cfg.mount.forward_offset_deg = 0.0
+        cfg = fixture_config(f)
+        assert (cfg.mount.forward_offset_deg == 0.0) == (name == "15_incorrect_orientation")
         a = LidarAssessor(cfg)
         for scan, now, exp in load_fixture(f, cfg):
             r = a.update(scan, now_mono_ns=now)

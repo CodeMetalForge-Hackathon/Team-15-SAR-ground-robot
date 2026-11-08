@@ -91,3 +91,4 @@ GitHub Actions on PR #11 9041c05: `lidar-tests`, `test` (ci) and `perception-tes
   * S10: weak returns and occluded rays are never clear evidence.
   * New S13: the corridor names mirror `rover/navigator.py NavConfig` (`robot_width_m`, `width_margin_m`, `lookahead_m`). If the rover renames them, the LiDAR config must follow. Values are configured separately, so they can drift; Stage D should source them from one place. This is a rover-owner item.
 * The temp worktree was deleted after the results were saved.
+* Stage D readiness: **NOT READY**. `rover_max_required_clear_m` is unset, which means not validated, not passed. The bound is `max(NavConfig.lookahead_m, blocked_threshold_m)` and must come from a shared config. See GROVE_TO_LIDAR_MIGRATION.md.

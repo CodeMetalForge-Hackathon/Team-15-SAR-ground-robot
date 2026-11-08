@@ -325,6 +325,19 @@ def generate(name: str, seed: int = 15) -> list:
     return SCENARIOS[name](cfg, rng, name)
 
 
+def fixture_config(path: str) -> LidarConfig:
+    """The consumer config a fixture's "expected" values were computed with (sim_config + overrides)."""
+    import json
+    with open(path) as f:
+        doc = json.load(f)
+    cfg = sim_config()
+    for k, v in (doc.get("consumer_mount_override") or {}).items():
+        if k not in ("forward_offset_deg", "sensor_rotation"):
+            raise ValueError(f"{path}: unsupported override {k!r}")
+        setattr(cfg.mount, k, v)
+    return cfg
+
+
 def load_fixture(path: str, cfg: Optional[LidarConfig] = None) -> list:
     """Rebuild (scan, now_ns, expected) from an exported fixture through the normal build_scan path.
 

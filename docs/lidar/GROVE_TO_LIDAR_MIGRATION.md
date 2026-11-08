@@ -27,6 +27,9 @@ Grove (`ranging/`, `rover/` Grove adapter and their tests) is **untouched** by t
   * Always emit `source_mode`, because a missing value is treated as hardware. The LiDAR adapter always emits it.
   * With two sources, the supervisor's `forward_allowed` gate and its staleness latch must keep one latest reading per source. That is a rover change, with tests, in Stage D.
 
+### Stage D readiness: NOT READY
+`footprint.rover_max_required_clear_m` is **unset**. Unset means the lookahead check has **not** been done; it does not mean the check passed. The rover owner confirmed the exact bound is `max(NavConfig.lookahead_m, blocked_threshold_m)`, which is 1.0 m with today's defaults. It must come from the shared footprint/clearance config planned for Stage D and must not be hard-coded. Until it is set from that source, and the real footprint, occlusion windows and fiducial are measured, the LiDAR is **not ready for Stage D**. The rover also still rejects `rplidar-c1`.
+
 ### Forward region: robot-width corridor (IMPLEMENTED 2026-11-08, simulation-tested)
 The rover owner reviewed and tightened the corridor: bumper reference, a 100 % near zone, occlusion windows counted as uncovered and signed off, the lateral-offset transform, and the horizon never shown as max range. `to_rover_fields` now reduces the corridor, not the wedge; see DATA_CONTRACT §2b and §5. Still open for Stage C/D:
 * measure the real `robot_width_m` (gripper included), `sensor_to_front_m`, the offset, the occlusion windows and the fiducial;

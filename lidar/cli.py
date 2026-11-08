@@ -81,6 +81,8 @@ def _cmd_export(a) -> int:
                                                          "completion", "alignment_verified", "source_mode")}
                         | {"sectors": {x["name"]: x["status"] for x in exp["sectors"]}}})
         doc = {"label": SIM_LABEL, "source_mode": "SIMULATED", "scenario": name, "seed": a.seed,
+               # consumer-side mount overrides used to compute "expected" (scenario 15 = the misconfiguration)
+               "consumer_mount_override": {"forward_offset_deg": 0.0} if name == "15_incorrect_orientation" else {},
                "generator": "python -m lidar export-fixtures", "mount": "SIM_MOUNT (sensor 0 = robot rear, CW)",
                "frames": out}
         path = os.path.join(a.out, f"{name}.json")
