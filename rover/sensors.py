@@ -41,6 +41,13 @@ class RangeReading:
     service_status: Optional[str] = None  # ranging service obstacle_status: CLEAR|CAUTION|BLOCKED|UNKNOWN
     reason: str = ""
 
+    def __post_init__(self):
+        # Issue #9: forward_allowed is a strict tri-state, and a real sensor must always state a verdict.
+        if self.forward_allowed is not None and not isinstance(self.forward_allowed, bool):
+            raise ValueError(f"forward_allowed must be True, False or None, not {self.forward_allowed!r}")
+        if self.hardware and self.forward_allowed is None:
+            raise ValueError("a hardware range reading must carry an explicit forward_allowed verdict")
+
     def to_dict(self) -> dict:
         return {"t": self.t, "status": self.status, "range_m": self.range_m,
                 "max_range_m": self.max_range_m, "source": self.source, "seq": self.seq,

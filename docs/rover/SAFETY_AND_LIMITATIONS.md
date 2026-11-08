@@ -55,6 +55,15 @@ Not verified, so each one blocks Gate 5:
   - unknown power;
   - lost pose.
 - On `UNKNOWN` or `BLOCKED`, forward motion stops at once.
+- **Forward motion is fail-closed (Issue #9).** `MOVE_FORWARD` needs every one of these:
+  - the assessment is `CLEAR`;
+  - the range source asserts `forward_allowed is True`; `None` means "not asserted" and refuses;
+  - the reading is fresh (≤ 0.20 s), with a finite timestamp at most 50 ms in the future;
+  - for a hardware reading, status is `OK`.
+
+  Losing any of these while moving stops the robot. A hardware `RangeReading` without an explicit verdict can't be constructed. The simulator asserts its verdict explicitly.
+- **Controller link.** A physical driver must provide `health()`. If it's missing, reports a fault, or raises, motion is refused. While moving, that latches `DRIVER_FAULT`, which needs an operator reset plus a new approval.
+- **Invalid power.** Non-finite or future-dated power readings count as unknown power.
 - A latch revokes operator approval. Motion needs every one of these: e-stop reset, latch reset, a new approval, and `resume()`. **Nothing restarts by itself.**
 - The e-stop is latched and independent of the supervisor. It works three ways:
   - every registered stop runs even if another raises;

@@ -69,3 +69,10 @@ class RoverCAdapter:
     def stop(self) -> None:
         self.transport.write_block(I2C_ADDRESS, REG_MOTOR[0], STOP_BLOCK)
         self.last_speeds = (0, 0, 0, 0)
+
+    def health(self) -> str:
+        """'' if the transport reports a live link. A physical transport without health() is a fault."""
+        h = getattr(self.transport, "health", None)
+        if h is None:
+            return "transport reports no link health" if self.physical else ""
+        return h() or ""

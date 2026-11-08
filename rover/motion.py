@@ -7,8 +7,14 @@ driver's ``apply``. The rules are:
   - Motion needs operator approval. A safety stop latches and revokes approval, so nothing restarts
     by itself.
   - Motion needs a fresh range reading and a known, sufficient power reading.
-  - MOVE_FORWARD needs the forward corridor assessed CLEAR. BACKWARD/STRAFE need explicit evidence
-    that the direction is clear, because no sensor faces that way.
+  - MOVE_FORWARD is fail-closed (Issue #9). It needs all of these: the forward corridor assessed CLEAR,
+    the range source asserting ``forward_allowed is True`` (None is "not asserted" and refuses), and a
+    fresh reading with a finite timestamp that isn't from the future. A hardware reading must also be OK.
+    Any of these failing while moving stops the robot.
+  - BACKWARD/STRAFE need explicit evidence that the direction is clear, because no sensor faces that way.
+  - A physical driver must report its health (a link to the controller). If it can't, or it reports a
+    fault, motion is refused, and while moving DRIVER_FAULT latches.
+  - Non-finite or future-dated range and power readings count as missing.
   - The watchdog latches COMMS_LOST when the control loop stops calling heartbeat().
   - EmergencyStop is latched. It is independent of the supervisor, and an optional stop-file lets
     another process trip it.
@@ -16,6 +22,7 @@ driver's ``apply``. The rules are:
 from __future__ import annotations
 
 import enum
+import math
 import os
 from dataclasses import dataclass, field
 from typing import Callable, Optional, Protocol
@@ -84,6 +91,22 @@ class Driver(Protocol):
 
     def apply(self, v: BodyVelocity) -> None: ...
     def stop(self) -> None: ...
+    # Optional for simulated drivers, REQUIRED for physical ones:
+    #   def health(self) -> str: ...   "" if the controller link is alive and acknowledging, else why not.
+
+
+FUTURE_TOLERANCE_S = 0.05  # a reading stamped further ahead than this is a clock fault (same as sensors.assess)
+
+
+def _age_problem(t, now: float, max_age_s: float, what: str) -> str:
+    if not isinstance(t, (int, float)) or isinstance(t, bool) or not math.isfinite(t):
+        return f"{what} has no valid timestamp"
+    age = now - t
+    if age < -FUTURE_TOLERANCE_S:
+        return f"{what} timestamp {-age:.3f}s in the future (clock fault)"
+    if age > max_age_s:
+        return f"{what} stale ({age:.3f}s > {max_age_s:.3f}s)"
+    return ""
 
 
 class SafetyStop(str, enum.Enum):
@@ -260,23 +283,63 @@ class SafetySupervisor:
         lim = self.limits.max_yaw if cmd in (Command.TURN_LEFT, Command.TURN_RIGHT) else self.limits.max_linear
         if not (0 < speed <= lim):
             return f"speed {speed} outside (0, {lim}]"
+        d = self._driver_problem()
+        if d:
+            return d
         p = self._power_problem(now)
         if p:
             return p
-        if self.range is None or now - self.range.t > self.limits.sensor_max_age_s:
-            return "no fresh range reading"
-        if cmd == Command.MOVE_FORWARD and self.forward_assessment != Assessment.CLEAR:
-            return f"forward not CLEAR: {self.forward_assessment.value} ({self.forward_reason})"
-        if cmd == Command.MOVE_FORWARD and getattr(self.range, "forward_allowed", None) is False:
-            return "ranging service forward_motion_allowed=false"
+        r = self._range_problem(now)
+        if r:
+            return f"no fresh range reading: {r}"
+        if cmd == Command.MOVE_FORWARD:
+            f = self._forward_problem()
+            if f:
+                return f
         if cmd in _UNSENSED:
             if evidence is None or evidence.command != cmd or now - evidence.t > evidence.max_age_s:
                 return f"{cmd.value}: no sensor covers that direction; needs fresh operator evidence"
         return ""
 
+    def _range_problem(self, now: float) -> str:
+        if self.range is None:
+            return "no range reading"
+        return _age_problem(self.range.t, now, self.limits.sensor_max_age_s, "range reading")
+
+    def _forward_problem(self) -> str:
+        """Issue #9: forward motion needs a positive, explicit verdict. Anything else refuses or stops."""
+        if self.forward_assessment != Assessment.CLEAR:
+            return f"forward not CLEAR: {self.forward_assessment.value} ({self.forward_reason})"
+        r = self.range
+        allowed = getattr(r, "forward_allowed", None)
+        if allowed is False:
+            return "ranging service forward_motion_allowed=false"
+        if allowed is not True:
+            return "forward_motion_allowed not asserted"
+        if getattr(r, "hardware", False) and getattr(r, "status", None) != "OK":
+            return f"hardware range status {getattr(r, 'status', None)} cannot authorize forward motion"
+        return ""
+
+    def _driver_problem(self) -> str:
+        health = getattr(self.driver, "health", None)
+        if health is None:
+            return "physical driver reports no health (controller link unverified)" if self.driver.physical else ""
+        try:
+            why = health()
+        except Exception as e:  # a health check that fails is a fault, never "healthy"
+            return f"driver health check failed: {type(e).__name__}: {e}"
+        if why is None or why == "":
+            return ""
+        return f"driver fault: {why}"
+
     def _power_problem(self, now: float) -> str:
         p = self.power
-        if p is None or p.voltage_v is None or now - p.t > self.power_max_age_s:
+        if p is None or p.voltage_v is None:
+            return "power reading unknown or stale"
+        v = p.voltage_v
+        if not isinstance(v, (int, float)) or isinstance(v, bool) or not math.isfinite(v):
+            return "power reading invalid (non-finite voltage)"
+        if _age_problem(p.t, now, self.power_max_age_s, "power reading"):
             return "power reading unknown or stale"
         if self.limits.min_voltage_v is None:
             if self.driver.physical:
@@ -302,7 +365,7 @@ class SafetySupervisor:
         if self.estop.tripped:
             if self.latched != SafetyStop.ESTOP:
                 self._latch(SafetyStop.ESTOP, self.estop.reason)
-            self._hard_zero()
+            self._zero_never_raise()
             return
         if now - self.last_heartbeat > self.limits.watchdog_timeout_s:
             self._latch(SafetyStop.COMMS_LOST, f"no heartbeat for {now - self.last_heartbeat:.3f}s")
@@ -310,18 +373,21 @@ class SafetySupervisor:
         if moving and not self.latched:
             if self.deadline is not None and now >= self.deadline:
                 self.stop("command duration elapsed")
-            elif self.range is None or now - self.range.t > self.limits.sensor_max_age_s:
-                self._latch(SafetyStop.SENSOR_STALE, "range reading stale while moving")
-            elif self.active == Command.MOVE_FORWARD and self.forward_assessment != Assessment.CLEAR:
-                self.stop(f"obstacle check {self.forward_assessment.value}: {self.forward_reason}")
-            elif self.active == Command.MOVE_FORWARD and getattr(self.range, "forward_allowed", None) is False:
-                self.stop("ranging service forward_motion_allowed=false")
+            elif (drv := self._driver_problem()):  # evaluated once: health() may poll a live link
+                self._latch(SafetyStop.DRIVER_FAULT, drv)
+            elif self._range_problem(now):
+                self._latch(SafetyStop.SENSOR_STALE, f"while moving: {self._range_problem(now)}")
+            elif self.active == Command.MOVE_FORWARD and self._forward_problem():
+                f = self._forward_problem()
+                if self.forward_assessment != Assessment.CLEAR:
+                    f = f"obstacle check {self.forward_assessment.value}: {self.forward_reason}"
+                self.stop(f)
             else:
                 p = self._power_problem(now)
                 if p:
                     self._latch(SafetyStop.UNDERVOLTAGE if "undervoltage" in p else SafetyStop.POWER_UNKNOWN, p)
         if self.latched:
-            self._hard_zero()
+            self._zero_never_raise()
             return
         self._apply(self._ramp(self.output, self.target, self.limits.max_accel_per_s * dt))
 
@@ -359,6 +425,14 @@ class SafetySupervisor:
         except Exception as e:
             self._event("DRIVER_STOP_FAILED", str(e))
             raise
+
+    def _zero_never_raise(self) -> None:
+        """Re-assert zero every tick while stopped. A dead link must not crash the control loop:
+        the failure is recorded (DRIVER_STOP_FAILED) and the controller-side watchdog holds the motors."""
+        try:
+            self._hard_zero()
+        except Exception:
+            pass
 
     def _latch(self, why: SafetyStop, detail: str) -> None:
         if self.latched is None:
