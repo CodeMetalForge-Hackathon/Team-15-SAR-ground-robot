@@ -35,7 +35,7 @@ Run the tests with `pip install -r requirements.txt && pytest -q`.
 
 ### Model weights / Hugging Face
 
-The adapter is on Hugging Face: **[huggingface.co/MOHDMUBASHIR/team15-qwen3.5-2b-rescue-mission-lora](https://huggingface.co/MOHDMUBASHIR/team15-qwen3.5-2b-rescue-mission-lora) (private until approved)**. The base weights are loaded from the [official Qwen repository](https://huggingface.co/Qwen/Qwen3.5-2B) and are not redistributed. No weights are stored in this Git repository. While the repository is private, loading it requires a Hugging Face login (`hf auth login`) with access to it.
+The adapter is on Hugging Face: **[huggingface.co/MOHDMUBASHIR/team15-qwen3.5-2b-rescue-mission-lora](https://huggingface.co/MOHDMUBASHIR/team15-qwen3.5-2b-rescue-mission-lora) (public, revision `21013d4`)**. The base weights are loaded from the [official Qwen repository](https://huggingface.co/Qwen/Qwen3.5-2B) and are not redistributed. No weights are stored in this Git repository. The repository is public, so no Hugging Face login is needed.
 
 ```python
 from peft import PeftModel

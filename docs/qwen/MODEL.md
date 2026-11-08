@@ -12,7 +12,7 @@ Every rover function works identically with Qwen switched off.
 | | |
 |---|---|
 | Base model | [Qwen/Qwen3.5-2B](https://huggingface.co/Qwen/Qwen3.5-2B), revision `15852e8c16360a2fea060d615a32b45270f8a8fc`, Apache-2.0. Not redistributed: loaded from the official repository |
-| Fine-tuned adapter | **[huggingface.co/MOHDMUBASHIR/team15-qwen3.5-2b-rescue-mission-lora](https://huggingface.co/MOHDMUBASHIR/team15-qwen3.5-2b-rescue-mission-lora) (private until approved)** (LoRA `ckpt-0088`, 62.6 MB, SHA-256 `a76f837183bdeb9059c74a1d92e38fe485c7e13e5dc05c4cf5ca6c375eb7ba2b`) |
+| Fine-tuned adapter | **[huggingface.co/MOHDMUBASHIR/team15-qwen3.5-2b-rescue-mission-lora](https://huggingface.co/MOHDMUBASHIR/team15-qwen3.5-2b-rescue-mission-lora) (public, revision `21013d4`)** (LoRA `ckpt-0088`, 62.6 MB, SHA-256 `a76f837183bdeb9059c74a1d92e38fe485c7e13e5dc05c4cf5ca6c375eb7ba2b`) |
 | Local quantized runtime | Ollama `qwen3.5:2b-q4_K_M` (base model only; Ollama 0.40.2 does not load LoRA adapters) |
 
 No weights, adapters or checkpoints are stored in this Git repository (see `.gitignore`).
