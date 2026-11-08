@@ -184,5 +184,8 @@ VENDORED_ICONS = {f"team15_starter/fleet/web/leaflet/images/{n}" for n in
 
 # Judge demo media rendered from the dual-robot SIMULATION (3D digital twin). Not camera captures, no person:
 # recorded with no real-camera evidence folder configured (see demo/VIDEO_INDEX.md). Listed by exact path.
+# Team15_Drone_Fleet_Search_Simulation.mp4 (fc755b9; sha256 af476648…97b0, 104 s): reviewed in the final audit,
+# frames show only the SIMULATED fleet-search UI over map tiles; no camera footage, no people.
 SYNTHETIC_DEMO_MEDIA = {"demo/videos/Team15_Dual_Robot_Rescue_Demo.mp4", "demo/evidence/sim_3d_reroute.jpg",
-                        "demo/evidence/sim_mission_complete_qwen.jpg"}
+                        "demo/evidence/sim_mission_complete_qwen.jpg",
+                        "demo/videos/Team15_Drone_Fleet_Search_Simulation.mp4"}

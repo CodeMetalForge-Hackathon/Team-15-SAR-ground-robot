@@ -1,6 +1,6 @@
 # Final GitHub completeness and evidence audit
 
-**Date:** 2026-11-08 (10:30–11:35 ET). **Audited revision:** remote `main` at `912e1f7` (PR #21), fetched fresh.
+**Date:** 2026-11-08 (10:30–11:35 ET). **Audited revision:** remote `main` at `912e1f7` (PR #21), fetched fresh; `fc755b9` (one video, pushed to `main` at 11:14 ET) was checked separately.
 **Method:** GitHub API (`gh`), a fresh clone in a clean directory, the documented commands, gitleaks plus a
 custom identifier scan of every blob on every remote branch, SHA-256 matching of every hash the registry cites,
 and read-only inspection of the private evidence stores. No motor was activated, no firmware was flashed, no
@@ -100,7 +100,8 @@ already on `main`, so nothing was lost.
 | Video | Where | Verified | Publishable? |
 |---|---|---|---|
 | 3D dual-robot rescue simulation (74.47 s, 1920×1080, H.264 High, 30 fps; SHA-256 `f9f446ea…52da`) | `demo/videos/`, README "Watch the Demo" | hash, codec, frames sampled: simulation UI only, "SIMULATION — NO PHYSICAL ROBOT MOVEMENT" banner | yes |
-| Fleet-search simulation (9.1 s) | presenter's desktop | simulated heat map only | yes (not uploaded) |
+| Drone fleet-search simulation (104 s, 1912×978; SHA-256 `af476648…97b0`), added to `main` by `fc755b9` after the audit started | `demo/videos/` | frames sampled: simulated fleet UI over map tiles; audio near-silent. Its arrival broke `test_no_photos_tracked_in_git` on `main`; fixed by allow-listing it as synthetic media | yes |
+| Fleet-search simulation clip (9.1 s) | presenter's desktop | simulated heat map only | yes (not uploaded) |
 | Two Qwen + LoRA rover demos and two "live Pi camera + mock motors" sessions, including the final 10:00 ET one (27 s each) | presenter's desktop | the live camera panel shows a room and laptop screens, and the side panel shows a device serial path and a local home path | **no**: keep private |
 
 ## 6. Privacy, security and licences
