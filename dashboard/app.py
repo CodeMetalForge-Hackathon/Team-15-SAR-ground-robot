@@ -10,6 +10,15 @@ Endpoints
 - ``GET /api/range``                 forward obstacle range card (team15.range_panel/1);
                                     DISCONNECTED when no source is configured or answers. Not the
                                     distance to any person candidate.
+- ``POST /api/perception/frame``     camera_mapping.live posts {state, jpeg_b64} (team15.camera_perception/1)
+- ``POST /api/perception/advisory``  rescue advisory (authority NONE) from the runner
+- ``POST /api/perception/health``    camera heartbeat (STREAMING / NO_FRAMES / DISCONNECTED / STOPPED)
+- ``GET /api/perception``            latest perception state; STALE -> assessment UNKNOWN
+- ``GET /api/perception/frame.jpg``  latest annotated frame (memory only)
+- ``GET /api/perception/advisory``   latest rescue advisory
+- ``GET /api/perception/health``     system health panel (camera, latency, map age, calibration, rover)
+
+Camera distances are CAMERA_ESTIMATE values. They are never shown as range-sensor readings.
 
 Photos are never stored in Git. ``/evidence`` serves a path from the
 observation only if it is a JPEG/PNG inside one of the configured evidence
@@ -23,11 +32,12 @@ import os
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse, Response
 
 from core import range_view
 from core.ingest import InvalidObservation
 from core.store import InvalidDecision, MissionStore, UnknownObservation
+from dashboard.perception_source import ConflictingProducer, InvalidPerception, PerceptionStore
 from dashboard.range_source import RangeSource
 
 STATIC = Path(__file__).resolve().parent / "static"
@@ -43,12 +53,15 @@ def _roots(evidence_dir) -> list[Path]:
 
 
 def create_app(store: MissionStore | None = None, evidence_dir=None,
-               range_source: RangeSource | None = None) -> FastAPI:
+               range_source: RangeSource | None = None,
+               perception: PerceptionStore | None = None) -> FastAPI:
     store = store if store is not None else MissionStore()
+    perception = perception if perception is not None else PerceptionStore()
     range_source = range_source if range_source is not None else RangeSource()
     roots = _roots(evidence_dir)
     app = FastAPI(title="Team 15 base station")
     app.state.store = store
+    app.state.perception = perception
 
     def serve_photo(obs_id: str, keys: tuple[str, ...]) -> FileResponse:
         obs = store.observation(obs_id)
@@ -99,6 +112,56 @@ def create_app(store: MissionStore | None = None, evidence_dir=None,
         except Exception as e:  # malformed data must never take the card down or read CLEAR
             return range_view.disconnected(f"unreadable range data: {type(e).__name__}",
                                            source="FIXTURE" if range_source.fixture_mode else "LIVE")
+
+    @app.post("/api/perception/frame")
+    def perception_frame(body: dict) -> dict:
+        try:
+            return perception.post_frame(body)
+        except InvalidPerception as e:
+            raise HTTPException(status_code=422, detail=str(e)) from None
+        except ConflictingProducer as e:
+            raise HTTPException(status_code=409, detail=str(e)) from None
+
+    @app.post("/api/perception/advisory")
+    def perception_advisory_post(body: dict) -> dict:
+        try:
+            return perception.post_advisory(body)
+        except InvalidPerception as e:
+            raise HTTPException(status_code=422, detail=str(e)) from None
+        except ConflictingProducer as e:
+            raise HTTPException(status_code=409, detail=str(e)) from None
+
+    @app.post("/api/perception/health")
+    def perception_health_post(body: dict) -> dict:
+        try:
+            return perception.post_health(body)
+        except InvalidPerception as e:
+            raise HTTPException(status_code=422, detail=str(e)) from None
+
+    @app.get("/api/perception")
+    def perception_view() -> dict:
+        return perception.view()
+
+    @app.get("/api/perception/frame.jpg")
+    def perception_jpeg() -> Response:
+        jpg = perception.frame()
+        if jpg is None:
+            raise HTTPException(404, "no camera frame yet")
+        return Response(jpg, media_type="image/jpeg", headers={"Cache-Control": "no-store"})
+
+    @app.get("/api/perception/advisory")
+    def perception_advisory() -> dict:
+        return perception.advisory_view()
+
+    @app.get("/api/perception/health")
+    def perception_health() -> dict:
+        try:
+            rv = range_source.view()
+            rover = {"status": rv.get("status"), "source": rv.get("source"), "badge": rv.get("badge"),
+                     "simulated": rv.get("simulated"), "status_text": rv.get("status_text")}
+        except Exception as e:  # noqa: BLE001 - health must render even if the range source fails
+            rover = {"status": "DISCONNECTED", "source": "UNKNOWN", "status_text": type(e).__name__}
+        return perception.health_view(rover)
 
     @app.get("/evidence/{obs_id}")
     def evidence(obs_id: str) -> FileResponse:
