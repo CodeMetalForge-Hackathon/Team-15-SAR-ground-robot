@@ -76,3 +76,18 @@ GitHub Actions on PR #11 9041c05: `lidar-tests`, `test` (ci) and `perception-tes
 1. Human review of PR #11. It stays a draft until the user decides.
 2. Owners acknowledge the interface requests (rover R1–R3, dashboard D1–D3, Qwen Q1). Nothing needs to change on their side for Stage A/B.
 3. Issue #9 stays a hard gate for R1.
+
+## 8. Re-audit after the footprint-clearance round (2026-11-08, head 9027320)
+
+* Inputs re-fetched. main is still 06a69b9. Active: aurora-integration 60eaad5, aurora-mapping 8b5691b, culubo/sensor-id-specs 8056838 (#6), GavinPrescott-sarsim 801dc9e.
+* main + #11: **clean** (local 3b7ada6). Files are additive only. There is a zero-line diff in `rover/`, `ranging/`, `dashboard/` and `core/`.
+* Against the active branches, the result is the same as §2. The only conflict is `.gitignore` add/add with aurora-integration and #6, and it is pre-existing (main alone conflicts identically). No branch contains LiDAR code.
+* Combined regression: default 340 + ranging 126 + lidar 124 = **590 passed, 0 failed, 0 skipped**. Route A→G is 60 m.
+* Gates: Grove hardware gate rc 2, LiDAR gate rc 2, `scan-once` without approval rc 3. No GPIO, motor or servo imports in `lidar/`.
+* Semantic changes since §6:
+  * S1/S12: the forward region is now a robot-width corridor (bumper reference agreed with the rover owner). The rover still rejects `rplidar-c1`, and Issue #9 still gates R1.
+  * S2: corridor processing roughly doubles the Mac processing time (≈ 1.1 ms p50), still negligible against the 100 ms revolution.
+  * S5: the orientation monitor now detects a wrong offset or sign error when a fiducial is configured; without one, motion is refused.
+  * S10: weak returns and occluded rays are never clear evidence.
+  * New S13: the corridor names mirror `rover/navigator.py NavConfig` (`robot_width_m`, `width_margin_m`, `lookahead_m`). If the rover renames them, the LiDAR config must follow. Values are configured separately, so they can drift; Stage D should source them from one place. This is a rover-owner item.
+* The temp worktree was deleted after the results were saved.
