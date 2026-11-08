@@ -15,6 +15,7 @@
 #   HEIGHT_IN  hover height in inches (default 12)
 #   ALIAS      enrolled phone alias (default 1)
 #   RSSI_CAL   two calibration readings "1:-52 3:-63" to set the hop from the signal
+#   HOVER_THRUST  no Flow deck: open-loop hop (thrust from cf_lift), e.g. HOVER_THRUST=39000
 #   DRY_RUN=1  no drone, no ESP: simulated flight, real mission control
 # Anything after the distance is passed to fly_to_phone.py (e.g. --hover-s 6).
 
@@ -99,6 +100,25 @@ else
     echo "If it says busy: another program has $ESP_PORT open (check: lsof $ESP_PORT)."
     exit 1
   fi
+fi
+
+# --- Open-loop hop (no positioning deck): HOVER_THRUST=39000 ./crazyflie/run_demo.sh 3 ---
+if [ -n "${HOVER_THRUST:-}" ] && [ "${DRY_RUN:-0}" != 1 ]; then
+  HOP=(python crazyflie/hop_to_phone.py --live-drone --uri "$DRONE" --hover-thrust "$HOVER_THRUST"
+       --forward-ft "$FORWARD_FT" --height-in "${HEIGHT_IN_HOP:-5}" --coordinator "$MC_URL")
+  [ ${#FLY_SCAN[@]} -gt 0 ] && HOP+=("${FLY_SCAN[@]}")
+  say "Preflight (open-loop hop: no position sensing)"
+  echo "   - Crazyflie phone app closed, drone USB unplugged, drone flat and still"
+  echo "   - drone on its start mark, red/green LEDs pointing at the phone"
+  echo "   - phone ${FORWARD_FT} ft ahead with the beacon app open, nothing in the way"
+  say "Hop (it asks you to type hop; Ctrl+C cuts the motors)"
+  "${HOP[@]}" "$@"
+  RESULT=$?
+  if [ ${#STARTED[@]} -gt 0 ]; then
+    say "Done (exit $RESULT). Servers stay up for the operator view; press Ctrl+C to stop them."
+    wait
+  fi
+  exit $RESULT
 fi
 
 # --- Flight -------------------------------------------------------------------------
