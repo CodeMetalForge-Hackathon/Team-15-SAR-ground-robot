@@ -8,8 +8,9 @@ safety rule applied here so the browser only renders it.
 Rules (agreed with the robotics session, issue: Grove range panel):
 - The reading is the nearest reflecting surface in a ~15° forward cone. It is
   never the distance to the detected person, so nothing here refers to tracks.
-- "HARDWARE" only when every allowlisted check passes; everything else is
-  SIMULATED. Today nothing passes.
+- "HARDWARE" only for LIVE data where every allowlisted check passes exactly;
+  everything else is SIMULATED. Fixture data is always SIMULATED, whatever its
+  provenance claims. Today nothing passes.
 - Stale uses the snapshot's own ``stale_after_s`` (0.5 s). Live data: the age is
   recomputed from ``published_time``; skew beyond -1 s also counts as stale.
   Fixture data: the fixture's own ``freshness`` is used as-is.
@@ -51,22 +52,36 @@ def _epoch(iso: str | None) -> float | None:
     return dt.timestamp() if dt.tzinfo else None
 
 
+def _nonblank_str(v) -> bool:
+    return isinstance(v, str) and v.strip() != ""
+
+
 def hardware_verified(snapshot: dict | None, robot: dict | None) -> bool:
-    """Allowlist: True only if every hardware check passes."""
+    """Allowlist for LIVE data: True only if every hardware check passes exactly.
+
+    Exact, case-sensitive values; wrong types (``True``, ``0``, ``""``) fail.
+    Never consulted for fixtures: a fixture is SIMULATED whatever it claims.
+    """
+    if snapshot is None and robot is None:
+        return False
     if snapshot is not None:
-        prov = snapshot.get("provenance") or {}
-        if not (prov.get("source_mode") == "LIVE-HW" and prov.get("wiring_verified_by")
-                and prov.get("driver") == "gpiod"):
+        prov = snapshot.get("provenance")
+        prov = prov if isinstance(prov, dict) else {}
+        if not (prov.get("source_mode") == "LIVE-HW" and prov.get("driver") == "gpiod"
+                and _nonblank_str(prov.get("wiring_verified_by"))):
             return False
     if robot is not None:
-        claims = robot.get("claims") or {}
-        if robot.get("mode") == "SIMULATION" or claims.get("hardware_validated") is not True:
+        claims = robot.get("claims")
+        claims = claims if isinstance(claims, dict) else {}
+        mode = robot.get("mode")
+        if not (_nonblank_str(mode) and "SIM" not in mode.upper()
+                and claims.get("hardware_validated") is True):
             return False
         if snapshot is None:
-            fr = robot.get("forward_range") or {}
-            if fr.get("sensor_source") != "LIVE-HW":
+            fr = robot.get("forward_range")
+            if not (isinstance(fr, dict) and fr.get("sensor_source") == "LIVE-HW"):
                 return False
-    return snapshot is not None or robot is not None
+    return True
 
 
 def _freshness(published: float | None, stale_after: float, fixture: bool,
@@ -120,7 +135,8 @@ def _classify(view: dict, *, valid: bool, mstatus: str | None, obstacle: str | N
 
 def from_snapshot(snapshot: dict, *, now: float, fixture: bool,
                   robot: dict | None = None) -> dict:
-    view = _base("FIXTURE" if fixture else "LIVE", hardware_verified(snapshot, robot))
+    view = _base("FIXTURE" if fixture else "LIVE",
+                 False if fixture else hardware_verified(snapshot, robot))
     latest = snapshot.get("latest") or {}
     assess = snapshot.get("assessment") or {}
     stale_after = float(snapshot.get("stale_after_s") or DEFAULT_STALE_AFTER_S)
@@ -160,7 +176,8 @@ def from_robot_status(robot: dict, *, now: float, fixture: bool) -> dict:
     value shown (greyed); it never reads CLEAR.
     """
     fr = robot.get("forward_range") or {}
-    view = _base("FIXTURE" if fixture else "LIVE", hardware_verified(None, robot))
+    view = _base("FIXTURE" if fixture else "LIVE",
+                 False if fixture else hardware_verified(None, robot))
     ts = fr.get("sensor_timestamp")
     if fixture:
         stale, age = bool(fr.get("stale", True)), fr.get("age_s")

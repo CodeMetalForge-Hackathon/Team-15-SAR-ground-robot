@@ -289,3 +289,126 @@ def test_page_has_separate_range_card_without_person_wording():
     visible = re.sub(r'title="[^"]*"', "", card + js.replace("v.qualification", ""))
     assert not re.search(r"person|candidate", visible, re.I)
     assert "motion allowed" not in js.lower() and "SIMULATED" in js
+
+
+# --- spoofing: the badge never upgrades without real, live, exact hardware claims -------
+
+HW_PROV = {"source_mode": "LIVE-HW", "driver": "gpiod", "wiring_verified_by": "bench-tech"}
+HW_ROBOT = {"schema": "team15.robot_status/1", "mode": "LIVE", "claims": {"hardware_validated": True},
+            "forward_range": {"distance_cm": 50.0, "validity": "VALID", "sensor_source": "LIVE-HW",
+                              "sensor_timestamp": "2026-11-08T01:16:39.729+00:00", "stale": False}}
+
+
+def spoof(s):
+    s = copy.deepcopy(s)
+    s["provenance"] = {**(s.get("provenance") or {}), **HW_PROV}
+    return s
+
+
+def test_live_full_claims_is_the_only_hardware_case():
+    # Positive control, so the spoof tests below cannot pass vacuously.
+    assert range_view.from_snapshot(spoof(snap()), now=PUB, fixture=False)["badge"] == "HARDWARE"
+    assert range_view.from_snapshot(spoof(snap()), now=PUB, fixture=False,
+                                    robot=HW_ROBOT)["badge"] == "HARDWARE"
+
+
+@need
+def test_fixture_spoofing_hardware_is_simulated_for_every_frame_and_scenario(tmp_path):
+    series = json.loads(SERIES.read_text())
+    scen = json.loads(SCENARIOS.read_text())
+    series["series"] = [spoof(f) for f in series["series"]]
+    scen["scenarios"] = {k: spoof(v) for k, v in scen["scenarios"].items()}
+    (tmp_path / "series.json").write_text(json.dumps(series))
+    (tmp_path / "scen.json").write_text(json.dumps(scen))
+    (tmp_path / "robot.json").write_text(json.dumps(HW_ROBOT))
+    for robot in (None, tmp_path / "robot.json"):
+        c = client_for(RangeSource(fixture=tmp_path / "series.json", robot_fixture=robot, clock=Clock(PUB)))
+        for i in range(120):
+            v = c.get("/api/range", params={"frame": i}).json()
+            assert (v["badge"], v["simulated"], v["hardware"]) == ("SIMULATED", True, False), i
+        c = client_for(RangeSource(fixture=tmp_path / "scen.json", robot_fixture=robot, clock=Clock(PUB)))
+        for name in scen["scenarios"]:
+            v = c.get("/api/range", params={"scenario": name}).json()
+            assert v["badge"] == "SIMULATED" and v["hardware"] is False, name
+        # direct call too, as in the audit reproduction
+        f = series["series"][0]
+        assert range_view.from_snapshot(f, now=f["published_time"], fixture=True)["badge"] == "SIMULATED"
+
+
+def test_robot_fixture_claiming_hardware_is_simulated(tmp_path):
+    (tmp_path / "robot.json").write_text(json.dumps(HW_ROBOT))
+    v = client_for(RangeSource(robot_fixture=tmp_path / "robot.json", clock=Clock(PUB))).get("/api/range").json()
+    assert v["badge"] == "SIMULATED" and v["hardware"] is False
+    (tmp_path / "snap.json").write_text(json.dumps(spoof(snap())))
+    v = client_for(RangeSource(fixture=tmp_path / "snap.json", robot_fixture=tmp_path / "robot.json",
+                               clock=Clock(PUB))).get("/api/range").json()
+    assert v["badge"] == "SIMULATED" and v["hardware"] is False
+
+
+@pytest.mark.parametrize("keep", [("source_mode",), ("driver",), ("wiring_verified_by",),
+                                  ("source_mode", "driver"), ("source_mode", "wiring_verified_by"),
+                                  ("driver", "wiring_verified_by")])
+def test_live_partial_claims_are_simulated(keep):
+    prov = {"source_mode": "SIMULATED", "driver": "simulated", "wiring_verified_by": None}
+    prov.update({k: HW_PROV[k] for k in keep})
+    assert range_view.from_snapshot(snap(provenance=prov), now=PUB, fixture=False)["badge"] == "SIMULATED"
+
+
+@pytest.mark.parametrize("bad", [
+    {"wiring_verified_by": ""}, {"wiring_verified_by": "   "}, {"wiring_verified_by": True},
+    {"wiring_verified_by": 0}, {"wiring_verified_by": 1}, {"wiring_verified_by": ["tech"]},
+    {"source_mode": "live-hw"}, {"source_mode": " LIVE-HW"}, {"source_mode": "LIVE-HW "},
+    {"source_mode": True}, {"driver": "GPIOD"}, {"driver": "gpiod "}, {"driver": None},
+])
+def test_live_wrong_type_or_spelling_is_simulated(bad):
+    s = snap(provenance={**HW_PROV, **bad})
+    assert range_view.from_snapshot(s, now=PUB, fixture=False)["badge"] == "SIMULATED"
+
+
+@pytest.mark.parametrize("robot", [
+    {"mode": "SIMULATION", "claims": {"hardware_validated": True}},
+    {"mode": "simulation", "claims": {"hardware_validated": True}},
+    {"mode": "LIVE", "claims": {"hardware_validated": "true"}},
+    {"mode": "LIVE", "claims": {"hardware_validated": 1}},
+    {"mode": "LIVE", "claims": None},
+    {"mode": "", "claims": {"hardware_validated": True}},
+    {"mode": None, "claims": {"hardware_validated": True}},
+])
+def test_live_robot_claims_must_be_exact(robot):
+    v = range_view.from_snapshot(spoof(snap()), now=PUB, fixture=False, robot=robot)
+    assert v["badge"] == "SIMULATED"
+
+
+def test_live_non_200_or_misrouted_response_never_upgrades_badge():
+    import urllib.error
+
+    def non200(url, timeout):
+        raise urllib.error.HTTPError(url, 500, "Server Error", {}, None)
+    v = client_for(RangeSource(range_url=RANGE_URL, robot_url=ROBOT_URL, fetch=non200,
+                               clock=Clock(PUB))).get("/api/range").json()
+    assert v["badge"] == "SIMULATED" and v["status"] == "DISCONNECTED"
+
+    # Right schema at the wrong URL: a hardware-claiming range snapshot served by the
+    # robot API, and a hardware-claiming robot status served by the ranging URL.
+    def swapped(url, timeout):
+        return HW_ROBOT if url == RANGE_URL else spoof(snap())
+    v = client_for(RangeSource(range_url=RANGE_URL, robot_url=ROBOT_URL, fetch=swapped,
+                               clock=Clock(PUB))).get("/api/range").json()
+    assert v["badge"] == "SIMULATED" and v["status"] == "DISCONNECTED"
+
+
+@need
+def test_page_never_shows_hardware_for_any_fixture(tmp_path):
+    _html, _card, js = _range_card_html()
+    # The page writes HARDWARE only on the non-simulated branch of drawRange.
+    assert re.search(r"v\.simulated\s*\?\s*'[^']*SIMULATED", js)
+    assert js.count("HARDWARE") == 1
+    sources = [RangeSource(fixture=SERIES, robot_fixture=ROBOT, clock=Clock(PUB)),
+               RangeSource(fixture=SCENARIOS, clock=Clock(PUB)),
+               RangeSource(robot_fixture=ROBOT, clock=Clock(PUB))]
+    for src in sources:
+        c = client_for(src)
+        for params in ([{"frame": i} for i in range(120)] if src.fixture and "series" in src.fixture
+                       else [{"scenario": n} for n in (src.fixture or {}).get("scenarios", {})] or [{}]):
+            v = c.get("/api/range", params=params).json()
+            assert v["simulated"] is True and "HARDWARE" not in json.dumps(v)
