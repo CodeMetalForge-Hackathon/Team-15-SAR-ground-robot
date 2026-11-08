@@ -76,6 +76,11 @@
   .hist img { width: 64px; height: 48px; object-fit: cover; border-radius: 4px; background: var(--cell); }
   .hist .noimg { width: 64px; height: 48px; border-radius: 4px; background: var(--cell); }
   a { color: var(--route); }
+  .range-value { font-size: 26px; font-weight: 700; font-variant-numeric: tabular-nums; margin: 6px 0 2px; }
+  .range-status { font-weight: 700; }
+  .range-card.greyed .range-value, .range-card.greyed .range-status { color: var(--muted); opacity: .6; }
+  .range-card.greyed .range-value { text-decoration: line-through; text-decoration-thickness: 1px; }
+  .qual { cursor: help; border-bottom: 1px dotted var(--muted); }
 </style>
 </head>
 <body>
@@ -108,6 +113,10 @@
     <section class="panel" aria-labelledby="route-h">
       <h2 id="route-h">Route</h2>
       <div id="route"><span class="note">No route yet.</span></div>
+    </section>
+    <section class="panel range-card greyed" id="range-card" aria-labelledby="range-h">
+      <h2 id="range-h"><span class="qual" id="range-title" title="">Forward obstacle range</span></h2>
+      <div id="range"><span class="note">Waiting for /api/range…</span></div>
     </section>
     <section class="panel" aria-labelledby="hist-h">
       <h2 id="hist-h">Earlier sightings (history)</h2>
@@ -372,9 +381,52 @@ document.addEventListener("click", async ev => {
   finally { busy = false; }
 });
 
+// Forward obstacle range: a separate card. It never refers to the person candidate,
+// and it only ever shows forward motion when it is NOT allowed.
+let rangeAt = 0;
+const RANGE_CLIENT_STALE_S = 1.0;   // no fresh /api/range answer → grey out locally too
+function drawRange(v) {
+  const card = document.getElementById("range-card"), el = document.getElementById("range");
+  document.getElementById("range-title").title = v.qualification;
+  const late = (performance.now() - rangeAt) / 1000 > RANGE_CLIENT_STALE_S;
+  const usable = v.usable && !late;
+  card.classList.toggle("greyed", !usable);
+  card.dataset.status = late ? "UNKNOWN" : v.status;
+  const badge = v.simulated
+    ? '<span class="badge sim" id="range-badge">🟥 SIMULATED</span>'
+    : '<span class="badge live" id="range-badge">🟩 HARDWARE</span>';
+  const status = late ? `unknown (no answer from /api/range for ${RANGE_CLIENT_STALE_S} s)` : v.status_text;
+  const frame = v.frame ? (v.frame.of ? ` · frame ${v.frame.index}/${v.frame.of}` : ` · scenario ${esc(v.frame.scenario)}`) : "";
+  const th = v.thresholds_m && v.thresholds_m.blocked_m != null
+    ? `blocked &lt; ${v.thresholds_m.blocked_m} m · caution &lt; ${v.thresholds_m.caution_m} m` : "n/a";
+  el.innerHTML = `
+    ${badge} <span class="badge neutral">${esc(v.source)}${frame}</span>
+    <div class="range-value" id="range-value">${v.value_text ? esc(v.value_text) : "—"}</div>
+    <div>Status: <span class="range-status" id="range-status">${esc(late ? "UNKNOWN" : v.status)}</span> · ${esc(status)}</div>
+    ${(late || v.motion_text) ? `<div>Forward motion: <b id="range-motion">${esc(late ? "UNKNOWN" : v.motion_text)}</b></div>` : ""}
+    <dl>
+      <dt>Reading</dt><dd>${esc(v.measurement_status ?? "none")}${v.age_s != null ? ` · age ${Number(v.age_s).toFixed(2)} s (limit ${v.stale_after_s} s)` : ""}</dd>
+      <dt>Thresholds</dt><dd>${th}</dd>
+      <dt>Sensor</dt><dd>${esc(v.sensor_id ?? "n/a")} · ${esc((v.provenance && v.provenance.source_mode) || "n/a")}${v.robot_mode ? ` · robot ${esc(v.robot_mode)}` : ""}</dd>
+      ${v.reason ? `<dt>Detail</dt><dd>${esc(v.reason)}</dd>` : ""}
+    </dl>
+    <div class="note">Nearest reflecting surface in a ~15° forward cone (ultrasonic). Display only.</div>`;
+}
+let lastRange = null;
+async function pollRange() {
+  try {
+    const res = await fetch("/api/range", { cache: "no-store" });
+    if (!res.ok) throw new Error(res.status);
+    lastRange = await res.json(); rangeAt = performance.now();
+  } catch (e) { /* keep lastRange; drawRange greys it out once it is late */ }
+  if (lastRange) drawRange(lastRange);
+}
+
 poll();
 setInterval(poll, 500);
 setInterval(tick, 250);
+pollRange();
+setInterval(pollRange, 250);
 </script>
 </body>
 </html>

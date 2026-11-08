@@ -7,6 +7,9 @@ Endpoints
 - ``POST /operator_decision``       {"obs_id", "decision": CONFIRM|REJECT, "operator"}
 - ``GET /evidence/{obs_id}``        display photo (annotated JPEG if present, else the frame)
 - ``GET /evidence/{obs_id}/frame``  the exact, unannotated evidence frame
+- ``GET /api/range``                 forward obstacle range card (team15.range_panel/1);
+                                    DISCONNECTED when no source is configured or answers. Not the
+                                    distance to any person candidate.
 
 Photos are never stored in Git. ``/evidence`` serves a path from the
 observation only if it is a JPEG/PNG inside one of the configured evidence
@@ -22,8 +25,10 @@ from pathlib import Path
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse, HTMLResponse
 
+from core import range_view
 from core.ingest import InvalidObservation
 from core.store import InvalidDecision, MissionStore, UnknownObservation
+from dashboard.range_source import RangeSource
 
 STATIC = Path(__file__).resolve().parent / "static"
 PHOTO_SUFFIXES = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png"}
@@ -37,8 +42,10 @@ def _roots(evidence_dir) -> list[Path]:
     return [Path(d).expanduser().resolve() for d in evidence_dir if str(d).strip()]
 
 
-def create_app(store: MissionStore | None = None, evidence_dir=None) -> FastAPI:
+def create_app(store: MissionStore | None = None, evidence_dir=None,
+               range_source: RangeSource | None = None) -> FastAPI:
     store = store if store is not None else MissionStore()
+    range_source = range_source if range_source is not None else RangeSource()
     roots = _roots(evidence_dir)
     app = FastAPI(title="Team 15 base station")
     app.state.store = store
@@ -85,6 +92,14 @@ def create_app(store: MissionStore | None = None, evidence_dir=None) -> FastAPI:
         except UnknownObservation:
             raise HTTPException(status_code=404, detail="unknown obs_id") from None
 
+    @app.get("/api/range")
+    def api_range(scenario: str | None = None, frame: int | None = None) -> dict:
+        try:
+            return range_source.view(scenario=scenario, frame=frame)
+        except Exception as e:  # malformed data must never take the card down or read CLEAR
+            return range_view.disconnected(f"unreadable range data: {type(e).__name__}",
+                                           source="FIXTURE" if range_source.fixture_mode else "LIVE")
+
     @app.get("/evidence/{obs_id}")
     def evidence(obs_id: str) -> FileResponse:
         return serve_photo(obs_id, ("annotated_ref", "frame_ref"))
@@ -104,7 +119,12 @@ def app_from_env() -> FastAPI:
             if line.strip():
                 store.add_observation(json.loads(line))
     dirs = [d for d in os.environ.get("TEAM15_EVIDENCE_DIR", "").split(os.pathsep) if d]
-    return create_app(store, evidence_dir=dirs)
+    env = os.environ.get
+    rs = RangeSource(range_url=env("TEAM15_RANGE_URL") or None,
+                     robot_url=env("TEAM15_ROBOT_URL") or None,
+                     fixture=env("TEAM15_RANGE_FIXTURE") or None,
+                     robot_fixture=env("TEAM15_ROBOT_FIXTURE") or None)
+    return create_app(store, evidence_dir=dirs, range_source=rs)
 
 
 app = app_from_env()
