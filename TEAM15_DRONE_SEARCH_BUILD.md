@@ -226,7 +226,7 @@ Names other than Mubashir were not provided — fill them in.
 - **Branch:** `worktree-t4-pi-ble`.
 - **Input:** none upstream. **Output:** a reachable `team15-pi.local`; BLE observations `kind=BLE_ENROLLED_BEACON` posted to `/observations`; Pi benchmark numbers in `docs/evidence/`.
 - **First task:** flash/boot Pi with hostname `team15-pi`, SSH key auth, wired link through the switch (§7.1); run the hardware identification commands; then the 60-minute BLE experiment (§9.3).
-- **Run:** `ssh team15@team15-pi.local 'cd Team-15 && source .venv/bin/activate && python -m ble.scan --uuid $TEAM15_UUID --post http://<mac-ip>:8000'`.
+- **Run:** `ssh $PI_USER@$PI_HOST 'cd Team-15 && source .venv/bin/activate && python -m ble.scan --uuid $TEAM15_UUID --post http://<mac-ip>:8000'`.
 - **Acceptance:** `ping team15-pi.local` works over Ethernet; `hailortcli fw-control identify` output pasted in PR; BLE result table filled (foreground / background / locked) with observer name and timestamp.
 
 ---
@@ -274,7 +274,7 @@ ssh-keygen -t ed25519 -C team15            # paste ~/.ssh/id_ed25519.pub into Im
 # Imager: device Raspberry Pi 5, Raspberry Pi OS 64-bit, hostname team15-pi, user t
 # Cable: Mac (USB/Ethernet adapter) ── Ethernet switch ── Pi
 ping team15-pi.local
-ssh team15@team15-pi.local
+ssh $PI_USER@$PI_HOST
 
 # On the Pi: identify and prepare
 cat /proc/device-tree/model; free -h; df -h; nproc
@@ -438,7 +438,7 @@ jobs:
 
 **Behaviors CI must exercise:** shortest valid route (A→G 60, C→K 20); blocked edge (J–K → 22) and unreachable (Y → NO_KNOWN_ROUTE); stale G packet after K does not move the marker; ambiguous K enters review instead of moving T1; two-people split; replay/recorded events never counted as live; duplicate obs_id idempotent; validator rejects motion arguments.
 
-**What CI does / does not do:** it runs our Python tests on a GitHub-hosted Ubuntu runner on every push and PR, using synthetic fixtures. It does **not** fly anything, touch a sensor, deploy to the Pi, or run Qwen. Pi deployment is manual: `rsync -av --exclude .venv ./ team15@team15-pi.local:Team-15/`.
+**What CI does / does not do:** it runs our Python tests on a GitHub-hosted Ubuntu runner on every push and PR, using synthetic fixtures. It does **not** fly anything, touch a sensor, deploy to the Pi, or run Qwen. Pi deployment is manual: `rsync -av --exclude .venv ./ $PI_USER@$PI_HOST:Team-15/`.
 
 ### 8.4 PR template (`.github/pull_request_template.md`)
 

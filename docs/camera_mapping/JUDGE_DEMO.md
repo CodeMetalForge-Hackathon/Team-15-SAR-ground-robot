@@ -1,5 +1,7 @@
 # Judge demonstration: five steps (about 5 minutes)
 
+> **Audit note (2026-11-08):** steps 2–4 below describe what happens **after** the mount has been measured (`python -m camera_mapping.calibrate set-mount`, see [CALIBRATION.md](CALIBRATION.md)). With the shipped config (`mount.measured` is false), the corridor stays **UNKNOWN** and no route is offered. Every recorded demo run so far shows exactly that. The measured live frame rate was 4.68 fps (live run 1) and 3.76 fps (live run 2), not "about 5 fps". Shutdown with SIGTERM was verified to leave no processes; interactive Ctrl-C was not independently verified. The honest demo flow is in [26_HACKATHON_DEMO_GUIDE.md](../26_HACKATHON_DEMO_GUIDE.md).
+
 **Setup (before the judges arrive).**
 
 - The robot is **stationary** and the camera looks down the corridor.

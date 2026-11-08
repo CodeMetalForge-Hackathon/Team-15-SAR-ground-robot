@@ -3,7 +3,7 @@
 ## 2026-11-07/08: RPLIDAR C1 migration, Stage A/B (user-authorized: implement, test, push a draft PR, then audit; no merge, no hardware)
 
 - Fetched origin/main: still **06a69b9**. Created worktree `~/Documents/Team-15-wt/rplidar-c1`, branch `feature/rplidar-c1-ground-robot`, from origin/main. I did not edit any other agent's worktree.
-- Read the merged contracts read-only: `ranging/` (Grove, PR #7), `rover/sensors.py` + `pi_io.py` (PR #8), `core/range_view.py` + `dashboard/range_source.py` (PR #5), and the Qwen `docs/SENSOR_FUSION_CONTRACT.md` (separate repo).
+- Read the merged contracts read-only: `ranging/` (Grove, PR #7), `rover/sensors.py` + `pi_io.py` (PR #8), `core/range_view.py` + `dashboard/range_source.py` (PR #5), and the Qwen `$QWEN_WORKSPACE/docs/SENSOR_FUSION_CONTRACT.md` (separate repo).
 - **Design decision:** the PR is purely additive. New: `lidar/`, `docs/lidar/`, `.github/workflows/lidar.yml`. **Zero edits** to `ranging/`, `rover/`, `dashboard/`, `core/`, `pytest.ini` and `requirements.txt`, so there is nothing to coordinate before merge and no shared-interface change.
 - Findings that shaped the adapters:
   - `rover/sensors.py:from_rover_fields` accepts only `source == "grove-ultrasonic"`. The LiDAR adapter uses the honest source `rplidar-c1`, so the rover rejects it (ERROR → UNKNOWN). That is the intended Stage B behaviour. Allowlisting is a rover-owner change (R1) after Issue #9.

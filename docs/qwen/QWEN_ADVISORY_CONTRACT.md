@@ -45,7 +45,7 @@ The advisory itself has these keys:
 
 ## Evidence (Team-15-Qwen workspace)
 
-- The port is behaviour-identical to the workspace implementation: 314 SIMULATED cases, schema validity on more than 300 recorded model outputs, and guard verdicts on adversarial outputs (`tests/test_team_port_parity.py` there).
+- The port is behaviour-identical to the workspace implementation: 314 SIMULATED cases, schema validity on more than 300 recorded model outputs, and guard verdicts on adversarial outputs (`$QWEN_WORKSPACE/tests/test_team_port_parity.py` in the Qwen workspace).
 - Benchmarks: on the frozen 60-case LiDAR set, no Qwen model, base or adapter, is reliable enough to decide anything. The policy, guard and fallback displayed a correct, never-more-permissive advisory in every evaluated case. So **Qwen output is optional explanatory text**, and the deterministic policy is the default.
 
 ## Not included (stays in Team-15-Qwen)
